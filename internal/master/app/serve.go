@@ -110,7 +110,7 @@ func serve(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	users := auth.NewService(db)
+	users := auth.NewService(db, conf)
 	nodes := node.NewService(db, ca, masterCert, conf)
 	defer nodes.Close()
 	names := logs.NewNames(nodes)
@@ -311,7 +311,7 @@ func Handler(s Services) http.Handler {
 	mux := http.NewServeMux()
 	authHandler.RegisterPublic(mux)
 	workflow.NewHandler(s.Workflows).RegisterPublic(mux)
-	settings.NewHandler(s.Settings, s.Restart).RegisterPublic(mux)
+	settings.NewHandler(s.Settings, s.Users, s.Restart).RegisterPublic(mux)
 	mux.Handle("/api/", authHandler.Require(s.Access.Middleware(api)))
 	mux.Handle("/", web.Handler())
 	// Webhooks are called with a token of their own, not with a session, from anywhere.
@@ -326,7 +326,7 @@ func API(s Services) *http.ServeMux {
 	api := http.NewServeMux()
 	m := access.NewMux(api, s.Moves.Guard, s.Logs.Audit())
 	access.NewHandler(s.Access, s.Users, s.Settings).Register(m)
-	settings.NewHandler(s.Settings, s.Restart).Register(m)
+	settings.NewHandler(s.Settings, s.Users, s.Restart).Register(m)
 	logs.NewHandler(s.Logs).Register(m)
 	notify.NewHandler(s.Notify, s.Tidy).Register(m)
 	terminal.NewHandler(s.Nodes, s.Settings, s.Logs, s.Moves.Check).Register(m)

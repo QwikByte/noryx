@@ -170,7 +170,12 @@ func addUser(ctx context.Context, cfg config, username string) error {
 		return err
 	}
 	defer db.Close()
-	user, err := auth.NewService(db).CreateUser(ctx, username, password)
+	// The password needs as many characters as the settings say.
+	conf, err := settings.Load(ctx, db, settings.Master{}, nil)
+	if err != nil {
+		return err
+	}
+	user, err := auth.NewService(db, conf).CreateUser(ctx, username, password)
 	if err == nil {
 		err = access.NewService(db).MakeAdmin(ctx, user.ID)
 	}

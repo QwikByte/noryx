@@ -85,6 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	})
 	handle := func(pattern string, fn http.HandlerFunc) { mux.HandleFunc(pattern, SessionOnly(fn)) }
 	handle("GET /api/auth/me", h.me)
+	handle("GET /api/auth/limits", h.limits)
 	handle("POST /api/auth/logout", h.logout)
 	handle("PUT /api/auth/password", perUser(h.changePassword))
 	handle("PUT /api/auth/language", h.setLanguage)
@@ -401,6 +402,18 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, r.Context().Value(userKey{}))
+}
+
+// limits tells the signed-in user what the settings say about the own account: how many
+// characters new passwords need, how many days new API tokens may last and after how many hours
+// without use sessions end, 0 for no limit.
+func (h *Handler) limits(w http.ResponseWriter, _ *http.Request) {
+	l := h.svc.limits
+	httpapi.WriteJSON(w, http.StatusOK, map[string]int{
+		"minPasswordLength": l.MinPasswordLength(),
+		"maxTokenDays":      int(l.MaxTokenLifetime().Hours() / 24),
+		"sessionIdleHours":  int(l.SessionIdleTimeout().Hours()),
+	})
 }
 
 // setLanguage stores the language of the panel the user chose.

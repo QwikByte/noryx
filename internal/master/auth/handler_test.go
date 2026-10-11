@@ -18,7 +18,7 @@ func TestRequireTellsVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	if _, err := svc.CreateUser(ctx, "admin", "a-long-enough-password"); err != nil {
 		t.Fatal(err)
 	}

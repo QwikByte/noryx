@@ -291,7 +291,7 @@ func (m *master) services(t *testing.T) masterapp.Services {
 	})
 	check(t, workflows.Start(t.Context()))
 	return masterapp.Services{
-		Users: auth.NewService(m.db), Access: accessService, Settings: m.settings, Nodes: nodes, Overlay: overlays,
+		Users: auth.NewService(m.db, m.settings), Access: accessService, Settings: m.settings, Nodes: nodes, Overlay: overlays,
 		Networks: networks, Plugins: plugins, GeyserMC: geyser, Mojang: mojang.New(m.mojang.URL, m.mojang.URL, m.mojang.URL+"/texture/"), Modpacks: modpack.NewService(m.db, nodes, modrinthClient), Templates: template.NewService(m.db, plugins), Tasks: tasks, Copies: copies,
 		FileSets: fileSets, Datastores: datastore.NewService(datastores, nodes, networks), Logs: m.logs, Updates: update.New(nodes, m.settings, m.update),
 		Usage: usageStore, Sightings: sightings, Tags: tags, Preferences: preference.NewStore(m.db), Operations: operation.New(m.quick), Moves: moves,

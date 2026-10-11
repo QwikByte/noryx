@@ -33,10 +33,11 @@ import { DesktopNotificationsSetting } from "@/features/notify/desktop-setting"
 import { useSettings } from "@/features/preferences/api"
 import { CodeSettings, ExportSettings, NavigationSettings, PowerSettings, TimesSettings } from "@/features/preferences/settings"
 import { useNoLanguage } from "@/features/settings/public"
-import { formatAgo, formatDateTime } from "@/lib/format"
+import { formatAgo, formatDateTime, formatHours } from "@/lib/format"
 import { languageName, languages, msg } from "@/lib/i18n"
 import { type Accent, accents, type Density, type Theme, useLook } from "@/lib/theme"
 import {
+  limitsQuery,
   meQuery,
   mfaQuery,
   type Session,
@@ -56,6 +57,7 @@ import { PasswordDialog } from "./password-dialog"
 /** The signed-in user's own account: how they sign in, and how the panel looks for them. */
 export function AccountPage() {
   const { data: user } = useQuery(meQuery)
+  const { data: limits } = useQuery(limitsQuery)
   const { canSomewhere } = useAccess()
   if (!user) return null
   return (
@@ -69,14 +71,14 @@ export function AccountPage() {
       <div className="surface rounded-xl px-5 sm:px-8 [&>section:last-child]:border-b-0">
         <FormSection title={t("Password")}>
           <AccountRow icon={KeyIcon} tone="info" title={t("Password")} actions={<PasswordDialog username={user.username} />}>
-            {t("At least 12 characters that you don't use anywhere else.")}
+            {limits && t("At least {{length}} characters that you don't use anywhere else.", { length: limits.minPasswordLength })}
           </AccountRow>
         </FormSection>
         <FormSection title={t("Two-factor authentication")}>
           <MfaSettings username={user.username} />
         </FormSection>
         <FormSection title={t("Sessions")}>
-          <Sessions />
+          <Sessions idleHours={limits?.sessionIdleHours} />
         </FormSection>
         <FormSection title={t("API tokens")}>
           <ApiTokens user={user} />
@@ -314,8 +316,11 @@ function MfaSettings({ username }: { username: string }) {
   )
 }
 
-/** Where the user is signed in, each with a way to sign out there, e.g. in a lost or shared browser. */
-function Sessions() {
+/**
+ * Where the user is signed in, each with a way to sign out there, e.g. in a lost or shared browser. Sessions end
+ * after idleHours without use, unless they are 0.
+ */
+function Sessions({ idleHours }: { idleHours?: number }) {
   const { data, isPending, error } = useQuery(sessionsQuery)
   const end = useEndSessions()
   if (isPending) return <Skeleton className="h-20 rounded-xl" />
@@ -328,6 +333,9 @@ function Sessions() {
     })
   return (
     <>
+      {!!idleHours && (
+        <p className="text-sm text-muted-foreground">{t("Sessions end after {{time}} without use.", { time: formatHours(idleHours) })}</p>
+      )}
       {data.map((session) => (
         <AccountRow
           key={session.id}

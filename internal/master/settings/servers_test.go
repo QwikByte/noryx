@@ -105,7 +105,7 @@ func TestWarnings(t *testing.T) {
 	put := func(g access.Grants, body string) int {
 		rec := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
-		NewHandler(s, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), g)))
+		NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), g)))
 		return rec.Code
 	}
 	editor := access.Admin().Only([]access.Permission{access.SettingsEdit})

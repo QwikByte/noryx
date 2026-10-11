@@ -188,7 +188,7 @@ func TestRefusedUpdate(t *testing.T) {
 	body := `{"nodeDefaults": {"portMin": 30000, "portMax": 70000, "memoryReserveMb": 2048}}`
 	r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	NewHandler(s, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+	NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
 	if l := s.NodeDefaults(); rec.Code != http.StatusBadRequest || l.PortMin != nil || *l.MemoryReserveMB != 1024 {
 		t.Fatalf("status %d, limits of new nodes %+v", rec.Code, l)
 	}
@@ -234,7 +234,7 @@ func TestRequireMFA(t *testing.T) {
 	body := `{"requireMfa": {"all": false, "groups": ["other"]}, "logDays": 0}`
 	r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	NewHandler(s, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+	NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
 	if r := s.Get().RequireMFA; rec.Code != http.StatusBadRequest || !slices.Equal(r.Groups, []string{"administrators", "mods"}) {
 		t.Fatalf("status %d, requirement %+v", rec.Code, r)
 	}
@@ -287,11 +287,11 @@ func TestPanelNameAndNotice(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	NewHandler(s, nil).RegisterPublic(mux)
+	NewHandler(s, noTokens{}, nil).RegisterPublic(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/panel", nil))
 	if body := strings.TrimSpace(rec.Body.String()); rec.Code != http.StatusOK ||
-		body != `{"name":"Noryx · Test","notice":"Ask Alex\nfor access.","defaults":{"language":"","theme":"","accent":"","density":"","clock":""}}` {
+		body != `{"name":"Noryx · Test","notice":"Ask Alex\nfor access.","defaults":{"language":"","theme":"","accent":"","density":"","clock":""},"minPasswordLength":12,"setupLinkHours":72}` {
 		t.Fatalf("status %d: %s", rec.Code, body)
 	}
 }

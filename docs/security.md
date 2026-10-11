@@ -49,6 +49,14 @@ line breaks of the notice, and public, as the sign-in page reads them without a 
 or images for them, so the Content Security Policy stays as strict. The defaults of users' language and look are public
 too, and only values that users can choose themselves.
 
+Passwords need 12 characters, or as many as the settings say, up to 64, counted as characters rather than bytes; a
+longer minimum applies to the passwords set from then on, also by `noryx-master user add`. Setup links are valid for
+3 days unless the settings say otherwise, from an hour to a week. Both are public, as the page of setup links shows them
+before anyone signs in. Sessions last as long as the settings say, and if they say so, also end after a number of hours
+without use, precise to the minute in which a session last noted its use: the master refuses such a session like an
+expired one and deletes it. Changing these limits needs the permission to change the master's settings and is logged;
+none of them lets passwords be shorter than 12 characters.
+
 ## Two-factor authentication
 
 Codes of the app (RFC 6238) work only once, and from the fifth wrong code in a row on, codes aren't checked for a minute
@@ -85,7 +93,11 @@ use a token in a browser: the master allows no cross-origin requests, so browser
 cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
 a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
 tokens without the permission they need. The log names the token besides the user in the entries of what it did, and a
-token notes the address and time of its last use at most once a minute.
+token notes the address and time of its last use at most once a minute. The settings can limit how long new tokens last,
+up to 10 years: the master then refuses tokens that don't expire or expire later; one asked to expire up to a day
+later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their expiry, and the
+settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for being unused
+like sessions, as they have a lifetime of their own.
 
 ## Networks
 

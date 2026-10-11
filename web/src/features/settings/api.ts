@@ -50,6 +50,12 @@ export interface MasterSettings {
   updateCheckHours: number
   /** The agents the master updates after itself. */
   updateAgents: UpdateAgents
+  /** How many characters new passwords need, and how many hours setup links are valid; both are public. */
+  minPasswordLength: number
+  setupLinkHours: number
+  /** How many days new API tokens may last, and after how many hours without use sessions end; 0 for no limit. */
+  maxTokenDays: number
+  sessionIdleHours: number
 }
 
 /** The certificate the panel serves. */
@@ -90,6 +96,8 @@ export interface Master {
 export interface SettingsView {
   settings: MasterSettings
   master: Master
+  /** How many API tokens of all users expire later than new ones may, or never. */
+  tokensOverLimit: number
 }
 
 export const settingsQuery = queryOptions({

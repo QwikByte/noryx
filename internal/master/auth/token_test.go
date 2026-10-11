@@ -25,7 +25,7 @@ func TestTokens(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	const password = "alices-long-password"
 	alice, err := svc.CreateUser(ctx, "alice", password)
 	if err != nil {
@@ -173,6 +173,48 @@ func TestTokens(t *testing.T) {
 	}
 }
 
+// The settings limit how long new tokens may last, which tokens made before may exceed: the
+// settings tell how many do.
+func TestTokenLifetime(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	unlimited, limited, ctx := NewService(db, config{}), NewService(db, config{maxToken: 90 * 24 * time.Hour}), t.Context()
+	const password = "alices-long-password"
+	alice, err := unlimited.CreateUser(ctx, "alice", password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := func(days int) time.Time { return time.Now().Add(time.Duration(days) * 24 * time.Hour) }
+	for name, expires := range map[string]time.Time{"never": {}, "a year": in(365), "a month": in(30)} {
+		if _, _, err := unlimited.CreateToken(ctx, alice.ID, password, "", TokenInput{Name: name, ExpiresAt: expires}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	over := func(svc *Service, want int) {
+		t.Helper()
+		if n, err := svc.TokensOverLimit(ctx); err != nil || n != want {
+			t.Fatalf("%d tokens over the limit, want %d: %v", n, want, err)
+		}
+	}
+	over(unlimited, 0)
+	over(limited, 2)
+
+	for _, expires := range []time.Time{{}, in(92)} {
+		if _, _, err := limited.CreateToken(ctx, alice.ID, password, "", TokenInput{Name: "long", ExpiresAt: expires}); err == nil {
+			t.Errorf("token expiring at %v created", expires)
+		}
+	}
+	// A browser whose clock is ahead gets the longest lifetime the settings allow.
+	token, _, err := limited.CreateToken(ctx, alice.ID, password, "", TokenInput{Name: "ahead", ExpiresAt: in(90).Add(time.Hour)})
+	if err != nil || token.ExpiresAt.After(in(90)) || token.ExpiresAt.Before(in(90).Add(-time.Minute)) {
+		t.Fatalf("token = %+v, %v", token, err)
+	}
+	over(limited, 2)
+}
+
 // Only tokens with their prefix in the Authorization header count; wrong ones take attempts
 // like wrong passwords, and they can't use the routes of their user's account.
 func TestRequireToken(t *testing.T) {
@@ -181,7 +223,7 @@ func TestRequireToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	const password = "alices-long-password"
 	alice, err := svc.CreateUser(ctx, "alice", password)
 	if err != nil {

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useChangePassword } from "./api"
+import { limitsQuery, useChangePassword } from "./api"
 
 const empty = { current: "", next: "", repeat: "" }
 
@@ -24,6 +25,7 @@ export function PasswordDialog({ username }: { username: string }) {
   const [form, setForm] = useState(empty)
   const change = useChangePassword()
   const mismatch = form.repeat !== "" && form.repeat !== form.next
+  const length = useQuery(limitsQuery).data?.minPasswordLength
 
   function onOpenChange(next: boolean) {
     setOpen(next)
@@ -80,11 +82,11 @@ export function PasswordDialog({ username }: { username: string }) {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={12}
+                minLength={length}
                 value={form.next}
                 onChange={(e) => setForm({ ...form, next: e.target.value })}
               />
-              <FieldDescription>{t("At least 12 characters.")}</FieldDescription>
+              {length && <FieldDescription>{t("At least {{length}} characters.", { length })}</FieldDescription>}
             </Field>
             <Field data-invalid={mismatch}>
               <FieldLabel htmlFor="password-repeat">{t("Repeat new password")}</FieldLabel>

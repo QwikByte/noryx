@@ -53,6 +53,7 @@ import {
 import { InviteGroupsField, UserDefaultsFields } from "./defaults-fields"
 import { NameFields } from "./name-fields"
 import { RestartButton } from "./restart-button"
+import { SignInFields } from "./sign-in-fields"
 
 /** The General tab: the running master and its settings. */
 export function GeneralSettingsPage() {
@@ -215,6 +216,10 @@ function formOf(s: MasterSettings) {
     warnings: s.warnings,
     updateCheckHours: s.updateCheckHours,
     updateAgents: s.updateAgents,
+    minPasswordLength: s.minPasswordLength,
+    setupLinkHours: s.setupLinkHours,
+    maxTokenDays: s.maxTokenDays,
+    sessionIdleHours: s.sessionIdleHours,
   }
 }
 
@@ -317,6 +322,7 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             />
             <FieldDescription>{t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}</FieldDescription>
           </Field>
+          <SignInFields value={form} onChange={set} />
           <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} />
         </FormSection>
 

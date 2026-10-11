@@ -46,7 +46,7 @@ func TestMFA(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	const password = "alices-long-password"
 	user, err := svc.CreateUser(ctx, "alice", password)
 	if err != nil {

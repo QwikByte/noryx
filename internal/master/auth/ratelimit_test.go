@@ -21,7 +21,7 @@ func TestSignInLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc := NewService(db)
+	svc := NewService(db, config{})
 	for _, name := range []string{"alice", "bob"} {
 		if _, err := svc.CreateUser(t.Context(), name, name+"s-long-password"); err != nil {
 			t.Fatal(err)
