@@ -18,11 +18,12 @@ import (
 )
 
 type config struct {
-	dataDir    string
-	socketPath string
-	listenAddr string
-	runtime    runtimeFlags
-	log        logging.Options
+	dataDir     string
+	socketPath  string
+	listenAddr  string
+	prereleases bool
+	runtime     runtimeFlags
+	log         logging.Options
 }
 
 func (c config) pkiDir() string { return filepath.Join(c.dataDir, "pki") }
@@ -54,6 +55,7 @@ func Command() *cobra.Command {
 		RunE:  func(cmd *cobra.Command, _ []string) error { return serve(cmd.Context(), cfg) },
 	}
 	serve.Flags().StringVar(&cfg.listenAddr, "listen", ":7443", "listen address for connections from the master")
+	serve.Flags().BoolVar(&cfg.prereleases, "prereleases", false, "let the master update this node to pre-releases too, e.g. a test node")
 	cfg.runtime.add(serve.Flags())
 	cfg.log.AddFlags(serve.Flags())
 

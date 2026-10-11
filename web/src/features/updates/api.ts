@@ -34,9 +34,16 @@ export interface UpdateStatus {
   checkError?: string
   /** Whether the master can update itself; otherwise it is updated on its host. */
   updatable: boolean
+  /** Whether the master offers pre-releases too, as --prereleases on its host says. */
+  prereleases: boolean
+  /** Whether the master updates the agents once it runs the new release. */
+  agentsFollow: boolean
   master?: Progress
   agents: OutdatedAgent[]
 }
+
+/** The agents the master updates once it runs a release installed from the panel: all that are older, or none. */
+export type UpdateAgents = "all" | "none"
 
 /** Updates the master on its host, for masters that weren't installed from a package. */
 export const updateCommand = "curl -fsSL https://github.com/QwikByte/noryx/releases/latest/download/install.sh | sudo bash -s -- update"

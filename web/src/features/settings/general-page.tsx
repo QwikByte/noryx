@@ -34,6 +34,7 @@ import { LimitsFields } from "@/features/nodes/limits-fields"
 import { NewServerFields } from "@/features/servers/new-server-fields"
 import { WarningFields } from "@/features/servers/warning-fields"
 import { UpdateCheck } from "@/features/updates/update-check"
+import { UpdateFields } from "@/features/updates/update-fields"
 import { ThresholdFields, ThresholdsHelp } from "@/features/usage/thresholds"
 import { formatDate, formatDateTime, formatDuration } from "@/lib/format"
 import { msg } from "@/lib/i18n"
@@ -212,6 +213,8 @@ function formOf(s: MasterSettings) {
     inviteGroups: s.inviteGroups,
     newServers: s.newServers,
     warnings: s.warnings,
+    updateCheckHours: s.updateCheckHours,
+    updateAgents: s.updateAgents,
   }
 }
 
@@ -382,12 +385,11 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             <FieldContent>
               <FieldLabel htmlFor="settings-check-updates">{t("Check for updates")}</FieldLabel>
               <FieldDescription>
-                {t(
-                  "The master asks GitHub for the latest release every 6 hours. Administrators then see a notice and install it with a click.",
-                )}
+                {t("The master asks GitHub for the latest release. Administrators then see a notice and install it with a click.")}
               </FieldDescription>
             </FieldContent>
           </Field>
+          <UpdateFields value={form} onChange={set} />
           {access.admin && <UpdateCheck />}
         </FormSection>
 

@@ -46,9 +46,10 @@ func TestUpdates(t *testing.T) {
 		return st
 	}
 
-	// Without a release, there is nothing to install; a failed check shows why.
+	// Without a release, there is nothing to install; a failed check shows why. Pre-releases
+	// are only offered with --prereleases on the master's host, and the agents follow the master.
 	st := post("/api/update/check")
-	if st.Latest != nil || st.CheckedAt == nil || st.CheckError != "" || st.Updatable || len(st.Agents) != 0 {
+	if st.Latest != nil || st.CheckedAt == nil || st.CheckError != "" || st.Updatable || len(st.Agents) != 0 || st.Prereleases || !st.AgentsFollow {
 		t.Fatalf("status without a release = %+v", st)
 	}
 	answer.Store(http.StatusBadGateway)
@@ -90,6 +91,13 @@ func TestUpdates(t *testing.T) {
 		check(t, err)
 	}
 
+	// The settings can keep the agents as they are after the master's update, so that
+	// administrators update them node by node.
+	api.do("PUT", "/api/settings", map[string]any{"updateAgents": "none"}, http.StatusOK, nil)
+	if api.do("GET", "/api/update", nil, http.StatusOK, &st); st.AgentsFollow {
+		t.Fatalf("status with the agents kept = %+v", st)
+	}
+
 	// The agent of one node is updated on its own only while it is online and older than the
 	// master, which it isn't here.
 	pending, _, err := m.nodes.Create(t.Context(), "node-2", "127.0.0.1:7443")
@@ -112,13 +120,15 @@ func TestUpdates(t *testing.T) {
 		apiClient{t: t, url: user.URL}.do(method, path, nil, http.StatusForbidden, nil)
 	}
 
-	// An agent only installs releases newer than itself, and only from its package.
+	// An agent only installs releases newer than itself, pre-releases only with --prereleases,
+	// and only from its package.
 	conn, err := m.nodes.Conn(t.Context(), a.node.ID)
 	check(t, err)
 	for version, want := range map[string]codes.Code{
 		"dev":              codes.InvalidArgument,
 		"v1":               codes.InvalidArgument,
 		"v99.0.0 --reboot": codes.InvalidArgument,
+		"v99.0.0-rc.1":     codes.InvalidArgument,
 		"v99.0.0":          codes.FailedPrecondition,
 	} {
 		_, err := noryxv1.NewNodeServiceClient(conn).Update(t.Context(), &noryxv1.UpdateRequest{Version: version})

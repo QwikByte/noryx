@@ -21,12 +21,16 @@ import (
 const installer = "/usr/lib/noryx-agent/install.sh"
 
 // Update implements noryxv1.NodeServiceServer. Only releases newer than the agent are
-// installed, so even a compromised master can't downgrade a node to a vulnerable version.
+// installed, so even a compromised master can't downgrade a node to a vulnerable version, and
+// pre-releases only where the node's administrator allows them.
 // The installer runs in a unit of its own, which outlives the restart of the agent.
 func (s *Service) Update(ctx context.Context, req *noryxv1.UpdateRequest) (*noryxv1.UpdateResponse, error) {
 	v := req.GetVersion()
 	if !buildinfo.IsRelease(v) || semver.Compare(v, buildinfo.Version) <= 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "%q is no release newer than the agent's version %s", v, buildinfo.Version)
+	}
+	if semver.Prerelease(v) != "" && !s.Prereleases {
+		return nil, status.Errorf(codes.InvalidArgument, "%s is a pre-release, which this node only installs with --prereleases in /etc/noryx/agent.env", v)
 	}
 	if _, err := os.Stat(installer); err != nil {
 		return nil, status.Error(codes.FailedPrecondition, "The agent wasn't installed from a package. Update it on the node with install.sh.")

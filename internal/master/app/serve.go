@@ -171,7 +171,7 @@ func serve(ctx context.Context, cfg config) error {
 	if err := workflows.Start(ctx); err != nil {
 		return err
 	}
-	updates := update.New(nodes, conf, update.Options{DataDir: cfg.dataDir})
+	updates := update.New(nodes, conf, update.Options{DataDir: cfg.dataDir, Prereleases: cfg.prereleases})
 	go updates.Run(ctx)
 	go usageStore.Run(ctx)
 	go overlays.Run(ctx)

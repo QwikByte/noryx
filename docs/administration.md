@@ -27,8 +27,9 @@ last (1 hour to a week, 12 hours by default), who has to use
 to a year, 30 days by default) and how much space the log may take
 ([100 MiB to 100 GiB, 2 GiB by default](monitoring.md#logs)), the thresholds at which the usage of servers and nodes
 warns ([Warnings](monitoring.md#warnings)), the port range and memory reserve that new nodes get, and whether the master
-looks for updates. Administrators can also look for an update right
-away.
+looks for updates, how often (every 1 to 24 hours, 6 by default) and whether it updates the agents after itself (see
+[Updates](installation.md#updates)). Administrators can also look for an update right away, and see whether the master
+offers [pre-releases](installation.md#pre-releases), which only an option on its host can change.
 
 **Name and notice** names the panel, e.g. `Noryx · Test` or a community's name, so that two panels don't look the same:
 in the title of the browser's tab, the sidebar and the sign-in page, as the sender and at the start of the subjects of

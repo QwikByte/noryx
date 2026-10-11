@@ -119,19 +119,33 @@ only accepts connections from the machine itself.
 
 ## Updates
 
-The master looks for a new release every 6 hours. Administrators then see a notice in the panel with the release notes
-and install it with **Install now**: the master installs the release, restarts on it, and then updates every agent to
-its version, also the one on its own machine. Running services restart; Minecraft servers keep running. The panel of
-every signed-in user reloads once the master runs the new version, unless that would lose something, such as unsaved
-changes in an editor or running uploads; then it waits until they are done. Agents that are older than the master, e.g.
-as they were offline or their update failed, are listed in the notice and in the **Agents** tab of the settings:
-**Update** next to one updates it alone, **Update all** in the notice all of them. The master updates all agents by
-itself only after **Install now**, so after updating it on its host, a release can be tried on one node first. The check
-can be turned off in the settings, e.g. for a master
-without internet access. While GitHub's API limits the requests of the master's IP address (60 an hour, shared with
-everything behind the same address), the master reads only the version from the release page, and the panel links to the
-release notes on GitHub. On the command line, `… | sudo bash -s -- update` updates what is installed; update the master
-first, then the nodes.
+The master looks for a new release every 6 hours, or as often as its settings say (every 1 to 24 hours). Administrators
+then see a notice in the panel with the release notes and install it with **Install now**: the master installs the
+release, restarts on it, and then updates every agent to its version, also the one on its own machine, unless
+**Update the agents after the master** is off in the settings; then they keep their version until they are updated
+node by node. Running services restart; Minecraft servers keep running. The panel of every signed-in user reloads once
+the master runs the new version, unless that would lose something, such as unsaved changes in an editor or running
+uploads; then it waits until they are done. Agents that are older than the master, e.g. as they were offline or their
+update failed, are listed in the notice and in the **Agents** tab of the settings: **Update** next to one updates it
+alone, **Update all** in the notice all of them. The master updates all agents by itself only after **Install now**, so
+after updating it on its host, a release can be tried on one node first. The check can be turned off in the settings,
+e.g. for a master without internet access. While GitHub's API limits the requests of the master's IP address (60 an
+hour, shared with everything behind the same address), the master reads only the version from the release page, and the
+panel links to the release notes on GitHub. On the command line, `… | sudo bash -s -- update` updates what is
+installed; update the master first, then the nodes.
+
+### Pre-releases
+
+Pre-releases, e.g. `v1.3.0-rc.1`, try out the next release, e.g. on a test panel. A machine only gets them once its
+administrator adds `--prereleases` to the options in `/etc/noryx/master.env` (`NORYX_MASTER_OPTS`) or
+`/etc/noryx/agent.env` (`NORYX_AGENT_OPTS`) and restarts the service; the panel can't change them and only shows that
+the master offers pre-releases. The master then offers the highest version among the 10 newest releases on GitHub,
+pre-releases included, and **Install now** installs it, as the installer reads the option from `master.env` too and
+checks the signature and checksums as for every release. Agents only install a pre-release with the option: without it,
+their update fails and says so, and they keep their version until the next release. While GitHub's API limits the
+requests of the master's IP address, the master only finds the latest release that isn't a pre-release, and installing
+a pre-release fails until the API answers again. `install.sh … --version latest` also takes pre-releases where the
+options of every program it installs name `--prereleases`.
 
 ## Files and logs
 

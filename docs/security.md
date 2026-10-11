@@ -627,3 +627,11 @@ The master can't install anything itself. To update, it only creates a file that
 installer of the installed package, checking the signature and the checksums. Agents only install releases newer than
 themselves, so even a compromised master can't downgrade a node to a vulnerable version, and the version must have the
 form of a release. `systemctl mask noryx-master-update.path` forbids updates from the panel.
+
+Pre-releases are only installed on machines whose administrator allows them with `--prereleases` in
+`/etc/noryx/master.env` or `/etc/noryx/agent.env`. These files belong to root, so neither the master nor the panel can
+change them; the panel only shows the master's option. `noryx-master-update` reads it from `master.env` itself and then
+installs the highest version among the newest releases, pre-releases included, with the same checks of the signature and
+the checksums. Agents refuse pre-releases without the option, so a compromised master can't put one on a node; agents
+of earlier versions still accept any newer pre-release. Whether the master updates the agents after itself and how
+often it looks for releases are settings, which only decide when it asks, not what is installed.

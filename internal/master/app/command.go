@@ -38,6 +38,7 @@ type config struct {
 	restartCode    int
 	enrollAddr     string
 	publicAddr     string
+	prereleases    bool
 	log            logging.Options
 }
 
@@ -68,6 +69,7 @@ func Command() *cobra.Command {
 	f.IntVar(&cfg.restartCode, "restart-exit-code", 0, "exit code for which the service manager starts the master again, e.g. systemd's RestartForceExitStatus; with it, administrators can restart the master from the panel")
 	f.StringVar(&cfg.enrollAddr, "enroll-addr", ":9443", "listen address of the enrollment endpoint")
 	f.StringVar(&cfg.publicAddr, "public-enroll-addr", "", "host:port agents use to reach the enrollment endpoint (default <hostname>:<enroll port>); the panel's settings can replace it")
+	f.BoolVar(&cfg.prereleases, "prereleases", false, "offer pre-releases as updates too, e.g. on a test panel; updates from the panel install them only if this option is in /etc/noryx/master.env, which their installer reads")
 	cfg.log.AddFlags(f)
 
 	user := &cobra.Command{Use: "user", Short: "Manage administrator accounts"}

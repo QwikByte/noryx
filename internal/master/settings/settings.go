@@ -46,6 +46,13 @@ const (
 	maxInviteGroups     = 100
 )
 
+// The master looks for updates every 1 to 24 hours, and updates all agents or none after itself.
+const (
+	maxUpdateCheckHours = 24
+	allAgents           = "all"
+	noAgents            = "none"
+)
+
 var (
 	hostname = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$`)
 	groupID  = regexp.MustCompile(`^[a-z0-9]{1,64}$`)
@@ -102,6 +109,12 @@ type Settings struct {
 	NewServers server.NewServers `json:"newServers"`
 	// Warnings tell how the players are warned before their servers restart or stop.
 	Warnings server.Warnings `json:"warnings"`
+
+	// UpdateCheckHours is how often the master looks for new releases. UpdateAgents are the
+	// agents it updates once it runs a release installed from the panel: all that are older, or
+	// none, so that administrators update them node by node.
+	UpdateCheckHours int    `json:"updateCheckHours"`
+	UpdateAgents     string `json:"updateAgents"`
 }
 
 // UserDefaults are the language and the look of the panel for users who haven't chosen them,
@@ -142,6 +155,7 @@ func defaults() Settings {
 		InviteGroups: []string{},
 		NewServers:   server.DefaultNewServers(),
 		Warnings:     server.DefaultWarnings(),
+		UpdateAgents: allAgents, UpdateCheckHours: 6,
 	}
 }
 
@@ -340,6 +354,14 @@ func (s *Service) LogMaxSize() int64 { return int64(s.Get().LogSizeMB) << 20 }
 // CheckUpdates implements update.Config.
 func (s *Service) CheckUpdates() bool { return s.Get().CheckUpdates }
 
+// UpdateCheckInterval implements update.Config.
+func (s *Service) UpdateCheckInterval() time.Duration {
+	return time.Duration(s.Get().UpdateCheckHours) * time.Hour
+}
+
+// UpdateAgentsAfterMaster implements update.Config.
+func (s *Service) UpdateAgentsAfterMaster() bool { return s.Get().UpdateAgents == allAgents }
+
 // Thresholds implements usage.Config.
 func (s *Service) Thresholds() usage.Defaults { return s.Get().Thresholds }
 
@@ -392,6 +414,10 @@ func validate(s Settings, panelAddr string) error {
 		return httpapi.Errorf(http.StatusBadRequest, "Enter a notice of up to %d characters of plain text for the sign-in page, or leave it empty.", maxSignInNotice)
 	case len(s.InviteGroups) > maxInviteGroups || slices.ContainsFunc(s.InviteGroups, func(id string) bool { return !groupID.MatchString(id) }):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that inviting a user preselects.", maxInviteGroups)
+	case s.UpdateCheckHours < 1 || s.UpdateCheckHours > maxUpdateCheckHours:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter how often the master looks for updates, from 1 to %d hours.", maxUpdateCheckHours)
+	case s.UpdateAgents != allAgents && s.UpdateAgents != noAgents:
+		return httpapi.Errorf(http.StatusBadRequest, "Choose whether the master updates all agents or none after itself.")
 	}
 	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate())
 }

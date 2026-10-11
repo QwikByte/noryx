@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query
 import { t } from "i18next"
 import type { NodeLimits } from "@/features/nodes/api"
 import type { NewServerSettings, WarningSettings } from "@/features/servers/api"
+import type { UpdateAgents } from "@/features/updates/api"
 import type { ThresholdDefaults } from "@/features/usage/api"
 import { api } from "@/lib/api"
 import { publicSettingsQuery, type UserDefaults } from "./public"
@@ -44,6 +45,11 @@ export interface MasterSettings {
   newServers: NewServerSettings
   /** How the players are warned before restarts and stops. */
   warnings: WarningSettings
+
+  /** How often the master looks for new releases, from 1 to 24 hours. */
+  updateCheckHours: number
+  /** The agents the master updates after itself. */
+  updateAgents: UpdateAgents
 }
 
 /** The certificate the panel serves. */

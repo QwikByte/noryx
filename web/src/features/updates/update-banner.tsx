@@ -70,9 +70,15 @@ function Available({ status, release }: { status: UpdateStatus; release: Release
               </Button>
             }
             title={t("Install {{version}}?", { version: release.version })}
-            description={t(
-              "The master installs the release and restarts, which interrupts the panel for a moment. Then it updates the agents. Minecraft servers keep running.",
-            )}
+            description={
+              status.agentsFollow
+                ? t(
+                    "The master installs the release and restarts, which interrupts the panel for a moment. Then it updates the agents. Minecraft servers keep running.",
+                  )
+                : t(
+                    "The master installs the release and restarts, which interrupts the panel for a moment. The agents keep their version until you update them. Minecraft servers keep running.",
+                  )
+            }
             action={t("Install now")}
             onConfirm={() => install.mutate(undefined, onError)}
           />
@@ -82,7 +88,7 @@ function Available({ status, release }: { status: UpdateStatus; release: Release
   )
 }
 
-function MasterProgress({ status: { master, latest } }: { status: UpdateStatus }) {
+function MasterProgress({ status: { master, latest, agentsFollow } }: { status: UpdateStatus }) {
   const retry = useUpdateAction("master")
   if (master?.error) {
     return (
@@ -102,7 +108,9 @@ function MasterProgress({ status: { master, latest } }: { status: UpdateStatus }
       role="status"
       title={latest ? t("Installing {{version}}…", { version: latest.version }) : t("Installing the update…")}
     >
-      {t("The master restarts on the new release, then the panel reloads and the agents are updated. Minecraft servers keep running.")}
+      {agentsFollow
+        ? t("The master restarts on the new release, then the panel reloads and the agents are updated. Minecraft servers keep running.")
+        : t("The master restarts on the new release, then the panel reloads. Minecraft servers keep running.")}
     </Callout>
   )
 }

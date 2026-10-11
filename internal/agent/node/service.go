@@ -21,6 +21,9 @@ type Service struct {
 	rt       runtime.Runtime
 	identity *Identity
 	storage  *storage.Locations
+	// Prereleases lets the master update the node to pre-releases too, which the node's
+	// administrator allows with --prereleases.
+	Prereleases bool
 }
 
 func NewService(rt runtime.Runtime, identity *Identity, locations *storage.Locations) *Service {

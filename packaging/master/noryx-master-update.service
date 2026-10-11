@@ -6,8 +6,9 @@ Wants=network-online.target
 
 [Service]
 # Runs as root to install packages, but takes no input from the master: it installs the latest
-# release, after checking its signature and checksums, and the master restarts on it. The
-# master then updates the agents, also one on this machine.
+# release, also a pre-release if /etc/noryx/master.env names --prereleases, after checking its
+# signature and checksums, and the master restarts on it. The master then updates the agents,
+# also one on this machine, unless its settings keep them as they are.
 Type=oneshot
 ExecStartPre=rm -f /var/lib/noryx-master/update-request
 ExecStart=/usr/lib/noryx-master/install.sh update --only master --version latest
