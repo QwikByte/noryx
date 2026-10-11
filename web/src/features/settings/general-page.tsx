@@ -53,6 +53,7 @@ import {
 import { InviteGroupsField, UserDefaultsFields } from "./defaults-fields"
 import { NameFields } from "./name-fields"
 import { RestartButton } from "./restart-button"
+import { RetentionFields } from "./retention-fields"
 import { SignInFields } from "./sign-in-fields"
 
 /** The General tab: the running master and its settings. */
@@ -204,6 +205,7 @@ function formOf(s: MasterSettings) {
     joinTokenMinutes,
     logDays,
     logSizeMb,
+    retention: s.retention,
     checkUpdates,
     requireMfa,
     thresholds: s.thresholds,
@@ -360,6 +362,10 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               )}
             </FieldDescription>
           </Field>
+        </FormSection>
+
+        <FormSection title={t("Retention")}>
+          <RetentionFields value={form.retention} onChange={(retention) => set({ retention })} />
         </FormSection>
 
         <FormSection title={t("Usage warnings")}>

@@ -124,6 +124,9 @@ type Settings struct {
 	SetupLinkHours    int `json:"setupLinkHours"`
 	MaxTokenDays      int `json:"maxTokenDays"`
 	SessionIdleHours  int `json:"sessionIdleHours"`
+
+	// Retention tells how long the usage, players seen and finished operations are kept.
+	Retention Retention `json:"retention"`
 }
 
 // Passwords never need fewer characters than they always did, and setup links are valid for a
@@ -175,6 +178,7 @@ func defaults() Settings {
 		Warnings:     server.DefaultWarnings(),
 		UpdateAgents: allAgents, UpdateCheckHours: 6,
 		MinPasswordLength: minPasswordLength, SetupLinkHours: 72,
+		Retention: Retention{UsageDays: 30, SeenPlayers: true, OperationHours: 1}, // SeenDays are the log's, see Load
 	}
 }
 
@@ -225,6 +229,8 @@ func Load(ctx context.Context, db *sql.DB, master Master, cert *pki.Holder) (*Se
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
+	// Players seen were kept as long as the log before they had a retention of their own.
+	current.Retention.SeenDays = cmp.Or(current.Retention.SeenDays, current.LogDays)
 	s := &Service{db: db, master: master, cert: cert}
 	s.current.Store(&current)
 	return s, nil
@@ -464,7 +470,7 @@ func validate(s Settings, panelAddr string) error {
 	case s.SessionIdleHours < 0 || s.SessionIdleHours > s.SessionHours:
 		return httpapi.Errorf(http.StatusBadRequest, "Enter after how many hours without use sessions end, from 1 to the %d hours they last, or never.", s.SessionHours)
 	}
-	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate())
+	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate(), s.Retention.validate())
 }
 
 // plainText tells whether s has at most n characters and no control characters but, if lines

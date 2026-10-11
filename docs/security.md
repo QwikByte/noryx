@@ -531,18 +531,21 @@ a new URL makes the old one useless.
 
 Agents report what their node and its servers use, so a compromised agent can make up or hide the usage and the warnings
 of its own node and servers, but of no others. The master records at most 500 servers of a node, with valid IDs only,
-and checks at most 32 storage locations with valid names, so that an agent can't fill its database or memory. Changing
-the thresholds of a server needs the permission to change its settings, of a node the permission to change the node,
-and warnings only show to those who may see the server or node.
+and checks at most 32 storage locations with valid names, so that an agent can't fill its database or memory; the
+averages of each hour, kept for up to a year, come from these minutes, a row per server and hour. Changing the
+thresholds of a server needs the permission to change its settings, of a node the permission to change the node, and
+warnings only show to those who may see the server or node.
 
 ## Players
 
 The master notes where players played from the names of the players online that the agents measure: the name, the
-server, the day and the minutes, never IP addresses or anything else about them, kept as long as the log and deleted
-with their server or node. A compromised agent can make up players of its own game servers, but the master records only
-names of players (16 letters, digits and `_`, or Floodgate's dot before), at most 1000 of a server per measurement and
-10,000 players and servers of a node per day, so that it can't fill the database. Users only see where players played
-on the servers they may see.
+server, the day and the minutes, never IP addresses or anything else about them, kept for as long as the settings say
+(1 day to a year) and deleted with their server or node. The settings can stop noting them, e.g. for privacy, which
+keeps what was noted until its time is up; deleting all of it at once needs the permission to change the master's
+settings, which can already stop noting players and keep them for a day. A compromised agent can make up players of its
+own game servers, but the master records only names of players (16 letters, digits and `_`, or Floodgate's dot
+before), at most 1000 of a server per measurement and 10,000 players and servers of a node per day, so that it can't
+fill the database. Users only see where players played on the servers they may see.
 
 The faces of players send their names to Mojang, and those of Bedrock players to GeyserMC; the master asks for them,
 only over HTTPS and from fixed hosts, and fetches skins only from Minecraft's textures server by the ID of a texture,

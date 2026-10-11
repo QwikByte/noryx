@@ -4,7 +4,7 @@ What nodes, servers and datastores use, and who did what.
 
 ## Usage
 
-The panel shows what nodes, servers and [datastores](databases.md#usage) use, now and during the last week.
+The panel shows what nodes, servers and [datastores](databases.md#usage) use, now and during the last weeks or months.
 
 ### Current values
 
@@ -22,11 +22,20 @@ datastores of their node too, and the size of their data every minute.
 
 ### History
 
-The master records the latest measurement of every agent each minute and keeps it for a week. Charts show the last 24
-hours (averages of 5 minutes) or 7 days (averages of 30 minutes), with the most players and the largest size of the data
-of each step, and a table shows the same values; the range and the view each user chose last apply again, in all their
-browsers. Gaps are times in which a server didn't run or its node couldn't be reached. The history of a server moves and goes away with it, that of a datastore goes away with it. Thresholds and
-warnings are only for nodes and servers.
+The master records the latest measurement of every agent each minute and keeps it for a week. Once an hour has ended,
+it also keeps the averages of that hour, with the most players and connections and the largest size of the data, for as
+long as **Settings → General → Retention** says: 30 days to a year, 30 days by default. Each hour is averaged once,
+also when the master was stopped meanwhile, as long as its minutes are still there. 30 days of hours take about a
+fourteenth of the space of the week of minutes, a year almost as much.
+
+Charts show the last 24 hours (averages of 5 minutes) or 7 days (averages of 30 minutes) from the minutes, and the
+last 30 days (averages of 2 hours), 90 days (of 6 hours, if the hours are kept for 90 days) or 365 days (of a day, if
+they are kept for a year) from the hours, which end with the last full hour and weigh as many minutes as they have.
+Each step has the most players and the largest size of the data of its time, and a table shows the same values; the
+range and the view each user chose last apply again, in all their browsers, and a range that the settings no longer
+keep shows the longest one they do. Gaps are times in which a server didn't run or its node couldn't be reached. The
+history of a server moves and goes away with it, that of a datastore goes away with it. Thresholds and warnings are
+only for nodes and servers.
 
 ### Warnings
 

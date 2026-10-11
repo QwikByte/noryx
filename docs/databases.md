@@ -36,12 +36,13 @@ sets that use it show their servers as outdated until they are applied again.
 ## Usage
 
 Each datastore on the tab shows its CPU, its memory of its limit and its connections now, with small lines of the last
-24 hours; **History** charts them and the size of its data over the last day or week, like the history of a server.
-The agent measures them every 5 seconds next to those of the servers: CPU and memory like `docker stats`, and the
-clients connected to the engine, without its own query, which it builds itself (`information_schema.PROCESSLIST` of
-MariaDB, `pg_stat_activity` of PostgreSQL); a datastore that isn't ready yet tells no connections. The master records
-them every minute while the datastore runs and keeps them for a week, and deleting the datastore deletes them. Those who
-may see datastores see its usage.
+24 hours; **History** charts them and the size of its data over the last day, week or longer, like the
+[history](monitoring.md#history) of a server. The agent measures them every 5 seconds next to those of the servers: CPU
+and memory like `docker stats`, and the clients connected to the engine, without its own query, which it builds itself
+(`information_schema.PROCESSLIST` of MariaDB, `pg_stat_activity` of PostgreSQL); a datastore that isn't ready yet tells
+no connections. The master records them every minute while the datastore runs and keeps them for a week, and the
+averages of each hour as long as the settings say, and deleting the datastore deletes them. Those who may see
+datastores see its usage.
 
 ## Browsing
 

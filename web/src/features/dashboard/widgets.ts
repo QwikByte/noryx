@@ -15,7 +15,7 @@ import {
 import type { ReactNode } from "react"
 import type { Access } from "@/features/access/use-access"
 import type { Widget } from "@/features/preferences/api"
-import { ranges } from "@/features/usage/api"
+import { alwaysKept, ranges } from "@/features/usage/api"
 import { msg } from "@/lib/i18n"
 import { RecentActivity } from "./activity"
 import { Figures } from "./figures"
@@ -88,7 +88,7 @@ export const widgets: WidgetDef[] = [
         ],
         default: "cpu",
       },
-      { key: "range", label: msg("Time range"), values: Object.entries(ranges).map(([value, r]) => ({ value, label: r.label })), default: "day" },
+      { key: "range", label: msg("Time range"), values: alwaysKept.map((value) => ({ value, label: ranges[value].label })), default: "day" },
       nodes,
     ],
     Component: Resources,

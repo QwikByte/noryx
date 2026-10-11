@@ -56,6 +56,19 @@ export interface MasterSettings {
   /** How many days new API tokens may last, and after how many hours without use sessions end; 0 for no limit. */
   maxTokenDays: number
   sessionIdleHours: number
+  /** How long the usage, players seen and finished operations are kept. */
+  retention: Retention
+}
+
+/**
+ * How long the master keeps the averages of each hour of usage (30 to 365 days) beyond the week of minutes, where players
+ * played (1 to 365 days), unless it doesn't record that, and finished operations (1 to 24 hours).
+ */
+export interface Retention {
+  usageDays: number
+  seenPlayers: boolean
+  seenDays: number
+  operationHours: number
 }
 
 /** The certificate the panel serves. */

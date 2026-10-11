@@ -31,7 +31,7 @@ hollow while they are stopped; a block names its server when pointed at and open
 
 While customizing, the gear of a widget holds its options, which apply right away: how many servers **Most players**
 lists, how many entries **Recent activity** shows and from which level, and how many next runs **Schedules** lists (5,
-10 or 20, the latter two also 8 as they do unless chosen), the measure and range of **Node load** (24 hours or 7 days),
+10 or 20, the latter two also 8 as they do unless chosen), the measure and range of **Node load** (24 hours, 7 or 30 days),
 and the nodes that the server map, **Nodes** and **Node load** show and the networks that **Networks** shows, all unless
 some are chosen. **Node load** also keeps the measure chosen in its header. A widget whose chosen nodes or networks are
 all gone shows all of them again. The master keeps the options with the layout and refuses options and values a widget
@@ -154,8 +154,9 @@ Long actions run as **operations**: creating, copying and changing servers, stop
 image or modpack, installing plugins on many servers, backing up and restoring, and the actions on networks and on many
 servers at once. The panel shows their steps as they go, e.g. how much of a server image is downloaded or how many
 servers of a network are configured. A dialog can't be closed by mistake meanwhile; **Continue in the background** hands the
-operation to a notification, which follows it to its end and links to its result. The operations of the last hour, also
-those of other users, are in the list behind the button next to the warnings. The master runs them in the background:
+operation to a notification, which follows it to its end and links to its result. The operations of the last hour, or
+of up to a day as the [settings](administration.md#general) say, also those of other users, are in the list behind the
+button next to the warnings. The master runs them in the background:
 an answer comes right away if the action ends within a second, otherwise `202 Accepted` with the operation, which
 `GET /api/operations/{id}` follows, so that neither a closed browser nor a proxy in front of the master cuts it off. The
 master can't restart while one runs. Agents tell the progress of their part, e.g. the bytes of a download, through

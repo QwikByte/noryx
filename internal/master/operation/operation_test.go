@@ -91,6 +91,27 @@ func TestList(t *testing.T) {
 	}
 }
 
+type kept time.Duration
+
+func (k kept) OperationsKept() time.Duration { return time.Duration(k) }
+
+// Finished operations are listed as long as the settings say.
+func TestKeep(t *testing.T) {
+	ops := New(time.Minute)
+	ops.KeepFor(kept(2 * time.Hour))
+	run(ops, func(context.Context) (any, error) { return nil, nil })
+	ops.mu.Lock()
+	ops.ops[0].FinishedAt = new(time.Now().Add(-90 * time.Minute))
+	ops.mu.Unlock()
+	if len(ops.List(auth.User{}, access.Grants{})) != 1 {
+		t.Fatal("an operation that ended 90 minutes ago isn't listed for 2 hours")
+	}
+	ops.KeepFor(kept(time.Hour))
+	if len(ops.List(auth.User{}, access.Grants{})) != 0 {
+		t.Fatal("an operation that ended 90 minutes ago is listed for an hour")
+	}
+}
+
 // cancellable runs an operation that waits until it is cancelled, which those may cancel who
 // may create servers everywhere; others may see it if visible.
 func cancellable(ops *Operations, visible bool, task Task) {

@@ -2,7 +2,7 @@
 // which may download its image first. The panel follows their steps and progress, and learns
 // how they ended, also if the browser went away meanwhile or a proxy in front of the master
 // gave up waiting. Operations whose steps can stop safely can be cancelled. Operations live
-// in memory: the master shows those of the last hour.
+// in memory: the master shows those that ended within the time the settings say.
 package operation
 
 import (
@@ -21,12 +21,15 @@ import (
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
-const (
-	keep    = time.Hour // how long finished operations are listed
-	maxKept = 200       // finished operations listed at most
-)
+// maxKept is the most finished operations listed.
+const maxKept = 200
 
-// Operation is an action in progress, or one that ended within the last hour.
+// Config tells how long finished operations are listed. It can change at any time.
+type Config interface {
+	OperationsKept() time.Duration
+}
+
+// Operation is an action in progress, or one that ended recently.
 type Operation struct {
 	ID string `json:"id"`
 	// Kind tells what the operation does, e.g. server.create; the panel names it.
@@ -98,16 +101,24 @@ type entry struct {
 	skipped   bool // Each left servers out, as it was cancelled
 }
 
-// Operations are the operations in progress and those that ended within the last hour.
+// Operations are the operations in progress and those that ended recently.
 type Operations struct {
 	quick time.Duration
+	keep  func() time.Duration // how long finished operations are listed
 	mu    sync.Mutex
 	ops   []*entry // oldest first
 }
 
 // New returns the operations. Requests whose operation ends within quick are answered like
 // ordinary requests, with the result or the error; 0 always answers 202 Accepted at once.
-func New(quick time.Duration) *Operations { return &Operations{quick: quick} }
+// Finished operations are listed for an hour, unless KeepFor says otherwise.
+func New(quick time.Duration) *Operations {
+	return &Operations{quick: quick, keep: func() time.Duration { return time.Hour }}
+}
+
+// KeepFor lists finished operations for as long as conf says, still at most maxKept. Call it
+// before Run.
+func (o *Operations) KeepFor(conf Config) { o.keep = conf.OperationsKept }
 
 // Run starts an operation and answers the request: like an ordinary request if the
 // operation ends within quick, otherwise with 202 Accepted and the operation, which goes on.
@@ -159,7 +170,13 @@ func (o *Operations) Run(w http.ResponseWriter, r *http.Request, spec Spec, task
 func (o *Operations) add(e *entry) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	finished := 0
+	o.prune()
+	o.ops = append(o.ops, e)
+}
+
+// prune forgets the finished operations that are no longer listed, while o.mu is held.
+func (o *Operations) prune() {
+	finished, keep := 0, o.keep()
 	for _, old := range o.ops {
 		if old.FinishedAt != nil {
 			finished++
@@ -172,7 +189,6 @@ func (o *Operations) add(e *entry) {
 		}
 		return gone
 	})
-	o.ops = append(o.ops, e)
 }
 
 // finish records how an operation ended, and logs it if the request was answered before.
@@ -264,6 +280,7 @@ func (e *entry) checkCancel(whom owner, grants access.Grants) error {
 func (o *Operations) List(user auth.User, grants access.Grants) []Operation {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.prune()
 	whom, ops := ownerOf(user), []Operation{}
 	for _, e := range slices.Backward(o.ops) {
 		if e.sees(whom, grants) {

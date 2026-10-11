@@ -146,6 +146,7 @@ func serve(ctx context.Context, cfg config) error {
 	moves := server.NewMoves()
 	// Requests whose operation takes longer are answered right away, and the operation goes on.
 	ops := operation.New(time.Second)
+	ops.KeepFor(conf)
 	overlays := overlay.NewService(db, nodes)
 	datastores := datastore.NewStore(db, nodes, overlays)
 	networks := network.NewService(db, nodes, plugins, overlays, datastores)

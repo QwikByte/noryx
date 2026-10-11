@@ -23,8 +23,8 @@ these settings don't apply. **Restart master**, for administrators, stops the ma
 settings apply right away: the enrollment address join tokens contain (it replaces `--public-enroll-addr`; empty uses
 the flag again), how long join tokens are valid (5 minutes to a day, 1 hour by default), how long sign-ins to the panel
 last (1 hour to a week, 12 hours by default), who has to use
-[two-factor authentication](#two-factor-authentication), how long log entries and where players played are kept (1 day
-to a year, 30 days by default) and how much space the log may take
+[two-factor authentication](#two-factor-authentication), how long log entries are kept (1 day to a year, 30 days by
+default) and how much space the log may take
 ([100 MiB to 100 GiB, 2 GiB by default](monitoring.md#logs)), the thresholds at which the usage of servers and nodes
 warns ([Warnings](monitoring.md#warnings)), the port range and memory reserve that new nodes get, and whether the master
 looks for updates, how often (every 1 to 24 hours, 6 by default) and whether it updates the agents after itself (see
@@ -42,6 +42,13 @@ account page only offers the lifetimes within it; tokens created before keep the
 many of them expire later or never, which their users can revoke. The page of setup links shows the minimum length and
 how long links are valid before anyone signs in, so both are public, also from `GET /api/panel`; signed-in users read
 the limits of their account from `GET /api/auth/limits`.
+
+**Retention** sets how long the master keeps what it records besides the log: the averages of each hour of the
+[usage](monitoring.md#history) (30 days to a year, 30 days by default), whose charts reach as far, beyond the week of
+minutes; where [players played](players.md#a-players-page) (1 day to a year, by default as long as the log was kept
+before this setting came), which **Record players seen** can also turn off, e.g. for privacy, and then offers to delete
+what was recorded; and how long finished [operations](panel.md#operations) are listed (1 to 24 hours, 1 hour by
+default, at most the last 200). Shorter times delete what is older within an hour.
 
 **Name and notice** names the panel, e.g. `Noryx · Test` or a community's name, so that two panels don't look the same:
 in the title of the browser's tab, the sidebar and the sign-in page, as the sender and at the start of the subjects of

@@ -103,7 +103,7 @@ var settings = map[string][]string{
 	"pluginType":       {"all", "paper", "purpur", "folia", "leaf", "velocity", "bungeecord", "waterfall"},
 	"modType":          {"all", "fabric", "quilt", "forge", "neoforge"},
 	"serverPluginSort": {"name", "size"},
-	"usageRange":       {"day", "week"},
+	"usageRange":       {"day", "week", "month", "quarter", "year"},
 	"usageView":        {"charts", "table"},
 	// The least level the log shows where its address names none; without, it shows all.
 	"logLevel": {"info", "warn", "error"},
@@ -139,7 +139,7 @@ var settings = map[string][]string{
 var widgetOptions = map[string]map[string][]string{
 	"server-map":  {"nodes": nil},
 	"nodes":       {"nodes": nil},
-	"resources":   {"measure": {"cpu", "memory"}, "range": {"day", "week"}, "nodes": nil},
+	"resources":   {"measure": {"cpu", "memory"}, "range": {"day", "week", "month"}, "nodes": nil},
 	"networks":    {"networks": nil},
 	"top-servers": {"count": {"5", "10", "20"}},
 	"activity":    {"count": {"5", "8", "10", "20"}, "level": {"info", "warn", "error"}},

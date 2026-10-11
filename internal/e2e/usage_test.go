@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,6 +36,25 @@ func TestUsage(t *testing.T) {
 		t.Fatalf("latest = %+v", latest)
 	}
 	api.do("GET", "/api/nodes/"+lobby.NodeID+"/servers/"+lobby.ServerID+"/usage/history?range=week", nil, http.StatusOK, nil)
+	api.do("GET", "/api/nodes/"+lobby.NodeID+"/usage/history?range=decade", nil, http.StatusBadRequest, nil)
+
+	// Ranges beyond the week come from the hours, as far as the settings keep them.
+	var ranges []string
+	api.do("GET", "/api/usage/ranges", nil, http.StatusOK, &ranges)
+	if !slices.Equal(ranges, []string{"day", "week", "month"}) {
+		t.Fatalf("ranges = %v", ranges)
+	}
+	api.do("GET", "/api/nodes/"+lobby.NodeID+"/usage/history?range=month", nil, http.StatusOK, nil)
+	api.do("GET", "/api/nodes/"+lobby.NodeID+"/usage/history?range=quarter", nil, http.StatusBadRequest, nil)
+	var s struct{ Settings settings.Settings }
+	api.do("GET", "/api/settings", nil, http.StatusOK, &s)
+	s.Settings.Retention.UsageDays = 90
+	api.do("PUT", "/api/settings", s.Settings, http.StatusOK, nil)
+	api.do("GET", "/api/usage/ranges", nil, http.StatusOK, &ranges)
+	if !slices.Equal(ranges, []string{"day", "week", "month", "quarter"}) {
+		t.Fatalf("ranges kept for 90 days = %v", ranges)
+	}
+	api.do("GET", "/api/nodes/"+lobby.NodeID+"/servers/"+lobby.ServerID+"/usage/history?range=quarter", nil, http.StatusOK, nil)
 	api.do("GET", "/api/nodes/"+lobby.NodeID+"/usage/history?range=year", nil, http.StatusBadRequest, nil)
 }
 

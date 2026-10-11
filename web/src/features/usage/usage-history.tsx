@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useChoice } from "@/features/preferences/api"
 import { cn } from "@/lib/utils"
-import { type HistoryPoint, type HistoryQuery, type UsagePoint, type UsageRange, ranges } from "./api"
+import { alwaysKept, type HistoryPoint, type HistoryQuery, keptRangesQuery, type UsagePoint, type UsageRange, ranges } from "./api"
 import { type ChartSeries, TimeChart } from "./time-chart"
 import { locale, timeZone } from "@/lib/i18n"
 
@@ -24,7 +24,7 @@ export interface ChartSpec<P extends HistoryPoint = UsagePoint> {
 /**
  * The history of a node, of one of its servers or of a datastore, as charts or a table. The
  * range applies to all of them; the range and the view chosen last apply again, also to other nodes, servers and
- * datastores.
+ * datastores. It offers the ranges that the master keeps.
  */
 export function UsageHistory<P extends HistoryPoint>({
   history,
@@ -35,9 +35,12 @@ export function UsageHistory<P extends HistoryPoint>({
   charts: ChartSpec<P>[]
   className?: string
 }) {
-  const [range, setRange] = useChoice("usageRange", "day")
+  const [chosen, setRange] = useChoice("usageRange", "day")
   const [view, setView] = useChoice("usageView", "charts")
-  const { data, error, isPlaceholderData, dataUpdatedAt } = useQuery(history(range))
+  const { data: kept = alwaysKept, isPending } = useQuery(keptRangesQuery)
+  // A range chosen while the master kept the usage longer shows the longest one it keeps now.
+  const range = kept.includes(chosen) ? chosen : kept[kept.length - 1]
+  const { data, error, isPlaceholderData, dataUpdatedAt } = useQuery({ ...history(range), enabled: !isPending })
 
   return (
     <Section
@@ -49,7 +52,7 @@ export function UsageHistory<P extends HistoryPoint>({
             label={t("Time range")}
             value={range}
             onChange={setRange}
-            options={Object.entries(ranges).map(([value, r]) => ({ value: value as UsageRange, label: t(r.label) }))}
+            options={kept.map((value) => ({ value, label: t(ranges[value].label) }))}
           />
           <Segmented
             label={t("View")}
