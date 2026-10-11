@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -76,7 +77,8 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 			Name: req.Name, Type: noryxv1.ParseServerType(req.Type), Version: req.Version, MemoryMb: req.MemoryMB, Port: req.Port,
 			AcceptEula: req.AcceptEULA, Storage: req.Storage, Java: req.Java, RestartPolicy: policy, AikarFlags: req.AikarFlags,
 			JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout,
-			TimeZone: req.TimeZone,
+			TimeZone: req.TimeZone, HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
+			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 		}}, archive)
 	}
 	var tooLarge *http.MaxBytesError
@@ -98,7 +100,7 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 		LeftOut []string `json:"leftOut"`
 		// Warning tells what the server didn't get from an older agent.
 		Warning string `json:"warning,omitempty"`
-	}{toView(srv), append([]string{}, res.GetLeftOut()...), olderAgentWarning(req.StopTimeout, req.TimeZone, srv)})
+	}{toView(srv), append([]string{}, res.GetLeftOut()...), strings.TrimSpace(olderAgentWarning(req.StopTimeout, req.TimeZone, srv) + " " + olderAgentAdvanced(req.advanced, srv))})
 }
 
 // readImport reads the settings of an imported server from the part "server" of a request,

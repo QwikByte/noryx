@@ -199,6 +199,9 @@ type settings struct {
 	StopTimeout uint32 `json:"stopTimeout"`
 	// TimeZone is an IANA time zone such as Europe/Berlin; empty means UTC.
 	TimeZone string `json:"timeZone"`
+	// ExtraPorts are ports of plugins, e.g. of a web map, which the node publishes.
+	ExtraPorts []ExtraPort `json:"extraPorts"`
+	advanced
 }
 
 // check validates the settings that the agent can't, and converts the restart policy
@@ -223,6 +226,8 @@ func toView(s *noryxv1.Server) view {
 			Java: s.GetJava(), LoaderVersion: s.GetLoaderVersion(), RestartPolicy: s.GetRestartPolicy().Slug(), AikarFlags: s.GetAikarFlags(),
 			JVMOptions: append([]string{}, s.GetJvmOptions()...), CPULimit: float64(s.GetCpuMillis()) / 1000,
 			StopTimeout: stopSeconds(s.GetStopTimeoutSeconds()), TimeZone: s.GetTimeZone(),
+			ExtraPorts: extraPortsOf(s),
+			advanced:   advancedOf(s),
 		},
 	}
 }
@@ -378,6 +383,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err == nil && (len(req.Plugins) > 0 || req.Modpack != nil) && !grants.On(access.Plugins, nodeID, "") {
 		err = access.Denied(access.Plugins)
 	}
+	if err == nil {
+		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, 0)
+	}
 	release := noRelease
 	if err == nil {
 		release, err = h.checkLimits(ctx, nodeID, "", req.Port, req.MemoryMB)
@@ -385,6 +393,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
+	}
+	if req.Modpack != nil && req.HealthStart == 0 {
+		req.HealthStart = modpack.HealthStart
 	}
 	steps := []string{"image", "container"}
 	if req.Modpack != nil {
@@ -404,6 +415,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			Port: req.Port, AcceptEula: req.AcceptEULA, Storage: req.Storage, Java: req.Java, RestartPolicy: policy,
 			AikarFlags: req.AikarFlags, JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, Properties: req.Properties,
 			LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout, TimeZone: req.TimeZone,
+			ExtraPorts:         ProtoPorts(req.ExtraPorts),
+			HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
+			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 		}
 		var pack *modpack.Pack
 		if req.Modpack != nil {
@@ -452,6 +466,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			// Warning tells what the server didn't get, e.g. from an older agent.
 			Warning string `json:"warning,omitempty"`
 		}{view: toView(res.GetServer()), Warning: olderAgentWarning(req.StopTimeout, req.TimeZone, res.GetServer())}
+		created.Warning = strings.TrimSpace(created.Warning + " " + olderAgentAdvanced(req.advanced, res.GetServer()))
+		created.Warning = strings.TrimSpace(created.Warning + " " + extraPortsWarning(len(req.ExtraPorts), res.GetServer()))
 		if len(tags) > 0 {
 			logging.Note(ctx, slog.Any("tags", tags))
 			if err := h.tags.Change(ctx, []tag.Server{{NodeID: nodeID, ServerID: id}}, tags, nil); err != nil {
@@ -612,6 +628,9 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		current, err = h.find(ctx, nodeID, id)
 	}
+	if err == nil {
+		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, current.GetBedrockPort())
+	}
 	release := noRelease
 	if err == nil {
 		release, err = h.checkLimits(ctx, nodeID, id, req.Port, req.MemoryMB)
@@ -632,6 +651,9 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 				Id: id, Name: req.Name, Version: req.Version, MemoryMb: req.MemoryMB, Port: req.Port,
 				Java: req.Java, RestartPolicy: policy, AikarFlags: req.AikarFlags, JvmOptions: req.JVMOptions, CpuMillis: cpuMillis,
 				LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout, TimeZone: req.TimeZone,
+				ExtraPorts:         ProtoPorts(req.ExtraPorts),
+				HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
+				UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 			})
 			return err
 		})
@@ -649,6 +671,8 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		updated.Warning = strings.TrimSpace(updated.Warning + " " + olderAgentWarning(req.StopTimeout, req.TimeZone, res.GetServer()))
+		updated.Warning = strings.TrimSpace(updated.Warning + " " + olderAgentAdvanced(req.advanced, res.GetServer()))
+		updated.Warning = strings.TrimSpace(updated.Warning + " " + extraPortsWarning(len(req.ExtraPorts), res.GetServer()))
 		return updated, nil
 	})
 }

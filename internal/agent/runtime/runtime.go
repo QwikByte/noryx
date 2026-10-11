@@ -93,12 +93,38 @@ type Spec struct {
 	// Overlay is the node's address in the private network of the nodes, where a backend
 	// publishes its port for its proxy on another node; empty publishes it on all addresses.
 	Overlay string `json:"overlay,omitempty"`
+	// ExtraPorts are ports of plugins, e.g. of a web map, which the node publishes on all its
+	// addresses, also for a backend.
+	ExtraPorts []ExtraPort `json:"extraPorts,omitempty"`
+	// HealthStart is how many minutes a game server gets to start before its failed health
+	// checks count; 0 means the default.
+	HealthStart uint32 `json:"healthStart,omitempty"`
+	// CrashLimit is after how many crashes in a row the agent stops the server, each within
+	// StableAfter minutes of its start; 0 means the default of each.
+	CrashLimit  uint32 `json:"crashLimit,omitempty"`
+	StableAfter uint32 `json:"stableAfter,omitempty"`
+	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
+	// unhealthy, which counts as a crash; 0 means never.
+	UnhealthyRestart uint32 `json:"unhealthyRestart,omitempty"`
+	// ProcessLimit is how many processes and threads the container may run; 0 means the default.
+	ProcessLimit uint32 `json:"processLimit,omitempty"`
+	// InitMemoryMB is the initial heap, below MemoryMB; 0 means as large as MemoryMB.
+	InitMemoryMB uint32 `json:"initMemoryMb,omitempty"`
 }
 
-// Uses reports whether a server uses a port of the node: its own, or the UDP port at which
-// Bedrock players join a proxy.
+// ExtraPort is a port of a plugin, published at the same port of the container, where the
+// plugin listens.
+type ExtraPort struct {
+	Port     uint32 `json:"port"`
+	Protocol string `json:"protocol"` // tcp or udp
+	Label    string `json:"label,omitempty"`
+}
+
+// Uses reports whether a server uses a port of the node: its own, the UDP port at which
+// Bedrock players join a proxy, or one of its extra ports.
 func (s Spec) Uses(port uint32) bool {
-	return s.Port == port || s.BedrockPort != 0 && s.BedrockPort == port
+	return s.Port == port || s.BedrockPort != 0 && s.BedrockPort == port ||
+		slices.ContainsFunc(s.ExtraPorts, func(p ExtraPort) bool { return p.Port == port })
 }
 
 // Server is a server managed by a runtime.
@@ -240,6 +266,10 @@ type Runtime interface {
 	// the same storage location. The copy is standalone: whatever ties the original to a
 	// network, such as the forwarding secret, is reset or left out.
 	Duplicate(ctx context.Context, from string, spec Spec) error
+	// LimitLogs limits the output that the runtime keeps of each container of a server or
+	// datastore created from now on to files files of up to fileMB MB each; 0 leaves it to
+	// the runtime's configuration.
+	LimitLogs(fileMB, files uint32)
 }
 
 // Find returns the server with the given ID, or ErrNotFound.

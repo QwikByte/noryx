@@ -147,7 +147,9 @@ type Datastore struct {
 	// Port published at the node's address in the private network; 0 for none.
 	Port uint32 `protobuf:"varint,10,opt,name=port,proto3" json:"port,omitempty"`
 	// Databases of a running datastore, sorted.
-	Databases     []string `protobuf:"bytes,11,rep,name=databases,proto3" json:"databases,omitempty"`
+	Databases []string `protobuf:"bytes,11,rep,name=databases,proto3" json:"databases,omitempty"`
+	// The parameters of its engine; agents of older versions send none, as they don't know them.
+	Parameters    *DatastoreParameters `protobuf:"bytes,12,opt,name=parameters,proto3" json:"parameters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,6 +261,71 @@ func (x *Datastore) GetDatabases() []string {
 	return nil
 }
 
+func (x *Datastore) GetParameters() *DatastoreParameters {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+// DatastoreParameters tune the engine of a datastore, each 0 for its default. The agent
+// checks them with Problem and passes them to the database server as options that it builds
+// itself from the numbers; no other parameters can be set.
+type DatastoreParameters struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Connections at once, max_connections; 0 for DefaultConnections.
+	MaxConnections uint32 `protobuf:"varint,1,opt,name=max_connections,json=maxConnections,proto3" json:"max_connections,omitempty"`
+	// MiB of the cache of data, InnoDB's buffer pool or PostgreSQL's shared_buffers; 0 for
+	// DefaultBufferMB.
+	BufferMb      uint32 `protobuf:"varint,2,opt,name=buffer_mb,json=bufferMb,proto3" json:"buffer_mb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatastoreParameters) Reset() {
+	*x = DatastoreParameters{}
+	mi := &file_noryx_v1_datastore_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatastoreParameters) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatastoreParameters) ProtoMessage() {}
+
+func (x *DatastoreParameters) ProtoReflect() protoreflect.Message {
+	mi := &file_noryx_v1_datastore_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatastoreParameters.ProtoReflect.Descriptor instead.
+func (*DatastoreParameters) Descriptor() ([]byte, []int) {
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DatastoreParameters) GetMaxConnections() uint32 {
+	if x != nil {
+		return x.MaxConnections
+	}
+	return 0
+}
+
+func (x *DatastoreParameters) GetBufferMb() uint32 {
+	if x != nil {
+		return x.BufferMb
+	}
+	return 0
+}
+
 type DatastoreVersions struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Engine DatastoreEngine        `protobuf:"varint,1,opt,name=engine,proto3,enum=noryx.v1.DatastoreEngine" json:"engine,omitempty"`
@@ -270,7 +337,7 @@ type DatastoreVersions struct {
 
 func (x *DatastoreVersions) Reset() {
 	*x = DatastoreVersions{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[1]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -282,7 +349,7 @@ func (x *DatastoreVersions) String() string {
 func (*DatastoreVersions) ProtoMessage() {}
 
 func (x *DatastoreVersions) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[1]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -295,7 +362,7 @@ func (x *DatastoreVersions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatastoreVersions.ProtoReflect.Descriptor instead.
 func (*DatastoreVersions) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{1}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DatastoreVersions) GetEngine() DatastoreEngine {
@@ -320,7 +387,7 @@ type ListDatastoresRequest struct {
 
 func (x *ListDatastoresRequest) Reset() {
 	*x = ListDatastoresRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[2]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +399,7 @@ func (x *ListDatastoresRequest) String() string {
 func (*ListDatastoresRequest) ProtoMessage() {}
 
 func (x *ListDatastoresRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[2]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,7 +412,7 @@ func (x *ListDatastoresRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatastoresRequest.ProtoReflect.Descriptor instead.
 func (*ListDatastoresRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{2}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{3}
 }
 
 type ListDatastoresResponse struct {
@@ -358,7 +425,7 @@ type ListDatastoresResponse struct {
 
 func (x *ListDatastoresResponse) Reset() {
 	*x = ListDatastoresResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[3]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +437,7 @@ func (x *ListDatastoresResponse) String() string {
 func (*ListDatastoresResponse) ProtoMessage() {}
 
 func (x *ListDatastoresResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[3]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +450,7 @@ func (x *ListDatastoresResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatastoresResponse.ProtoReflect.Descriptor instead.
 func (*ListDatastoresResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{3}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListDatastoresResponse) GetDatastores() []*Datastore {
@@ -408,13 +475,14 @@ type CreateDatastoreRequest struct {
 	MemoryMb      uint32                 `protobuf:"varint,4,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`
 	CpuMillis     uint32                 `protobuf:"varint,5,opt,name=cpu_millis,json=cpuMillis,proto3" json:"cpu_millis,omitempty"`
 	Storage       string                 `protobuf:"bytes,6,opt,name=storage,proto3" json:"storage,omitempty"`
+	Parameters    *DatastoreParameters   `protobuf:"bytes,7,opt,name=parameters,proto3" json:"parameters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateDatastoreRequest) Reset() {
 	*x = CreateDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[4]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -426,7 +494,7 @@ func (x *CreateDatastoreRequest) String() string {
 func (*CreateDatastoreRequest) ProtoMessage() {}
 
 func (x *CreateDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[4]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -439,7 +507,7 @@ func (x *CreateDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*CreateDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{4}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateDatastoreRequest) GetId() string {
@@ -484,6 +552,13 @@ func (x *CreateDatastoreRequest) GetStorage() string {
 	return ""
 }
 
+func (x *CreateDatastoreRequest) GetParameters() *DatastoreParameters {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
 type CreateDatastoreResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Datastore     *Datastore             `protobuf:"bytes,1,opt,name=datastore,proto3" json:"datastore,omitempty"`
@@ -493,7 +568,7 @@ type CreateDatastoreResponse struct {
 
 func (x *CreateDatastoreResponse) Reset() {
 	*x = CreateDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[5]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +580,7 @@ func (x *CreateDatastoreResponse) String() string {
 func (*CreateDatastoreResponse) ProtoMessage() {}
 
 func (x *CreateDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[5]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +593,7 @@ func (x *CreateDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*CreateDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{5}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateDatastoreResponse) GetDatastore() *Datastore {
@@ -537,7 +612,7 @@ type StartDatastoreRequest struct {
 
 func (x *StartDatastoreRequest) Reset() {
 	*x = StartDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[6]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -549,7 +624,7 @@ func (x *StartDatastoreRequest) String() string {
 func (*StartDatastoreRequest) ProtoMessage() {}
 
 func (x *StartDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[6]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +637,7 @@ func (x *StartDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*StartDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{6}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StartDatastoreRequest) GetId() string {
@@ -580,7 +655,7 @@ type StartDatastoreResponse struct {
 
 func (x *StartDatastoreResponse) Reset() {
 	*x = StartDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[7]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -592,7 +667,7 @@ func (x *StartDatastoreResponse) String() string {
 func (*StartDatastoreResponse) ProtoMessage() {}
 
 func (x *StartDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[7]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -605,7 +680,7 @@ func (x *StartDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*StartDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{7}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{8}
 }
 
 type StopDatastoreRequest struct {
@@ -617,7 +692,7 @@ type StopDatastoreRequest struct {
 
 func (x *StopDatastoreRequest) Reset() {
 	*x = StopDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[8]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +704,7 @@ func (x *StopDatastoreRequest) String() string {
 func (*StopDatastoreRequest) ProtoMessage() {}
 
 func (x *StopDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[8]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -642,7 +717,7 @@ func (x *StopDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*StopDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{8}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *StopDatastoreRequest) GetId() string {
@@ -660,7 +735,7 @@ type StopDatastoreResponse struct {
 
 func (x *StopDatastoreResponse) Reset() {
 	*x = StopDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[9]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +747,7 @@ func (x *StopDatastoreResponse) String() string {
 func (*StopDatastoreResponse) ProtoMessage() {}
 
 func (x *StopDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[9]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +760,7 @@ func (x *StopDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*StopDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{9}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{10}
 }
 
 type UpdateDatastoreRequest struct {
@@ -702,13 +777,15 @@ type UpdateDatastoreRequest struct {
 	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
 	// Removes the data a previous version left.
 	RemovePrevious bool `protobuf:"varint,6,opt,name=remove_previous,json=removePrevious,proto3" json:"remove_previous,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The parameters it gets, like the limits.
+	Parameters    *DatastoreParameters `protobuf:"bytes,7,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateDatastoreRequest) Reset() {
 	*x = UpdateDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[10]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -720,7 +797,7 @@ func (x *UpdateDatastoreRequest) String() string {
 func (*UpdateDatastoreRequest) ProtoMessage() {}
 
 func (x *UpdateDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[10]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -733,7 +810,7 @@ func (x *UpdateDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{10}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateDatastoreRequest) GetId() string {
@@ -778,6 +855,13 @@ func (x *UpdateDatastoreRequest) GetRemovePrevious() bool {
 	return false
 }
 
+func (x *UpdateDatastoreRequest) GetParameters() *DatastoreParameters {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
 type UpdateDatastoreResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Datastore     *Datastore             `protobuf:"bytes,1,opt,name=datastore,proto3" json:"datastore,omitempty"`
@@ -787,7 +871,7 @@ type UpdateDatastoreResponse struct {
 
 func (x *UpdateDatastoreResponse) Reset() {
 	*x = UpdateDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[11]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -799,7 +883,7 @@ func (x *UpdateDatastoreResponse) String() string {
 func (*UpdateDatastoreResponse) ProtoMessage() {}
 
 func (x *UpdateDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[11]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -812,7 +896,7 @@ func (x *UpdateDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*UpdateDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{11}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateDatastoreResponse) GetDatastore() *Datastore {
@@ -839,7 +923,7 @@ type PublishDatastoreRequest struct {
 
 func (x *PublishDatastoreRequest) Reset() {
 	*x = PublishDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[12]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +935,7 @@ func (x *PublishDatastoreRequest) String() string {
 func (*PublishDatastoreRequest) ProtoMessage() {}
 
 func (x *PublishDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[12]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -864,7 +948,7 @@ func (x *PublishDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*PublishDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{12}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PublishDatastoreRequest) GetId() string {
@@ -905,7 +989,7 @@ type PublishDatastoreResponse struct {
 
 func (x *PublishDatastoreResponse) Reset() {
 	*x = PublishDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[13]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -917,7 +1001,7 @@ func (x *PublishDatastoreResponse) String() string {
 func (*PublishDatastoreResponse) ProtoMessage() {}
 
 func (x *PublishDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[13]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +1014,7 @@ func (x *PublishDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*PublishDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{13}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PublishDatastoreResponse) GetAddress() string {
@@ -949,7 +1033,7 @@ type DeleteDatastoreRequest struct {
 
 func (x *DeleteDatastoreRequest) Reset() {
 	*x = DeleteDatastoreRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[14]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -961,7 +1045,7 @@ func (x *DeleteDatastoreRequest) String() string {
 func (*DeleteDatastoreRequest) ProtoMessage() {}
 
 func (x *DeleteDatastoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[14]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -974,7 +1058,7 @@ func (x *DeleteDatastoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDatastoreRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDatastoreRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{14}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteDatastoreRequest) GetId() string {
@@ -992,7 +1076,7 @@ type DeleteDatastoreResponse struct {
 
 func (x *DeleteDatastoreResponse) Reset() {
 	*x = DeleteDatastoreResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[15]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1088,7 @@ func (x *DeleteDatastoreResponse) String() string {
 func (*DeleteDatastoreResponse) ProtoMessage() {}
 
 func (x *DeleteDatastoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[15]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1101,7 @@ func (x *DeleteDatastoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDatastoreResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDatastoreResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{15}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{16}
 }
 
 type EnsureDatabaseRequest struct {
@@ -1032,7 +1116,7 @@ type EnsureDatabaseRequest struct {
 
 func (x *EnsureDatabaseRequest) Reset() {
 	*x = EnsureDatabaseRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[16]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1044,7 +1128,7 @@ func (x *EnsureDatabaseRequest) String() string {
 func (*EnsureDatabaseRequest) ProtoMessage() {}
 
 func (x *EnsureDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[16]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1057,7 +1141,7 @@ func (x *EnsureDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*EnsureDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{16}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *EnsureDatabaseRequest) GetId() string {
@@ -1089,7 +1173,7 @@ type EnsureDatabaseResponse struct {
 
 func (x *EnsureDatabaseResponse) Reset() {
 	*x = EnsureDatabaseResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[17]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1101,7 +1185,7 @@ func (x *EnsureDatabaseResponse) String() string {
 func (*EnsureDatabaseResponse) ProtoMessage() {}
 
 func (x *EnsureDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[17]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1114,7 +1198,7 @@ func (x *EnsureDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*EnsureDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{17}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{18}
 }
 
 type DropDatabaseRequest struct {
@@ -1127,7 +1211,7 @@ type DropDatabaseRequest struct {
 
 func (x *DropDatabaseRequest) Reset() {
 	*x = DropDatabaseRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[18]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1139,7 +1223,7 @@ func (x *DropDatabaseRequest) String() string {
 func (*DropDatabaseRequest) ProtoMessage() {}
 
 func (x *DropDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[18]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1152,7 +1236,7 @@ func (x *DropDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*DropDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{18}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *DropDatabaseRequest) GetId() string {
@@ -1177,7 +1261,7 @@ type DropDatabaseResponse struct {
 
 func (x *DropDatabaseResponse) Reset() {
 	*x = DropDatabaseResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[19]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1189,7 +1273,7 @@ func (x *DropDatabaseResponse) String() string {
 func (*DropDatabaseResponse) ProtoMessage() {}
 
 func (x *DropDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[19]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1202,7 +1286,7 @@ func (x *DropDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*DropDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{19}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{20}
 }
 
 type CreateDumpRequest struct {
@@ -1223,7 +1307,7 @@ type CreateDumpRequest struct {
 
 func (x *CreateDumpRequest) Reset() {
 	*x = CreateDumpRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[20]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1235,7 +1319,7 @@ func (x *CreateDumpRequest) String() string {
 func (*CreateDumpRequest) ProtoMessage() {}
 
 func (x *CreateDumpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[20]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1248,7 +1332,7 @@ func (x *CreateDumpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDumpRequest.ProtoReflect.Descriptor instead.
 func (*CreateDumpRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{20}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateDumpRequest) GetId() string {
@@ -1310,7 +1394,7 @@ type CreateDumpResponse struct {
 
 func (x *CreateDumpResponse) Reset() {
 	*x = CreateDumpResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[21]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1322,7 +1406,7 @@ func (x *CreateDumpResponse) String() string {
 func (*CreateDumpResponse) ProtoMessage() {}
 
 func (x *CreateDumpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[21]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1335,7 +1419,7 @@ func (x *CreateDumpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDumpResponse.ProtoReflect.Descriptor instead.
 func (*CreateDumpResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{21}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CreateDumpResponse) GetDump() *Backup {
@@ -1354,7 +1438,7 @@ type ListDumpsRequest struct {
 
 func (x *ListDumpsRequest) Reset() {
 	*x = ListDumpsRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[22]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1366,7 +1450,7 @@ func (x *ListDumpsRequest) String() string {
 func (*ListDumpsRequest) ProtoMessage() {}
 
 func (x *ListDumpsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[22]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1379,7 +1463,7 @@ func (x *ListDumpsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDumpsRequest.ProtoReflect.Descriptor instead.
 func (*ListDumpsRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{22}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListDumpsRequest) GetId() string {
@@ -1398,7 +1482,7 @@ type ListDumpsResponse struct {
 
 func (x *ListDumpsResponse) Reset() {
 	*x = ListDumpsResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[23]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1410,7 +1494,7 @@ func (x *ListDumpsResponse) String() string {
 func (*ListDumpsResponse) ProtoMessage() {}
 
 func (x *ListDumpsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[23]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,7 +1507,7 @@ func (x *ListDumpsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDumpsResponse.ProtoReflect.Descriptor instead.
 func (*ListDumpsResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{23}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListDumpsResponse) GetDumps() []*Backup {
@@ -1446,7 +1530,7 @@ type RestoreDumpRequest struct {
 
 func (x *RestoreDumpRequest) Reset() {
 	*x = RestoreDumpRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[24]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1542,7 @@ func (x *RestoreDumpRequest) String() string {
 func (*RestoreDumpRequest) ProtoMessage() {}
 
 func (x *RestoreDumpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[24]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1555,7 @@ func (x *RestoreDumpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreDumpRequest.ProtoReflect.Descriptor instead.
 func (*RestoreDumpRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{24}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RestoreDumpRequest) GetId() string {
@@ -1503,7 +1587,7 @@ type RestoreDumpResponse struct {
 
 func (x *RestoreDumpResponse) Reset() {
 	*x = RestoreDumpResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[25]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +1599,7 @@ func (x *RestoreDumpResponse) String() string {
 func (*RestoreDumpResponse) ProtoMessage() {}
 
 func (x *RestoreDumpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[25]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +1612,7 @@ func (x *RestoreDumpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreDumpResponse.ProtoReflect.Descriptor instead.
 func (*RestoreDumpResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{25}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{26}
 }
 
 type DeleteDumpRequest struct {
@@ -1541,7 +1625,7 @@ type DeleteDumpRequest struct {
 
 func (x *DeleteDumpRequest) Reset() {
 	*x = DeleteDumpRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[26]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1553,7 +1637,7 @@ func (x *DeleteDumpRequest) String() string {
 func (*DeleteDumpRequest) ProtoMessage() {}
 
 func (x *DeleteDumpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[26]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1566,7 +1650,7 @@ func (x *DeleteDumpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDumpRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDumpRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{26}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DeleteDumpRequest) GetId() string {
@@ -1591,7 +1675,7 @@ type DeleteDumpResponse struct {
 
 func (x *DeleteDumpResponse) Reset() {
 	*x = DeleteDumpResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[27]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1603,7 +1687,7 @@ func (x *DeleteDumpResponse) String() string {
 func (*DeleteDumpResponse) ProtoMessage() {}
 
 func (x *DeleteDumpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[27]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1616,7 +1700,7 @@ func (x *DeleteDumpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDumpResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDumpResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{27}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{28}
 }
 
 type DownloadDumpRequest struct {
@@ -1629,7 +1713,7 @@ type DownloadDumpRequest struct {
 
 func (x *DownloadDumpRequest) Reset() {
 	*x = DownloadDumpRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[28]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1725,7 @@ func (x *DownloadDumpRequest) String() string {
 func (*DownloadDumpRequest) ProtoMessage() {}
 
 func (x *DownloadDumpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[28]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1738,7 @@ func (x *DownloadDumpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadDumpRequest.ProtoReflect.Descriptor instead.
 func (*DownloadDumpRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{28}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DownloadDumpRequest) GetId() string {
@@ -1681,7 +1765,7 @@ type DownloadDumpResponse struct {
 
 func (x *DownloadDumpResponse) Reset() {
 	*x = DownloadDumpResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[29]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1693,7 +1777,7 @@ func (x *DownloadDumpResponse) String() string {
 func (*DownloadDumpResponse) ProtoMessage() {}
 
 func (x *DownloadDumpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[29]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1706,7 +1790,7 @@ func (x *DownloadDumpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadDumpResponse.ProtoReflect.Descriptor instead.
 func (*DownloadDumpResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{29}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DownloadDumpResponse) GetSize() int64 {
@@ -1736,7 +1820,7 @@ type ImportDumpRequest struct {
 
 func (x *ImportDumpRequest) Reset() {
 	*x = ImportDumpRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[30]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1748,7 +1832,7 @@ func (x *ImportDumpRequest) String() string {
 func (*ImportDumpRequest) ProtoMessage() {}
 
 func (x *ImportDumpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[30]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1761,7 +1845,7 @@ func (x *ImportDumpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportDumpRequest.ProtoReflect.Descriptor instead.
 func (*ImportDumpRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{30}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ImportDumpRequest) GetContent() isImportDumpRequest_Content {
@@ -1820,7 +1904,7 @@ type ImportDumpHeader struct {
 
 func (x *ImportDumpHeader) Reset() {
 	*x = ImportDumpHeader{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[31]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1832,7 +1916,7 @@ func (x *ImportDumpHeader) String() string {
 func (*ImportDumpHeader) ProtoMessage() {}
 
 func (x *ImportDumpHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[31]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1845,7 +1929,7 @@ func (x *ImportDumpHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportDumpHeader.ProtoReflect.Descriptor instead.
 func (*ImportDumpHeader) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{31}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ImportDumpHeader) GetId() string {
@@ -1893,7 +1977,7 @@ type ImportDumpResponse struct {
 
 func (x *ImportDumpResponse) Reset() {
 	*x = ImportDumpResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[32]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1905,7 +1989,7 @@ func (x *ImportDumpResponse) String() string {
 func (*ImportDumpResponse) ProtoMessage() {}
 
 func (x *ImportDumpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[32]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,7 +2002,7 @@ func (x *ImportDumpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportDumpResponse.ProtoReflect.Descriptor instead.
 func (*ImportDumpResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{32}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ImportDumpResponse) GetDump() *Backup {
@@ -1938,7 +2022,7 @@ type ListTablesRequest struct {
 
 func (x *ListTablesRequest) Reset() {
 	*x = ListTablesRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[33]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1950,7 +2034,7 @@ func (x *ListTablesRequest) String() string {
 func (*ListTablesRequest) ProtoMessage() {}
 
 func (x *ListTablesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[33]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1963,7 +2047,7 @@ func (x *ListTablesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTablesRequest.ProtoReflect.Descriptor instead.
 func (*ListTablesRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{33}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListTablesRequest) GetId() string {
@@ -1995,7 +2079,7 @@ type Table struct {
 
 func (x *Table) Reset() {
 	*x = Table{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[34]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2007,7 +2091,7 @@ func (x *Table) String() string {
 func (*Table) ProtoMessage() {}
 
 func (x *Table) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[34]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2020,7 +2104,7 @@ func (x *Table) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Table.ProtoReflect.Descriptor instead.
 func (*Table) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{34}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Table) GetSchema() string {
@@ -2060,7 +2144,7 @@ type ListTablesResponse struct {
 
 func (x *ListTablesResponse) Reset() {
 	*x = ListTablesResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[35]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2072,7 +2156,7 @@ func (x *ListTablesResponse) String() string {
 func (*ListTablesResponse) ProtoMessage() {}
 
 func (x *ListTablesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[35]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2085,7 +2169,7 @@ func (x *ListTablesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTablesResponse.ProtoReflect.Descriptor instead.
 func (*ListTablesResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{35}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ListTablesResponse) GetTables() []*Table {
@@ -2117,7 +2201,7 @@ type BrowseTableRequest struct {
 
 func (x *BrowseTableRequest) Reset() {
 	*x = BrowseTableRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[36]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2129,7 +2213,7 @@ func (x *BrowseTableRequest) String() string {
 func (*BrowseTableRequest) ProtoMessage() {}
 
 func (x *BrowseTableRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[36]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2142,7 +2226,7 @@ func (x *BrowseTableRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowseTableRequest.ProtoReflect.Descriptor instead.
 func (*BrowseTableRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{36}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *BrowseTableRequest) GetId() string {
@@ -2222,7 +2306,7 @@ type TableFilter struct {
 
 func (x *TableFilter) Reset() {
 	*x = TableFilter{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[37]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2234,7 +2318,7 @@ func (x *TableFilter) String() string {
 func (*TableFilter) ProtoMessage() {}
 
 func (x *TableFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[37]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2247,7 +2331,7 @@ func (x *TableFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableFilter.ProtoReflect.Descriptor instead.
 func (*TableFilter) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{37}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *TableFilter) GetColumn() string {
@@ -2283,7 +2367,7 @@ type TableColumn struct {
 
 func (x *TableColumn) Reset() {
 	*x = TableColumn{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[38]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2295,7 +2379,7 @@ func (x *TableColumn) String() string {
 func (*TableColumn) ProtoMessage() {}
 
 func (x *TableColumn) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[38]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2308,7 +2392,7 @@ func (x *TableColumn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableColumn.ProtoReflect.Descriptor instead.
 func (*TableColumn) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{38}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *TableColumn) GetName() string {
@@ -2344,7 +2428,7 @@ type TableValue struct {
 
 func (x *TableValue) Reset() {
 	*x = TableValue{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[39]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2356,7 +2440,7 @@ func (x *TableValue) String() string {
 func (*TableValue) ProtoMessage() {}
 
 func (x *TableValue) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[39]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2369,7 +2453,7 @@ func (x *TableValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableValue.ProtoReflect.Descriptor instead.
 func (*TableValue) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{39}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *TableValue) GetText() string {
@@ -2403,7 +2487,7 @@ type TableRow struct {
 
 func (x *TableRow) Reset() {
 	*x = TableRow{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[40]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2415,7 +2499,7 @@ func (x *TableRow) String() string {
 func (*TableRow) ProtoMessage() {}
 
 func (x *TableRow) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[40]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2428,7 +2512,7 @@ func (x *TableRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableRow.ProtoReflect.Descriptor instead.
 func (*TableRow) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{40}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *TableRow) GetValues() []*TableValue {
@@ -2452,7 +2536,7 @@ type BrowseTableResponse struct {
 
 func (x *BrowseTableResponse) Reset() {
 	*x = BrowseTableResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[41]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2464,7 +2548,7 @@ func (x *BrowseTableResponse) String() string {
 func (*BrowseTableResponse) ProtoMessage() {}
 
 func (x *BrowseTableResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[41]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2477,7 +2561,7 @@ func (x *BrowseTableResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowseTableResponse.ProtoReflect.Descriptor instead.
 func (*BrowseTableResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{41}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *BrowseTableResponse) GetColumns() []*TableColumn {
@@ -2522,7 +2606,7 @@ type StreamDatastoreLogsRequest struct {
 
 func (x *StreamDatastoreLogsRequest) Reset() {
 	*x = StreamDatastoreLogsRequest{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[42]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2534,7 +2618,7 @@ func (x *StreamDatastoreLogsRequest) String() string {
 func (*StreamDatastoreLogsRequest) ProtoMessage() {}
 
 func (x *StreamDatastoreLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[42]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2547,7 +2631,7 @@ func (x *StreamDatastoreLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamDatastoreLogsRequest.ProtoReflect.Descriptor instead.
 func (*StreamDatastoreLogsRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{42}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *StreamDatastoreLogsRequest) GetId() string {
@@ -2582,7 +2666,7 @@ type StreamDatastoreLogsResponse struct {
 
 func (x *StreamDatastoreLogsResponse) Reset() {
 	*x = StreamDatastoreLogsResponse{}
-	mi := &file_noryx_v1_datastore_proto_msgTypes[43]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2594,7 +2678,7 @@ func (x *StreamDatastoreLogsResponse) String() string {
 func (*StreamDatastoreLogsResponse) ProtoMessage() {}
 
 func (x *StreamDatastoreLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_datastore_proto_msgTypes[43]
+	mi := &file_noryx_v1_datastore_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2607,7 +2691,7 @@ func (x *StreamDatastoreLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamDatastoreLogsResponse.ProtoReflect.Descriptor instead.
 func (*StreamDatastoreLogsResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{43}
+	return file_noryx_v1_datastore_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *StreamDatastoreLogsResponse) GetLine() string {
@@ -2628,7 +2712,7 @@ var File_noryx_v1_datastore_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\n" +
-	"\x18noryx/v1/datastore.proto\x12\bnoryx.v1\x1a\x15noryx/v1/backup.proto\"\xdf\x02\n" +
+	"\x18noryx/v1/datastore.proto\x12\bnoryx.v1\x1a\x15noryx/v1/backup.proto\"\x9e\x03\n" +
 	"\tDatastore\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x121\n" +
 	"\x06engine\x18\x02 \x01(\x0e2\x19.noryx.v1.DatastoreEngineR\x06engine\x12\x18\n" +
@@ -2642,7 +2726,13 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x10previous_version\x18\t \x01(\tR\x0fpreviousVersion\x12\x12\n" +
 	"\x04port\x18\n" +
 	" \x01(\rR\x04port\x12\x1c\n" +
-	"\tdatabases\x18\v \x03(\tR\tdatabases\"b\n" +
+	"\tdatabases\x18\v \x03(\tR\tdatabases\x12=\n" +
+	"\n" +
+	"parameters\x18\f \x01(\v2\x1d.noryx.v1.DatastoreParametersR\n" +
+	"parameters\"[\n" +
+	"\x13DatastoreParameters\x12'\n" +
+	"\x0fmax_connections\x18\x01 \x01(\rR\x0emaxConnections\x12\x1b\n" +
+	"\tbuffer_mb\x18\x02 \x01(\rR\bbufferMb\"b\n" +
 	"\x11DatastoreVersions\x121\n" +
 	"\x06engine\x18\x01 \x01(\x0e2\x19.noryx.v1.DatastoreEngineR\x06engine\x12\x1a\n" +
 	"\bversions\x18\x02 \x03(\tR\bversions\"\x17\n" +
@@ -2651,7 +2741,7 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\n" +
 	"datastores\x18\x01 \x03(\v2\x13.noryx.v1.DatastoreR\n" +
 	"datastores\x127\n" +
-	"\bversions\x18\x02 \x03(\v2\x1b.noryx.v1.DatastoreVersionsR\bversions\"\xcb\x01\n" +
+	"\bversions\x18\x02 \x03(\v2\x1b.noryx.v1.DatastoreVersionsR\bversions\"\x8a\x02\n" +
 	"\x16CreateDatastoreRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x121\n" +
 	"\x06engine\x18\x02 \x01(\x0e2\x19.noryx.v1.DatastoreEngineR\x06engine\x12\x18\n" +
@@ -2659,7 +2749,10 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\tmemory_mb\x18\x04 \x01(\rR\bmemoryMb\x12\x1d\n" +
 	"\n" +
 	"cpu_millis\x18\x05 \x01(\rR\tcpuMillis\x12\x18\n" +
-	"\astorage\x18\x06 \x01(\tR\astorage\"L\n" +
+	"\astorage\x18\x06 \x01(\tR\astorage\x12=\n" +
+	"\n" +
+	"parameters\x18\a \x01(\v2\x1d.noryx.v1.DatastoreParametersR\n" +
+	"parameters\"L\n" +
 	"\x17CreateDatastoreResponse\x121\n" +
 	"\tdatastore\x18\x01 \x01(\v2\x13.noryx.v1.DatastoreR\tdatastore\"'\n" +
 	"\x15StartDatastoreRequest\x12\x0e\n" +
@@ -2667,7 +2760,7 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x16StartDatastoreResponse\"&\n" +
 	"\x14StopDatastoreRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15StopDatastoreResponse\"\xca\x01\n" +
+	"\x15StopDatastoreResponse\"\x89\x02\n" +
 	"\x16UpdateDatastoreRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmemory_mb\x18\x02 \x01(\rR\bmemoryMb\x12\x1d\n" +
@@ -2675,7 +2768,10 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"cpu_millis\x18\x03 \x01(\rR\tcpuMillis\x12!\n" +
 	"\fupdate_image\x18\x04 \x01(\bR\vupdateImage\x12\x18\n" +
 	"\aversion\x18\x05 \x01(\tR\aversion\x12'\n" +
-	"\x0fremove_previous\x18\x06 \x01(\bR\x0eremovePrevious\"L\n" +
+	"\x0fremove_previous\x18\x06 \x01(\bR\x0eremovePrevious\x12=\n" +
+	"\n" +
+	"parameters\x18\a \x01(\v2\x1d.noryx.v1.DatastoreParametersR\n" +
+	"parameters\"L\n" +
 	"\x17UpdateDatastoreResponse\x121\n" +
 	"\tdatastore\x18\x01 \x01(\v2\x13.noryx.v1.DatastoreR\tdatastore\"x\n" +
 	"\x17PublishDatastoreRequest\x12\x0e\n" +
@@ -2836,117 +2932,121 @@ func file_noryx_v1_datastore_proto_rawDescGZIP() []byte {
 }
 
 var file_noryx_v1_datastore_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_noryx_v1_datastore_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_noryx_v1_datastore_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_noryx_v1_datastore_proto_goTypes = []any{
 	(DatastoreEngine)(0),                // 0: noryx.v1.DatastoreEngine
 	(DatastoreState)(0),                 // 1: noryx.v1.DatastoreState
 	(*Datastore)(nil),                   // 2: noryx.v1.Datastore
-	(*DatastoreVersions)(nil),           // 3: noryx.v1.DatastoreVersions
-	(*ListDatastoresRequest)(nil),       // 4: noryx.v1.ListDatastoresRequest
-	(*ListDatastoresResponse)(nil),      // 5: noryx.v1.ListDatastoresResponse
-	(*CreateDatastoreRequest)(nil),      // 6: noryx.v1.CreateDatastoreRequest
-	(*CreateDatastoreResponse)(nil),     // 7: noryx.v1.CreateDatastoreResponse
-	(*StartDatastoreRequest)(nil),       // 8: noryx.v1.StartDatastoreRequest
-	(*StartDatastoreResponse)(nil),      // 9: noryx.v1.StartDatastoreResponse
-	(*StopDatastoreRequest)(nil),        // 10: noryx.v1.StopDatastoreRequest
-	(*StopDatastoreResponse)(nil),       // 11: noryx.v1.StopDatastoreResponse
-	(*UpdateDatastoreRequest)(nil),      // 12: noryx.v1.UpdateDatastoreRequest
-	(*UpdateDatastoreResponse)(nil),     // 13: noryx.v1.UpdateDatastoreResponse
-	(*PublishDatastoreRequest)(nil),     // 14: noryx.v1.PublishDatastoreRequest
-	(*PublishDatastoreResponse)(nil),    // 15: noryx.v1.PublishDatastoreResponse
-	(*DeleteDatastoreRequest)(nil),      // 16: noryx.v1.DeleteDatastoreRequest
-	(*DeleteDatastoreResponse)(nil),     // 17: noryx.v1.DeleteDatastoreResponse
-	(*EnsureDatabaseRequest)(nil),       // 18: noryx.v1.EnsureDatabaseRequest
-	(*EnsureDatabaseResponse)(nil),      // 19: noryx.v1.EnsureDatabaseResponse
-	(*DropDatabaseRequest)(nil),         // 20: noryx.v1.DropDatabaseRequest
-	(*DropDatabaseResponse)(nil),        // 21: noryx.v1.DropDatabaseResponse
-	(*CreateDumpRequest)(nil),           // 22: noryx.v1.CreateDumpRequest
-	(*CreateDumpResponse)(nil),          // 23: noryx.v1.CreateDumpResponse
-	(*ListDumpsRequest)(nil),            // 24: noryx.v1.ListDumpsRequest
-	(*ListDumpsResponse)(nil),           // 25: noryx.v1.ListDumpsResponse
-	(*RestoreDumpRequest)(nil),          // 26: noryx.v1.RestoreDumpRequest
-	(*RestoreDumpResponse)(nil),         // 27: noryx.v1.RestoreDumpResponse
-	(*DeleteDumpRequest)(nil),           // 28: noryx.v1.DeleteDumpRequest
-	(*DeleteDumpResponse)(nil),          // 29: noryx.v1.DeleteDumpResponse
-	(*DownloadDumpRequest)(nil),         // 30: noryx.v1.DownloadDumpRequest
-	(*DownloadDumpResponse)(nil),        // 31: noryx.v1.DownloadDumpResponse
-	(*ImportDumpRequest)(nil),           // 32: noryx.v1.ImportDumpRequest
-	(*ImportDumpHeader)(nil),            // 33: noryx.v1.ImportDumpHeader
-	(*ImportDumpResponse)(nil),          // 34: noryx.v1.ImportDumpResponse
-	(*ListTablesRequest)(nil),           // 35: noryx.v1.ListTablesRequest
-	(*Table)(nil),                       // 36: noryx.v1.Table
-	(*ListTablesResponse)(nil),          // 37: noryx.v1.ListTablesResponse
-	(*BrowseTableRequest)(nil),          // 38: noryx.v1.BrowseTableRequest
-	(*TableFilter)(nil),                 // 39: noryx.v1.TableFilter
-	(*TableColumn)(nil),                 // 40: noryx.v1.TableColumn
-	(*TableValue)(nil),                  // 41: noryx.v1.TableValue
-	(*TableRow)(nil),                    // 42: noryx.v1.TableRow
-	(*BrowseTableResponse)(nil),         // 43: noryx.v1.BrowseTableResponse
-	(*StreamDatastoreLogsRequest)(nil),  // 44: noryx.v1.StreamDatastoreLogsRequest
-	(*StreamDatastoreLogsResponse)(nil), // 45: noryx.v1.StreamDatastoreLogsResponse
-	(*BackupRetention)(nil),             // 46: noryx.v1.BackupRetention
-	(*Backup)(nil),                      // 47: noryx.v1.Backup
+	(*DatastoreParameters)(nil),         // 3: noryx.v1.DatastoreParameters
+	(*DatastoreVersions)(nil),           // 4: noryx.v1.DatastoreVersions
+	(*ListDatastoresRequest)(nil),       // 5: noryx.v1.ListDatastoresRequest
+	(*ListDatastoresResponse)(nil),      // 6: noryx.v1.ListDatastoresResponse
+	(*CreateDatastoreRequest)(nil),      // 7: noryx.v1.CreateDatastoreRequest
+	(*CreateDatastoreResponse)(nil),     // 8: noryx.v1.CreateDatastoreResponse
+	(*StartDatastoreRequest)(nil),       // 9: noryx.v1.StartDatastoreRequest
+	(*StartDatastoreResponse)(nil),      // 10: noryx.v1.StartDatastoreResponse
+	(*StopDatastoreRequest)(nil),        // 11: noryx.v1.StopDatastoreRequest
+	(*StopDatastoreResponse)(nil),       // 12: noryx.v1.StopDatastoreResponse
+	(*UpdateDatastoreRequest)(nil),      // 13: noryx.v1.UpdateDatastoreRequest
+	(*UpdateDatastoreResponse)(nil),     // 14: noryx.v1.UpdateDatastoreResponse
+	(*PublishDatastoreRequest)(nil),     // 15: noryx.v1.PublishDatastoreRequest
+	(*PublishDatastoreResponse)(nil),    // 16: noryx.v1.PublishDatastoreResponse
+	(*DeleteDatastoreRequest)(nil),      // 17: noryx.v1.DeleteDatastoreRequest
+	(*DeleteDatastoreResponse)(nil),     // 18: noryx.v1.DeleteDatastoreResponse
+	(*EnsureDatabaseRequest)(nil),       // 19: noryx.v1.EnsureDatabaseRequest
+	(*EnsureDatabaseResponse)(nil),      // 20: noryx.v1.EnsureDatabaseResponse
+	(*DropDatabaseRequest)(nil),         // 21: noryx.v1.DropDatabaseRequest
+	(*DropDatabaseResponse)(nil),        // 22: noryx.v1.DropDatabaseResponse
+	(*CreateDumpRequest)(nil),           // 23: noryx.v1.CreateDumpRequest
+	(*CreateDumpResponse)(nil),          // 24: noryx.v1.CreateDumpResponse
+	(*ListDumpsRequest)(nil),            // 25: noryx.v1.ListDumpsRequest
+	(*ListDumpsResponse)(nil),           // 26: noryx.v1.ListDumpsResponse
+	(*RestoreDumpRequest)(nil),          // 27: noryx.v1.RestoreDumpRequest
+	(*RestoreDumpResponse)(nil),         // 28: noryx.v1.RestoreDumpResponse
+	(*DeleteDumpRequest)(nil),           // 29: noryx.v1.DeleteDumpRequest
+	(*DeleteDumpResponse)(nil),          // 30: noryx.v1.DeleteDumpResponse
+	(*DownloadDumpRequest)(nil),         // 31: noryx.v1.DownloadDumpRequest
+	(*DownloadDumpResponse)(nil),        // 32: noryx.v1.DownloadDumpResponse
+	(*ImportDumpRequest)(nil),           // 33: noryx.v1.ImportDumpRequest
+	(*ImportDumpHeader)(nil),            // 34: noryx.v1.ImportDumpHeader
+	(*ImportDumpResponse)(nil),          // 35: noryx.v1.ImportDumpResponse
+	(*ListTablesRequest)(nil),           // 36: noryx.v1.ListTablesRequest
+	(*Table)(nil),                       // 37: noryx.v1.Table
+	(*ListTablesResponse)(nil),          // 38: noryx.v1.ListTablesResponse
+	(*BrowseTableRequest)(nil),          // 39: noryx.v1.BrowseTableRequest
+	(*TableFilter)(nil),                 // 40: noryx.v1.TableFilter
+	(*TableColumn)(nil),                 // 41: noryx.v1.TableColumn
+	(*TableValue)(nil),                  // 42: noryx.v1.TableValue
+	(*TableRow)(nil),                    // 43: noryx.v1.TableRow
+	(*BrowseTableResponse)(nil),         // 44: noryx.v1.BrowseTableResponse
+	(*StreamDatastoreLogsRequest)(nil),  // 45: noryx.v1.StreamDatastoreLogsRequest
+	(*StreamDatastoreLogsResponse)(nil), // 46: noryx.v1.StreamDatastoreLogsResponse
+	(*BackupRetention)(nil),             // 47: noryx.v1.BackupRetention
+	(*Backup)(nil),                      // 48: noryx.v1.Backup
 }
 var file_noryx_v1_datastore_proto_depIdxs = []int32{
 	0,  // 0: noryx.v1.Datastore.engine:type_name -> noryx.v1.DatastoreEngine
 	1,  // 1: noryx.v1.Datastore.state:type_name -> noryx.v1.DatastoreState
-	0,  // 2: noryx.v1.DatastoreVersions.engine:type_name -> noryx.v1.DatastoreEngine
-	2,  // 3: noryx.v1.ListDatastoresResponse.datastores:type_name -> noryx.v1.Datastore
-	3,  // 4: noryx.v1.ListDatastoresResponse.versions:type_name -> noryx.v1.DatastoreVersions
-	0,  // 5: noryx.v1.CreateDatastoreRequest.engine:type_name -> noryx.v1.DatastoreEngine
-	2,  // 6: noryx.v1.CreateDatastoreResponse.datastore:type_name -> noryx.v1.Datastore
-	2,  // 7: noryx.v1.UpdateDatastoreResponse.datastore:type_name -> noryx.v1.Datastore
-	46, // 8: noryx.v1.CreateDumpRequest.retention:type_name -> noryx.v1.BackupRetention
-	47, // 9: noryx.v1.CreateDumpResponse.dump:type_name -> noryx.v1.Backup
-	47, // 10: noryx.v1.ListDumpsResponse.dumps:type_name -> noryx.v1.Backup
-	33, // 11: noryx.v1.ImportDumpRequest.header:type_name -> noryx.v1.ImportDumpHeader
-	47, // 12: noryx.v1.ImportDumpResponse.dump:type_name -> noryx.v1.Backup
-	36, // 13: noryx.v1.ListTablesResponse.tables:type_name -> noryx.v1.Table
-	39, // 14: noryx.v1.BrowseTableRequest.filter:type_name -> noryx.v1.TableFilter
-	41, // 15: noryx.v1.TableRow.values:type_name -> noryx.v1.TableValue
-	40, // 16: noryx.v1.BrowseTableResponse.columns:type_name -> noryx.v1.TableColumn
-	42, // 17: noryx.v1.BrowseTableResponse.rows:type_name -> noryx.v1.TableRow
-	4,  // 18: noryx.v1.DatastoreService.ListDatastores:input_type -> noryx.v1.ListDatastoresRequest
-	6,  // 19: noryx.v1.DatastoreService.CreateDatastore:input_type -> noryx.v1.CreateDatastoreRequest
-	8,  // 20: noryx.v1.DatastoreService.StartDatastore:input_type -> noryx.v1.StartDatastoreRequest
-	10, // 21: noryx.v1.DatastoreService.StopDatastore:input_type -> noryx.v1.StopDatastoreRequest
-	12, // 22: noryx.v1.DatastoreService.UpdateDatastore:input_type -> noryx.v1.UpdateDatastoreRequest
-	14, // 23: noryx.v1.DatastoreService.PublishDatastore:input_type -> noryx.v1.PublishDatastoreRequest
-	16, // 24: noryx.v1.DatastoreService.DeleteDatastore:input_type -> noryx.v1.DeleteDatastoreRequest
-	18, // 25: noryx.v1.DatastoreService.EnsureDatabase:input_type -> noryx.v1.EnsureDatabaseRequest
-	20, // 26: noryx.v1.DatastoreService.DropDatabase:input_type -> noryx.v1.DropDatabaseRequest
-	22, // 27: noryx.v1.DatastoreService.CreateDump:input_type -> noryx.v1.CreateDumpRequest
-	24, // 28: noryx.v1.DatastoreService.ListDumps:input_type -> noryx.v1.ListDumpsRequest
-	26, // 29: noryx.v1.DatastoreService.RestoreDump:input_type -> noryx.v1.RestoreDumpRequest
-	28, // 30: noryx.v1.DatastoreService.DeleteDump:input_type -> noryx.v1.DeleteDumpRequest
-	30, // 31: noryx.v1.DatastoreService.DownloadDump:input_type -> noryx.v1.DownloadDumpRequest
-	32, // 32: noryx.v1.DatastoreService.ImportDump:input_type -> noryx.v1.ImportDumpRequest
-	35, // 33: noryx.v1.DatastoreService.ListTables:input_type -> noryx.v1.ListTablesRequest
-	38, // 34: noryx.v1.DatastoreService.BrowseTable:input_type -> noryx.v1.BrowseTableRequest
-	44, // 35: noryx.v1.DatastoreService.StreamDatastoreLogs:input_type -> noryx.v1.StreamDatastoreLogsRequest
-	5,  // 36: noryx.v1.DatastoreService.ListDatastores:output_type -> noryx.v1.ListDatastoresResponse
-	7,  // 37: noryx.v1.DatastoreService.CreateDatastore:output_type -> noryx.v1.CreateDatastoreResponse
-	9,  // 38: noryx.v1.DatastoreService.StartDatastore:output_type -> noryx.v1.StartDatastoreResponse
-	11, // 39: noryx.v1.DatastoreService.StopDatastore:output_type -> noryx.v1.StopDatastoreResponse
-	13, // 40: noryx.v1.DatastoreService.UpdateDatastore:output_type -> noryx.v1.UpdateDatastoreResponse
-	15, // 41: noryx.v1.DatastoreService.PublishDatastore:output_type -> noryx.v1.PublishDatastoreResponse
-	17, // 42: noryx.v1.DatastoreService.DeleteDatastore:output_type -> noryx.v1.DeleteDatastoreResponse
-	19, // 43: noryx.v1.DatastoreService.EnsureDatabase:output_type -> noryx.v1.EnsureDatabaseResponse
-	21, // 44: noryx.v1.DatastoreService.DropDatabase:output_type -> noryx.v1.DropDatabaseResponse
-	23, // 45: noryx.v1.DatastoreService.CreateDump:output_type -> noryx.v1.CreateDumpResponse
-	25, // 46: noryx.v1.DatastoreService.ListDumps:output_type -> noryx.v1.ListDumpsResponse
-	27, // 47: noryx.v1.DatastoreService.RestoreDump:output_type -> noryx.v1.RestoreDumpResponse
-	29, // 48: noryx.v1.DatastoreService.DeleteDump:output_type -> noryx.v1.DeleteDumpResponse
-	31, // 49: noryx.v1.DatastoreService.DownloadDump:output_type -> noryx.v1.DownloadDumpResponse
-	34, // 50: noryx.v1.DatastoreService.ImportDump:output_type -> noryx.v1.ImportDumpResponse
-	37, // 51: noryx.v1.DatastoreService.ListTables:output_type -> noryx.v1.ListTablesResponse
-	43, // 52: noryx.v1.DatastoreService.BrowseTable:output_type -> noryx.v1.BrowseTableResponse
-	45, // 53: noryx.v1.DatastoreService.StreamDatastoreLogs:output_type -> noryx.v1.StreamDatastoreLogsResponse
-	36, // [36:54] is the sub-list for method output_type
-	18, // [18:36] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	3,  // 2: noryx.v1.Datastore.parameters:type_name -> noryx.v1.DatastoreParameters
+	0,  // 3: noryx.v1.DatastoreVersions.engine:type_name -> noryx.v1.DatastoreEngine
+	2,  // 4: noryx.v1.ListDatastoresResponse.datastores:type_name -> noryx.v1.Datastore
+	4,  // 5: noryx.v1.ListDatastoresResponse.versions:type_name -> noryx.v1.DatastoreVersions
+	0,  // 6: noryx.v1.CreateDatastoreRequest.engine:type_name -> noryx.v1.DatastoreEngine
+	3,  // 7: noryx.v1.CreateDatastoreRequest.parameters:type_name -> noryx.v1.DatastoreParameters
+	2,  // 8: noryx.v1.CreateDatastoreResponse.datastore:type_name -> noryx.v1.Datastore
+	3,  // 9: noryx.v1.UpdateDatastoreRequest.parameters:type_name -> noryx.v1.DatastoreParameters
+	2,  // 10: noryx.v1.UpdateDatastoreResponse.datastore:type_name -> noryx.v1.Datastore
+	47, // 11: noryx.v1.CreateDumpRequest.retention:type_name -> noryx.v1.BackupRetention
+	48, // 12: noryx.v1.CreateDumpResponse.dump:type_name -> noryx.v1.Backup
+	48, // 13: noryx.v1.ListDumpsResponse.dumps:type_name -> noryx.v1.Backup
+	34, // 14: noryx.v1.ImportDumpRequest.header:type_name -> noryx.v1.ImportDumpHeader
+	48, // 15: noryx.v1.ImportDumpResponse.dump:type_name -> noryx.v1.Backup
+	37, // 16: noryx.v1.ListTablesResponse.tables:type_name -> noryx.v1.Table
+	40, // 17: noryx.v1.BrowseTableRequest.filter:type_name -> noryx.v1.TableFilter
+	42, // 18: noryx.v1.TableRow.values:type_name -> noryx.v1.TableValue
+	41, // 19: noryx.v1.BrowseTableResponse.columns:type_name -> noryx.v1.TableColumn
+	43, // 20: noryx.v1.BrowseTableResponse.rows:type_name -> noryx.v1.TableRow
+	5,  // 21: noryx.v1.DatastoreService.ListDatastores:input_type -> noryx.v1.ListDatastoresRequest
+	7,  // 22: noryx.v1.DatastoreService.CreateDatastore:input_type -> noryx.v1.CreateDatastoreRequest
+	9,  // 23: noryx.v1.DatastoreService.StartDatastore:input_type -> noryx.v1.StartDatastoreRequest
+	11, // 24: noryx.v1.DatastoreService.StopDatastore:input_type -> noryx.v1.StopDatastoreRequest
+	13, // 25: noryx.v1.DatastoreService.UpdateDatastore:input_type -> noryx.v1.UpdateDatastoreRequest
+	15, // 26: noryx.v1.DatastoreService.PublishDatastore:input_type -> noryx.v1.PublishDatastoreRequest
+	17, // 27: noryx.v1.DatastoreService.DeleteDatastore:input_type -> noryx.v1.DeleteDatastoreRequest
+	19, // 28: noryx.v1.DatastoreService.EnsureDatabase:input_type -> noryx.v1.EnsureDatabaseRequest
+	21, // 29: noryx.v1.DatastoreService.DropDatabase:input_type -> noryx.v1.DropDatabaseRequest
+	23, // 30: noryx.v1.DatastoreService.CreateDump:input_type -> noryx.v1.CreateDumpRequest
+	25, // 31: noryx.v1.DatastoreService.ListDumps:input_type -> noryx.v1.ListDumpsRequest
+	27, // 32: noryx.v1.DatastoreService.RestoreDump:input_type -> noryx.v1.RestoreDumpRequest
+	29, // 33: noryx.v1.DatastoreService.DeleteDump:input_type -> noryx.v1.DeleteDumpRequest
+	31, // 34: noryx.v1.DatastoreService.DownloadDump:input_type -> noryx.v1.DownloadDumpRequest
+	33, // 35: noryx.v1.DatastoreService.ImportDump:input_type -> noryx.v1.ImportDumpRequest
+	36, // 36: noryx.v1.DatastoreService.ListTables:input_type -> noryx.v1.ListTablesRequest
+	39, // 37: noryx.v1.DatastoreService.BrowseTable:input_type -> noryx.v1.BrowseTableRequest
+	45, // 38: noryx.v1.DatastoreService.StreamDatastoreLogs:input_type -> noryx.v1.StreamDatastoreLogsRequest
+	6,  // 39: noryx.v1.DatastoreService.ListDatastores:output_type -> noryx.v1.ListDatastoresResponse
+	8,  // 40: noryx.v1.DatastoreService.CreateDatastore:output_type -> noryx.v1.CreateDatastoreResponse
+	10, // 41: noryx.v1.DatastoreService.StartDatastore:output_type -> noryx.v1.StartDatastoreResponse
+	12, // 42: noryx.v1.DatastoreService.StopDatastore:output_type -> noryx.v1.StopDatastoreResponse
+	14, // 43: noryx.v1.DatastoreService.UpdateDatastore:output_type -> noryx.v1.UpdateDatastoreResponse
+	16, // 44: noryx.v1.DatastoreService.PublishDatastore:output_type -> noryx.v1.PublishDatastoreResponse
+	18, // 45: noryx.v1.DatastoreService.DeleteDatastore:output_type -> noryx.v1.DeleteDatastoreResponse
+	20, // 46: noryx.v1.DatastoreService.EnsureDatabase:output_type -> noryx.v1.EnsureDatabaseResponse
+	22, // 47: noryx.v1.DatastoreService.DropDatabase:output_type -> noryx.v1.DropDatabaseResponse
+	24, // 48: noryx.v1.DatastoreService.CreateDump:output_type -> noryx.v1.CreateDumpResponse
+	26, // 49: noryx.v1.DatastoreService.ListDumps:output_type -> noryx.v1.ListDumpsResponse
+	28, // 50: noryx.v1.DatastoreService.RestoreDump:output_type -> noryx.v1.RestoreDumpResponse
+	30, // 51: noryx.v1.DatastoreService.DeleteDump:output_type -> noryx.v1.DeleteDumpResponse
+	32, // 52: noryx.v1.DatastoreService.DownloadDump:output_type -> noryx.v1.DownloadDumpResponse
+	35, // 53: noryx.v1.DatastoreService.ImportDump:output_type -> noryx.v1.ImportDumpResponse
+	38, // 54: noryx.v1.DatastoreService.ListTables:output_type -> noryx.v1.ListTablesResponse
+	44, // 55: noryx.v1.DatastoreService.BrowseTable:output_type -> noryx.v1.BrowseTableResponse
+	46, // 56: noryx.v1.DatastoreService.StreamDatastoreLogs:output_type -> noryx.v1.StreamDatastoreLogsResponse
+	39, // [39:57] is the sub-list for method output_type
+	21, // [21:39] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_noryx_v1_datastore_proto_init() }
@@ -2955,7 +3055,7 @@ func file_noryx_v1_datastore_proto_init() {
 		return
 	}
 	file_noryx_v1_backup_proto_init()
-	file_noryx_v1_datastore_proto_msgTypes[30].OneofWrappers = []any{
+	file_noryx_v1_datastore_proto_msgTypes[31].OneofWrappers = []any{
 		(*ImportDumpRequest_Header)(nil),
 		(*ImportDumpRequest_Data)(nil),
 	}
@@ -2965,7 +3065,7 @@ func file_noryx_v1_datastore_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_noryx_v1_datastore_proto_rawDesc), len(file_noryx_v1_datastore_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   44,
+			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

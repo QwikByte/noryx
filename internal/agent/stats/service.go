@@ -3,6 +3,7 @@
 package stats
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -21,9 +23,11 @@ import (
 )
 
 const (
-	interval     = 5 * time.Second
-	diskInterval = 5 * time.Minute
-	probeTimeout = 2 * time.Second
+	// defaultInterval is the time between two measurements unless SetInterval chose another,
+	// and the longest that a measurement takes.
+	defaultInterval = 5 * time.Second
+	diskInterval    = 5 * time.Minute
+	probeTimeout    = 2 * time.Second
 	// consoleRetry is how long the agent waits before it asks a console again that failed,
 	// as the server logs every attempt to connect.
 	consoleRetry = time.Minute
@@ -50,6 +54,8 @@ type Service struct {
 	mu     sync.Mutex
 	latest *noryxv1.GetStatsResponse
 	disks  map[string]uint64 // size of the data of each server
+
+	interval atomic.Int64 // the time.Duration between two measurements, 0 for defaultInterval
 }
 
 // serverState is what the service keeps about a server between measurements.
@@ -82,6 +88,13 @@ func NewService(rt runtime.Runtime) *Service {
 	return &Service{rt: rt, servers: map[string]*serverState{}, datastores: map[string]*counters{}, disks: map[string]uint64{}}
 }
 
+// SetInterval sets the time between two measurements, from the next one on.
+func (s *Service) SetInterval(d time.Duration) { s.interval.Store(int64(d)) }
+
+func (s *Service) every() time.Duration {
+	return cmp.Or(time.Duration(s.interval.Load()), defaultInterval)
+}
+
 // GetStats returns the latest measurement, or measures now if there is none of the last
 // few seconds, e.g. while the agent starts.
 func (s *Service) GetStats(ctx context.Context, _ *noryxv1.GetStatsRequest) (*noryxv1.GetStatsResponse, error) {
@@ -101,14 +114,14 @@ func (s *Service) GetStats(ctx context.Context, _ *noryxv1.GetStatsRequest) (*no
 func (s *Service) get() (*noryxv1.GetStatsResponse, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.latest, s.latest != nil && time.Since(time.Unix(s.latest.GetTimeUnix(), 0)) <= 2*interval
+	return s.latest, s.latest != nil && time.Since(time.Unix(s.latest.GetTimeUnix(), 0)) <= 2*s.every()
 }
 
 // Run measures the usage every few seconds, and the size of the servers' data every few
 // minutes, until ctx ends.
 func (s *Service) Run(ctx context.Context) {
-	go every(ctx, diskInterval, s.measureDisks)
-	every(ctx, interval, s.measure)
+	go repeat(ctx, func() time.Duration { return diskInterval }, s.measureDisks)
+	repeat(ctx, s.every, s.measure)
 	s.measuring.Lock()
 	defer s.measuring.Unlock()
 	for _, state := range s.servers {
@@ -116,15 +129,15 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-func every(ctx context.Context, d time.Duration, fn func(context.Context)) {
-	t := time.NewTicker(d)
-	defer t.Stop()
+// repeat calls fn now and then again each interval() after it started, until ctx ends.
+func repeat(ctx context.Context, interval func() time.Duration, fn func(context.Context)) {
 	for {
+		start := time.Now()
 		fn(ctx)
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-time.After(time.Until(start.Add(interval()))):
 		}
 	}
 }
@@ -136,7 +149,7 @@ func (s *Service) measure(ctx context.Context) {
 }
 
 func (s *Service) measureLocked(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, interval)
+	ctx, cancel := context.WithTimeout(ctx, defaultInterval)
 	defer cancel()
 	now := time.Now()
 	res := &noryxv1.GetStatsResponse{TimeUnix: now.Unix(), Node: s.measureHost()}

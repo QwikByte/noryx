@@ -95,6 +95,30 @@ MariaDB's client runs in binary mode and its sandbox, which only allow `DELIMITE
 which refuses `\!`, `\connect`, `\copy`, `\i`, `\o` and all others. Dumps of `pg_dump` since PostgreSQL 17.6 wrap
 themselves in `\restrict` and `\unrestrict`, which the agent leaves out at their start and end.
 
+## Connections and buffers
+
+The settings of a datastore choose the most connections at once, `max_connections`, and its buffers, the data it keeps
+in memory: the buffer pool of MariaDB's InnoDB, `innodb_buffer_pool_size`, or PostgreSQL's `shared_buffers`. Plugins
+keep pools of connections on each server, e.g. LuckPerms 10, so a network with many servers may need more than the 151
+of MariaDB and 100 of PostgreSQL that their images allow, which a datastore keeps while the field is empty. As each
+connection takes memory, a datastore takes from 10 connections to one for each MB of its memory on MariaDB and for each
+2 MB on PostgreSQL, which runs a process for each, up to 1000. The buffers have from 32 MB to three quarters of the
+memory. While their field is empty, they follow the memory: half of it for MariaDB, as InnoDB reads past the cache of
+the system, and a quarter for PostgreSQL, which relies on that cache within the memory too, but at least the 128 MB that
+the images give them.
+
+Changing them creates the container again on the same data, like a change of memory. A datastore whose container an
+earlier version of Noryx created keeps the images' 128 MB until its container is created again, e.g. when its memory,
+connections, buffers, image or version change. The agent of an earlier version ignores them, which the panel warns
+about.
+
+The agent passes them to the server as options that it builds from the numbers, `--max-connections` and
+`--innodb-buffer-pool-size` of `mariadbd` or `-c max_connections` and `-c shared_buffers` of `postgres`, and no others
+can be set (see [Security](security.md#databases)). It lets a datastore run a process or thread for each connection
+besides 512 for the engine itself, and gives PostgreSQL a quarter of the memory, at least 64 MB, for `/dev/shm`, where
+parallel queries share memory, instead of Docker's 64 MB; `shared_buffers` take none of it. All of it counts against the
+datastore's memory.
+
 ## Upgrades and changes
 
 The settings change the memory and CPU limits, download the newest image of the version, or move the datastore to a

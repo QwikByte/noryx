@@ -10,7 +10,7 @@ export const states: Record<DatastoreState, Status> = {
   unknown: { tone: "warning", label: msg("Unknown") },
 }
 
-export const engines: Record<Engine, { label: string; description: string }> = {
-  mariadb: { label: "MariaDB", description: msg("For plugins that speak MySQL, e.g. CoreProtect and LiteBans.") },
-  postgres: { label: "PostgreSQL", description: msg("For plugins that support it, e.g. LuckPerms and Plan.") },
+export const engines: Record<Engine, { label: string; description: string; buffer: string }> = {
+  mariadb: { label: "MariaDB", description: msg("For plugins that speak MySQL, e.g. CoreProtect and LiteBans."), buffer: msg("Buffer pool (MB)") },
+  postgres: { label: "PostgreSQL", description: msg("For plugins that support it, e.g. LuckPerms and Plan."), buffer: msg("Shared buffers (MB)") },
 }

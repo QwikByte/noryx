@@ -40,6 +40,21 @@ export interface Datastore {
   problem?: string
   /** Where the servers of the network reach it. */
   endpoints: Endpoint[]
+  /** The most connections at once; 0 for the default of its engine. */
+  maxConnections: number
+  /** MB of InnoDB's buffer pool or PostgreSQL's shared buffers; 0 for the default, which follows the memory. */
+  bufferMb: number
+  /** What a creation or change left out, e.g. on an agent of an older version. */
+  warning?: string
+}
+
+/** The bounds and defaults of the parameters of an engine with memoryMb, as the master checks them. */
+export function parameterBounds(engine: Engine, memoryMb: number) {
+  const postgres = engine === "postgres"
+  return {
+    connections: { min: 10, max: Math.min(Math.floor(postgres ? memoryMb / 2 : memoryMb), 1000), default: postgres ? 100 : 151 },
+    bufferMb: { min: 32, max: memoryMb - Math.floor(memoryMb / 4), default: Math.max(Math.floor(memoryMb / (postgres ? 4 : 2)), 128) },
+  }
 }
 
 /** Where servers reach a datastore: those on its node by the name of its container, those of other nodes over the private network of the nodes. */
@@ -91,6 +106,9 @@ export interface DatastoreInput {
 export interface DatastoreChange {
   memoryMb?: number
   cpuMillis?: number
+  /** 0 for the defaults. */
+  maxConnections?: number
+  bufferMb?: number
   version?: string
   updateImage?: boolean
   removePrevious?: boolean

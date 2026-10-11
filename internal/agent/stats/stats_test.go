@@ -166,3 +166,16 @@ func TestOfflineMode(t *testing.T) {
 		t.Fatal("offline mode reported after a restart in online mode")
 	}
 }
+
+// The latest measurement serves until two intervals of the node's settings passed.
+func TestInterval(t *testing.T) {
+	s := NewService(nil)
+	s.latest = &noryxv1.GetStatsResponse{TimeUnix: time.Now().Add(-30 * time.Second).Unix()}
+	if _, fresh := s.get(); fresh {
+		t.Error("a measurement of 30 seconds ago serves at an interval of 5 seconds")
+	}
+	s.SetInterval(time.Minute)
+	if _, fresh := s.get(); !fresh {
+		t.Error("a measurement of 30 seconds ago doesn't serve at an interval of a minute")
+	}
+}

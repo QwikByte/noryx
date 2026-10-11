@@ -122,19 +122,37 @@ needs the permission to change files.
 
 The settings of a server can be changed after it was created: name, Minecraft version, the version of the mod loader of
 Fabric, Quilt, Forge and NeoForge servers (the newest unless set), memory, port, Java version (8, 11, 17, 21, 25 or the
-newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout and the time zone. The
-agent creates the container again with the same data; the old container is only removed once the new one exists. A
-server keeps the image it was created with; **Update image** in its settings pulls the newest one and, if it changed,
-creates the container again the same way. The old image is removed once no server uses it. New servers get the newest
-image too: creating one pulls it, which downloads its changes if it was updated since. Deleting servers keeps their
-images. Servers created from a modpack show it in their settings, where they move to [another version of
-it](library.md#modpacks).
+newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout, the time zone, the start
+period of a game server's health check, how the agent treats [crashes and hangs](#crashes-and-health), the limit of
+processes and the initial heap. The agent creates the container again with the same data; the old container is only
+removed once the new one exists. A server keeps the image it was created with; **Update image** in its settings pulls
+the newest one and, if it changed, creates the container again the same way. The old image is removed once no server
+uses it. New servers get the newest image too: creating one pulls it, which downloads its changes if it was updated
+since. Deleting servers keeps their images. Servers created from a modpack show it in their settings, where they move to
+[another version of it](library.md#modpacks).
 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
 the IANA time zones such as `Europe/Berlin` chosen from a searchable list, sets the time of the server's log and of
 plugins that work with times; servers run in UTC unless one is chosen. Agents of earlier versions keep 1 minute and UTC,
 which saving the settings, creating a server and moving one to their node tell.
+
+The **start period** of a game server's [health check](#crashes-and-health) is how long it may take to start before a
+failing check counts: from 2 to 30 minutes, 2 unless changed, e.g. longer for a large modpack, which would show as
+unhealthy while it loads. Servers created from a [modpack](library.md#modpacks) get 10 minutes. Changing it creates the
+container again, as other settings do. Docker and Podman give the server the same check, that of its image, so that both
+behave the same; proxies keep the check of their image, which starts after 10 seconds. Agents of earlier versions keep 2
+minutes, which saving the settings, creating a server and moving one to their node tell.
+
+**Processes and heap** under **Resources** limits how many processes and threads a server's container may run: 1,024
+unless changed, up to 8,192. Java runs threads for each CPU core, e.g. to collect garbage, compile code and serve
+players, and large modded servers, e.g. with C2ME, many worlds or mods that render maps, may need more; a server that
+reaches the limit can't start threads and crashes. The limit keeps a compromised server from exhausting the node, e.g.
+with a fork bomb. The **initial heap** is the memory Java starts with, from 512 MB up to the server's memory, which the
+heap grows to as needed. Without it, and always with Aikar's flags, which want both the same, Java starts with all of
+it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way. Agents of
+earlier versions keep 1,024 processes and all of the memory, which saving the settings, creating a server and moving one
+to their node tell.
 
 Stopping and restarting a server run as [operations](panel.md#operations), as they may take as long as its stop
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives
@@ -167,16 +185,50 @@ sudo systemctl daemon-reload
 On a node that runs [Podman](installation.md#docker-or-podman), `podman-restart.service` stops the servers, so raise
 its `TimeoutStopSec` the same way, in `/etc/systemd/system/podman-restart.service.d`.
 
+## Extra ports
+
+Plugins that listen at a port of their own, such as web maps (BlueMap, Dynmap, squaremap), Simple Voice Chat, Votifier
+or exporters of metrics, need the node to publish that port. Under **Extra ports** in its settings, a server publishes
+up to 5, each TCP or UDP with a label such as `Map`. The node publishes each at the same port of the server, where the
+plugin must listen, so the plugin is set to that port in its configuration, e.g. `port: 8100` in BlueMap's
+`webserver.conf`. Changing them creates the container again, like the other settings.
+
+An extra port is from 1024 to 65535 and in the [port range](#node-settings) of the node, no other server or datastore
+of the node uses it, as its port or as an extra port, and it is neither the server's port nor its Bedrock port nor one
+its container uses itself: 25565, where the server listens inside its container, the console port 25575 and 25577. A
+TCP and a UDP port may share a number. The page of the server shows its extra ports at the host of its node's address
+with their labels, with a button to copy each, and opens TCP ports such as a web map in the browser; without the
+permission to see the node, it shows only the ports.
+
+Extra ports are public like the server's port: anyone on the internet reaches them at all addresses of the node, also
+for a server of a [network](networks.md) that players otherwise only reach through its proxy, which its settings point
+out. Other nodes don't reach them through the [private network](networks.md#private-network).
+
+Templates keep extra ports, which **Create server** shows to change, e.g. as another server of the node uses them
+already. A copy gets none, as the original keeps its own. A server that moves takes them along, which needs them to be
+free and in the port range on the new node; the move checks that before it stops the server. Agents of earlier versions
+publish no extra ports, which saving the settings, creating a server and moving one to their node tell.
+
 ## Crashes and health
 
 A server that crashed and starts again shows as **crashing**, with how often it crashed and its exit code. After 5
 crashes in a row, each within 10 minutes of its start, the agent stops it, as Docker or Podman would start it again
-forever. Each crash is a warning in the log, which the bell counts, and the notice on the server's page links to its
-crash reports.
+forever. **Crashes** under **Starting and stopping** in its settings changes both: from 1 to 20 crashes in a row, and a
+stable run from 1 minute to 2 hours, after which a crash starts a new row, e.g. longer for a large modpack that crashes
+after 15 minutes, or fewer crashes for a small server. Each crash is a warning in the log, which the bell counts, and
+the notice on the server's page links to its crash reports.
 
-The images check the health of their server. A server that runs but fails its health check, e.g. as it hangs, shows as
+The images check the health of their server every 30 seconds, a game server with `mc-health`. A server that runs but
+fails its health check twice in a row after its [start period](#settings-and-images), e.g. as it hangs, shows as
 **unhealthy** on its card and page and under what needs attention on the overview; the log tells when it becomes
 unhealthy and healthy again. It still counts as running: its console, restarts, stops and schedules work as usual.
+
+**Restart when unhealthy**, also under **Crashes** and off unless chosen, has the agent restart a running server whose
+health check has failed for 1 to 60 minutes, so never during its start period. The restart is a warning in the log and
+counts as a crash, so a server that keeps hanging is stopped after its crashes in a row; a restart after the server was
+healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds. Agents of earlier versions
+keep 5 crashes in a row, 10 minutes and no restarts, which saving the settings, creating a server and moving one to their
+node tell.
 
 ## Copies
 
@@ -184,7 +236,8 @@ A server can be duplicated on its node: the copy gets all files, worlds and sett
 starts stopped. A running game server first writes its worlds to disk and pauses saving while they are copied, so
 players stay connected. The copy keeps the original's modpack, but doesn't take over its place in a network unless **Add
 the copy to the network** is chosen for a game server of one, e.g. for a second lobby: the copy then joins the network
-next to the original, see [Networks](networks.md#copies-of-servers).
+next to the original, see [Networks](networks.md#copies-of-servers). The copy gets no [extra ports](#extra-ports), as
+the original keeps them.
 
 ## Moving to another node
 
@@ -236,3 +289,24 @@ the first free port in it) and a memory limit, so that servers together can't ge
 reserve for the system (1 GB unless changed). A server counts with the limit of its container, which gives Java about a
 quarter more than the server's memory and 256 MB for what it needs besides the heap, e.g. 1.5 GB for 1 GB. Name and
 agent address can be changed too.
+
+The node's agent applies three more settings itself. It keeps them across restarts, and gets them again whenever it
+reports others, e.g. as it was offline when they changed:
+
+- **Output of containers:** how much of their output servers and datastores keep, 3 files of 10 MB unless changed, from
+  1 to 10 files of 1 to 100 MB. That is far more than the last 1000 lines that the [console](#console) loads; older
+  output is in the server's log files. A container gets the limit when it is created again, e.g. as the settings of its
+  server are saved or its image is updated, and keeps the one it was created with until then. Docker keeps the files
+  and drops the oldest, while Podman keeps a single file of the size of all of them, which starts empty once it is full.
+  Without a limit, the configuration of the runtime decides, e.g. `log-driver` and `log-opts` in Docker's
+  `/etc/docker/daemon.json` or `log_driver` and `log_size_max` in Podman's `containers.conf`, for one to keep the output
+  in journald.
+- **Space kept free:** uploads, backups, copies of backups from other nodes, dumps of databases and the data of servers
+  that move to the node stop before they leave less free on its disk, from 1 to 50 GiB, 1 GiB unless changed, e.g. more
+  on a node with large worlds, which need room to be saved. Where these pages say that 1 GB stays free, it's this space.
+- **Interval of measurements:** how often the agent measures what the node, its servers and datastores use (see
+  [Usage](monitoring.md#current-values)), from every 5 to every 60 seconds, every 5 unless changed. Longer intervals ask
+  the servers less often for their players and ticks per second, while the panel shows changes later.
+
+Agents of older versions don't take these settings, which the panel says as they are saved; they get them once they
+are updated.

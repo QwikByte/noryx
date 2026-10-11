@@ -135,6 +135,36 @@ message Server {
   uint32 stop_timeout_seconds = 21;
   // IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
   string time_zone = 22;
+  // Ports of plugins that the node publishes, e.g. of a web map; agents of older versions have none.
+  repeated ExtraPort extra_ports = 23;
+  // Minutes a game server gets to start before its failed health checks count, e.g. as a large
+  // modpack loads; 0 for the default of 2, as older agents report it.
+  uint32 health_start_minutes = 24;
+  // Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
+  // agents report it.
+  uint32 crash_limit = 25;
+  // Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
+  uint32 stable_after_minutes = 26;
+  // Minutes after which the agent restarts a running server that stays unhealthy, which counts as
+  // a crash; 0 for never.
+  uint32 unhealthy_restart_minutes = 27;
+  // Processes and threads the server's container may run; 0 for the default of 1024, as older
+  // agents report it.
+  uint32 process_limit = 28;
+  // Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
+  uint32 init_memory_mb = 29;
+}
+
+// ExtraPort is a port of a plugin of a server, e.g. of a web map or a voice chat, which the node
+// publishes on all its addresses at the same port of the container, where the plugin listens.
+message ExtraPort {
+  // From 1024 to 65535, neither the server's own port nor its Bedrock port, nor one its container
+  // uses itself: 25565, 25575 (RCON) and 25577.
+  uint32 port = 1;
+  // "tcp" or "udp".
+  string protocol = 2;
+  // Plain text of up to 32 characters, e.g. "Map".
+  string label = 3;
 }
 
 message ListServersRequest {}
@@ -165,6 +195,13 @@ message CreateServerRequest {
   string loader_version = 14;
   uint32 stop_timeout_seconds = 15;
   string time_zone = 16;
+  repeated ExtraPort extra_ports = 17;
+  uint32 health_start_minutes = 18;
+  uint32 crash_limit = 19;
+  uint32 stable_after_minutes = 20;
+  uint32 unhealthy_restart_minutes = 21;
+  uint32 process_limit = 22;
+  uint32 init_memory_mb = 23;
 }
 
 message CreateServerResponse {
@@ -207,6 +244,27 @@ message UpdateServerRequest {
   // IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
   // for UTC.
   string time_zone = 13;
+  // Up to 5 ports of plugins to publish; changing them creates the container again.
+  repeated ExtraPort extra_ports = 14;
+  // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
+  // as older masters send it, means 2. Proxies keep the start period of their image.
+  uint32 health_start_minutes = 15;
+  // Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
+  // the server, from 1 to 20; 0, as older masters send it, means 5.
+  uint32 crash_limit = 16;
+  // Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
+  // means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+  uint32 stable_after_minutes = 17;
+  // Minutes, from 1 to 60, after which the agent restarts a running server whose health check
+  // keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
+  // of them. 0, as older masters send it, for never.
+  uint32 unhealthy_restart_minutes = 18;
+  // Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
+  // send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+  uint32 process_limit = 19;
+  // Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
+  // 0, as older masters send it, for the same as memory_mb.
+  uint32 init_memory_mb = 20;
 }
 
 message UpdateServerResponse {

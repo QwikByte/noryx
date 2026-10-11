@@ -105,7 +105,9 @@ Velocity's modern forwarding signs the forwarded player data with a random secre
 master's database and on the network's servers; the API never returns it, and the file manager hides it in every file
 that holds it. Legacy forwarding (BungeeCord's) can be spoofed by anyone who reaches a server, so the servers of such a
 network are only reachable by the proxy on its node, and those on other nodes need the operator's confirmation that a
-firewall protects them. Servers that leave a network, also as it is deleted, run in online mode again without the
+firewall protects them. The extra ports of their plugins are public all the same, which their settings say, but never
+publish the port a server listens at inside its container (see [Containers](#containers)). Servers that leave a
+network, also as it is deleted, run in online mode again without the
 secret. Restoring a backup keeps what decides how a server takes part in a network as it is: a proxy's forwarding secret
 and the files with secrets of Geyser and Floodgate, the forwarding settings, including the secret Velocity 1 kept in
 its configuration, and a game server's online mode. The agent puts them into the extracted backup before it replaces
@@ -129,7 +131,17 @@ Containers run with `no-new-privileges`, memory and PID limits, and only the cap
 data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies run as the user of their image (uid 1000) from the
 start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
 without communication between containers (`noryx-servers`), and a Velocity proxy shares another one only with its
-backends on the node.
+backends on the node. The PID limit lets a server's container run 1,024 processes and threads, or up to 8,192 if its
+settings say so, which the agent checks, so that a compromised server can't exhaust the node, e.g. with a fork bomb.
+
+A container publishes the server's port, a proxy's Bedrock port and the extra ports of the server's plugins, nothing
+else. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
+of the node, and never the server's or its Bedrock port, nor a port the container uses itself: 25565 and 25577, where
+servers and proxies listen inside it, and the console port 25575, which the image sets again on every start, so that
+neither the console nor the game port of a server behind a proxy becomes reachable through them. Each is published at
+the same port of the container on all addresses of the node, so whatever a plugin serves there is public like the
+server's port; a compromised server could serve anything there, but it reaches the internet anyway. Their labels are
+plain text of up to 32 characters, which the panel shows as text only.
 
 A node runs its containers with Docker or with Podman as root, and the same holds for both. The agent sets every option
 of a container itself, so that Podman gets the same users, capabilities, limits, health checks and published addresses
@@ -207,7 +219,10 @@ moves to another version of its pack, and the agent confines the files like thos
 files of a pack changed on a server, the agent hashes them only if they are regular files without secrets, not through
 links, so a hash tells nothing about a secret, and an update never replaces or removes such files. A compromised server
 can only make its own files look changed or unchanged. Updating a pack needs the permissions to change the server's
-settings and to manage its plugins and mods, as it does both. The version of a mod loader ends up in a variable of
+settings and to manage its plugins and mods, as it does both. Choosing what an update backs up first, and where, needs
+the permission to back up the server too, like **Back up**; the backup it makes by default needs none. An update without
+a backup, which a request has to ask for, needs no more permissions, as changing the version and the mods by hand makes
+no backup either; the log notes it. The version of a mod loader ends up in a variable of
 the server image, so the agent only accepts letters, digits, `.`, `_`, `+` and `-`. The agent decides the folder from
 the server type and only accepts plain `.jar` file names in it. Turned-off plugins stay in the server's data, in the
 folder `.disabled` of the plugin folder, which backups of the plugins include; the agent confines it like the plugin
@@ -269,7 +284,11 @@ version.
 ## Databases
 
 A datastore runs as the image's user without capabilities, with `no-new-privileges`, memory, CPU and PID limits and a
-health check. The agent generates the superuser's password, which the image reads from a file that only it may read,
+health check. Of the parameters of the engines, only the most connections and the size of the buffers can be set:
+numbers within bounds that the agent checks, also against the datastore's memory, from which it builds the options of
+the server itself. None that load code or run commands can be set, e.g. PostgreSQL's `shared_preload_libraries` and
+`archive_command` or MariaDB's `plugin_load` and `init_file`.
+The agent generates the superuser's password, which the image reads from a file that only it may read,
 never from the environment or labels, and which never leaves the node; MariaDB's root may only sign in on the container
 itself. Every database has its own user with rights on it alone, and on PostgreSQL nobody else may connect to it or to
 the superuser's database. Only the network's servers reach a datastore: on its node over an internal network
@@ -630,6 +649,17 @@ its servers and the datastores.
 
 Only the node's administrator decides where server data may be stored (`noryx-agent storage add`). The panel can only
 choose among these locations, so a compromised master can't mount other host directories into containers.
+
+## Settings of nodes
+
+The settings that the agent of a node applies itself have bounds that it checks itself too, so that not even a
+compromised master can set them beyond: uploads, backups, copies of backups, dumps and the data of moving servers leave
+1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the node's disk; the
+runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless changed, so that a
+server that writes without end can't fill it either, unless the settings leave it to the runtime's own configuration;
+and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root can read, and
+applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them needs the
+permission to change the node.
 
 ## Installation
 

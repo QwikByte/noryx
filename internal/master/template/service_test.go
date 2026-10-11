@@ -17,6 +17,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/plugin"
+	"github.com/QwikByte/noryx/internal/master/server"
 )
 
 // fakePlugins knows LuckPerms for Paper, in the versions 2.0 and 1.0 for Minecraft 1.21.4,
@@ -51,7 +52,10 @@ func newService(t *testing.T) *Service {
 
 func input(change func(*Input)) Input {
 	in := Input{
-		Name: "Bedwars", Settings: Settings{Type: "paper", Version: "1.21.4", MemoryMB: 2048, Properties: map[string]string{"motd": "Bedwars"}},
+		Name: "Bedwars", Settings: Settings{
+			Type: "paper", Version: "1.21.4", MemoryMB: 2048, Properties: map[string]string{"motd": "Bedwars"},
+			ExtraPorts: []server.ExtraPort{{Port: 8100, Protocol: "tcp", Label: "Map"}},
+		},
 		Tags: []string{"Bedwars", "minigames"}, Plugins: []string{"luckperms"}, Versions: map[string]string{"luckperms": "lp1"},
 		Channels: map[string]string{"luckperms": "beta"},
 	}
@@ -69,7 +73,7 @@ func TestSave(t *testing.T) {
 	}
 	tmpl, err = s.Get(t.Context(), tmpl.ID)
 	want := []Plugin{{Project: plugin.Project{ID: "luckperms", Slug: "luckperms", Title: "LuckPerms"}, Version: "lp1", VersionNumber: "1.0", Channel: "beta"}}
-	if err != nil || !slices.Equal(tmpl.Tags, []string{"bedwars", "minigames"}) || !reflect.DeepEqual(tmpl.Plugins, want) {
+	if err != nil || !slices.Equal(tmpl.Tags, []string{"bedwars", "minigames"}) || !reflect.DeepEqual(tmpl.Plugins, want) || len(tmpl.ExtraPorts) != 1 {
 		t.Fatalf("template = %+v, %v", tmpl, err)
 	}
 	// Releases are the channel of plugins without one.
@@ -93,6 +97,7 @@ func TestSave(t *testing.T) {
 		{"version for newer Minecraft", func(in *Input) { in.Version = "1.20.1"; in.Versions = map[string]string{"luckperms": "lp2"} }, "The chosen version of LuckPerms doesn't run on the servers of the template."},
 		{"channel of another plugin", func(in *Input) { in.Channels = map[string]string{"vault": "beta"} }, "Choose the channel release, beta or alpha, and only for the plugins of the template."},
 		{"invalid channel", func(in *Input) { in.Channels = map[string]string{"luckperms": "snapshot"} }, "Choose the channel release, beta or alpha, and only for the plugins of the template."},
+		{"console port", func(in *Input) { in.ExtraPorts = []server.ExtraPort{{Port: 25575, Protocol: "tcp"}} }, "The server's container uses port 25575 itself. Choose another extra port."},
 	} {
 		if _, err := s.Create(t.Context(), input(func(in *Input) { in.Name = tc.name; tc.change(in) })); err == nil || httpapi.Message(err) != tc.want {
 			t.Errorf("%s: %v, want %q", tc.name, err, tc.want)
@@ -142,7 +147,7 @@ func TestImportChecksFile(t *testing.T) {
 		`[]`:       "This isn't a template exported from Noryx.",
 		`{"format": "noryx-fileset", "version": 1, "template": {}}`:                     "This isn't a template exported from Noryx.",
 		`{"format": "noryx-template", "version": 0, "template": {}}`:                    "This isn't a template exported from Noryx.",
-		`{"format": "noryx-template", "version": 3, "template": {"new": true}}`:         "The template comes from a newer version of Noryx. Update Noryx to import it.",
+		`{"format": "noryx-template", "version": 4, "template": {"new": true}}`:         "The template comes from a newer version of Noryx. Update Noryx to import it.",
 		`{"format": "noryx-template", "version": 1, "template": {"id": "x"}}`:           `The template file is invalid: json: unknown field "id"`,
 		`{"format": "noryx-template", "version": 1, "template": {"name": "x"}, "x": 1}`: `The template file is invalid: json: unknown field "x"`,
 	} {

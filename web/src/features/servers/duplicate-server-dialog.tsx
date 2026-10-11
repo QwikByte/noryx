@@ -137,7 +137,10 @@ export function DuplicateServerDialog({
                   value={values.port}
                   onChange={(e) => setPort(e.target.valueAsNumber || 0)}
                 />
-                <FieldDescription>{t("Every server on a node needs its own port.")}</FieldDescription>
+                <FieldDescription>
+                  {t("Every server on a node needs its own port.")}
+                  {server.extraPorts.length > 0 && ` ${t("The copy gets no extra ports, as {{name}} keeps them.", { name: server.name })}`}
+                </FieldDescription>
               </Field>
               {network && backend && (
                 <Field orientation="horizontal">

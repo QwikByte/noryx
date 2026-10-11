@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Channel, Project } from "@/features/plugins/api"
-import type { RestartPolicy } from "@/features/servers/api"
+import type { ExtraPort, RestartPolicy } from "@/features/servers/api"
 import { defaults } from "@/features/servers/server-types"
 import { api } from "@/lib/api"
 
@@ -19,6 +19,19 @@ export interface TemplateSettings {
   stopTimeout: number
   /** IANA time zone such as Europe/Berlin; empty for UTC. */
   timeZone: string
+  /** Minutes game servers get to start before their failed health checks count. */
+  healthStart: number
+  /** Crashes in a row, each within stableAfter minutes of its start, after which the agent stops a server. */
+  crashLimit: number
+  stableAfter: number
+  /** Minutes after which the agent restarts a running server that stays unhealthy; 0 for never. */
+  unhealthyRestart: number
+  /** Processes and threads a server's container may run. */
+  processLimit: number
+  /** The heap Java starts with, below memoryMb; 0 for all of it. */
+  initMemoryMb: number
+  /** Ports of plugins, e.g. of a web map, which new servers publish unless changed. */
+  extraPorts: ExtraPort[]
   /** Written to server.properties before the first start. */
   properties: Record<string, string>
 }
@@ -81,6 +94,13 @@ export const emptyTemplate: TemplateDraft = {
   cpuLimit: 0,
   stopTimeout: 60,
   timeZone: "",
+  healthStart: 2,
+  crashLimit: 5,
+  stableAfter: 10,
+  unhealthyRestart: 0,
+  processLimit: 1024,
+  initMemoryMb: 0,
+  extraPorts: [],
   properties: {},
   tags: [],
   plugins: [],
@@ -89,7 +109,9 @@ export const emptyTemplate: TemplateDraft = {
 export function draftOf(t: Template): TemplateDraft {
   const { name, description, type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, tags, plugins } = t
   const settings = { type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties }
-  return { name, description, ...settings, stopTimeout: t.stopTimeout, timeZone: t.timeZone, tags, plugins }
+  const { stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = t
+  const advanced = { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
+  return { name, description, ...settings, stopTimeout, timeZone, extraPorts: t.extraPorts, ...advanced, tags, plugins }
 }
 
 export const templatesQuery = queryOptions({

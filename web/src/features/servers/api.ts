@@ -44,6 +44,19 @@ export interface Server {
   stopTimeout: number
   /** IANA time zone such as Europe/Berlin; empty for UTC. */
   timeZone: string
+  /** Minutes a game server gets to start before its failed health checks count, e.g. as a large modpack loads. */
+  healthStart: number
+  /** Crashes in a row, each within stableAfter minutes of its start, after which the agent stops the server. */
+  crashLimit: number
+  stableAfter: number
+  /** Minutes after which the agent restarts a running server that stays unhealthy, which counts as a crash; 0 for never. */
+  unhealthyRestart: number
+  /** Processes and threads the server's container may run. */
+  processLimit: number
+  /** The heap Java starts with, below memoryMb; 0 for all of it. */
+  initMemoryMb: number
+  /** Ports of plugins, e.g. of a web map, which the node publishes on all its addresses. */
+  extraPorts: ExtraPort[]
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -51,6 +64,14 @@ export interface Server {
 }
 
 export type RestartPolicy = "always" | "on_crash" | "never"
+
+/** A port of a plugin of a server, which the node publishes at the same port of the container, where the plugin listens. */
+export interface ExtraPort {
+  port: number
+  protocol: "tcp" | "udp"
+  /** Plain text such as "Map"; may be empty. */
+  label: string
+}
 
 /** Settings of a server that can be changed after it was created. */
 export type ServerSettings = Pick<
@@ -67,7 +88,24 @@ export type ServerSettings = Pick<
   | "loaderVersion"
   | "stopTimeout"
   | "timeZone"
+  | "healthStart"
+  | "crashLimit"
+  | "stableAfter"
+  | "unhealthyRestart"
+  | "processLimit"
+  | "initMemoryMb"
+  | "extraPorts"
 >
+
+/** When the agent stops a server that keeps crashing, and restarts one that stays unhealthy. */
+export type CrashSettings = Pick<Server, "crashLimit" | "stableAfter" | "unhealthyRestart">
+
+/** How many processes a server may run, and the heap Java starts with. */
+export type ResourceSettings = Pick<Server, "processLimit" | "initMemoryMb">
+
+/** The initial heap a server gets: none below its memory with Aikar's flags, which start Java with all of it. */
+export const initialHeap = ({ initMemoryMb, memoryMb, aikarFlags }: { initMemoryMb: number; memoryMb: number; aikarFlags: boolean }) =>
+  aikarFlags || initMemoryMb >= memoryMb ? 0 : initMemoryMb
 
 /** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
 export interface NewServerSettings {
@@ -118,7 +156,7 @@ export const serverKey = (s: { nodeId: string; id: string }) => `${s.nodeId}/${s
 
 export interface NewServer
   extends Partial<
-    Pick<Server, "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone">
+    Pick<Server, "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone" | "extraPorts">
   > {
   name: string
   type: string
@@ -129,6 +167,13 @@ export interface NewServer
   storage: string
   /** Written to server.properties before the first start. */
   properties?: Record<string, string>
+  /** Minutes the server gets to start, e.g. those of its template; 10 for a modpack unless given. */
+  healthStart?: number
+  crashLimit?: number
+  stableAfter?: number
+  unhealthyRestart?: number
+  processLimit?: number
+  initMemoryMb?: number
   /** A modpack decides the type and the versions of the server. */
   modpack?: ModpackChoice
   /** Given to the new server, e.g. those of its template. */

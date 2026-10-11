@@ -52,6 +52,7 @@ import {
   useCreateServer,
   useImportServer,
 } from "./api"
+import { ExtraPortsField } from "./extra-ports"
 import { lastNode, rememberNode } from "./last-node"
 import { defaults, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
 import { JavaField, MemoryField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
@@ -93,6 +94,7 @@ function blank(template?: Template, settings?: NewServerSettings): Form {
     java,
     stopTimeout,
     timeZone,
+    extraPorts: template?.extraPorts ?? [],
     source: "empty",
   }
 }
@@ -215,6 +217,13 @@ export function CreateServerDialog({
         jvmOptions,
         cpuLimit,
         properties,
+        healthStart: template.healthStart,
+        crashLimit: template.crashLimit,
+        stableAfter: template.stableAfter,
+        unhealthyRestart: template.unhealthyRestart,
+        processLimit: template.processLimit,
+        initMemoryMb: template.initMemoryMb,
+        extraPorts: form.extraPorts,
         versions: keptVersions(template.plugins),
         channels: keptChannels(template.plugins),
       })
@@ -445,6 +454,9 @@ export function CreateServerDialog({
                   />
                 </Field>
               </div>
+              {!!template?.extraPorts.length && (
+                <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => setForm({ ...form, extraPorts })} />
+              )}
               {locations.length > 1 && (
                 <Field>
                   <FieldLabel htmlFor="server-storage">{t("Storage")}</FieldLabel>

@@ -16,6 +16,9 @@ service NodeService {
   // Update installs a release of Noryx that is newer than the agent, in a
   // systemd unit of its own. The agent restarts on it; servers keep running.
   rpc Update(UpdateRequest) returns (UpdateResponse);
+  // Configure gives the agent the settings of its node that it applies itself, which it
+  // keeps across restarts.
+  rpc Configure(ConfigureRequest) returns (ConfigureResponse);
 }
 
 message GetInfoRequest {}
@@ -38,6 +41,8 @@ message GetInfoResponse {
   // empty, as they only run Docker; runtime tells its version.
   string runtime_name = 9;
   string runtime_version = 10;
+  // The settings the agent applies; older agents leave them out.
+  NodeSettings settings = 11;
 }
 
 // StorageLocation is a directory the node's administrator allowed for server data.
@@ -66,3 +71,22 @@ message UpdateRequest {
 }
 
 message UpdateResponse {}
+
+// NodeSettings are what the master chose for a node and its agent applies itself, within the
+// bounds that NodeSettings.Problem checks.
+message NodeSettings {
+  // The containers that the agent creates from now on keep log_files files of up to
+  // log_file_mb MB of their output. 0 for both leaves it to the runtime's configuration.
+  uint32 log_file_mb = 1;
+  uint32 log_files = 2;
+  // The space in GiB that uploads and backups leave free on a file system.
+  uint32 keep_free_gb = 3;
+  // The seconds between two measurements of what the node and its servers use.
+  uint32 stats_interval_seconds = 4;
+}
+
+message ConfigureRequest {
+  NodeSettings settings = 1;
+}
+
+message ConfigureResponse {}

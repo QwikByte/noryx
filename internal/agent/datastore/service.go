@@ -100,20 +100,24 @@ func toProto(ds runtime.Datastore) *noryxv1.Datastore {
 	return &noryxv1.Datastore{
 		Id: ds.ID, Engine: ds.Engine, Version: ds.Version, MemoryMb: ds.MemoryMB, CpuMillis: ds.CPUMillis, Storage: ds.Storage,
 		State: ds.State, Size: ds.Size, PreviousVersion: ds.Previous, Port: ds.Port,
+		Parameters: &noryxv1.DatastoreParameters{MaxConnections: ds.MaxConnections, BufferMb: ds.BufferMB},
 	}
 }
 
 func (s *Service) CreateDatastore(ctx context.Context, req *noryxv1.CreateDatastoreRequest) (*noryxv1.CreateDatastoreResponse, error) {
 	spec := runtime.DatastoreSpec{
 		ID: req.GetId(), Engine: req.GetEngine(), Version: req.GetVersion(), MemoryMB: req.GetMemoryMb(), CPUMillis: req.GetCpuMillis(), Storage: req.GetStorage(),
+		MaxConnections: req.GetParameters().GetMaxConnections(), BufferMB: req.GetParameters().GetBufferMb(),
 	}
-	switch {
+	switch problem := req.GetParameters().Problem(spec.Engine, spec.MemoryMB); {
 	case !runtime.ValidID(spec.ID):
 		return nil, status.Error(codes.InvalidArgument, "invalid datastore ID")
 	case !slices.Contains(s.rt.DatastoreVersions()[spec.Engine], spec.Version):
 		return nil, status.Errorf(codes.InvalidArgument, "This agent doesn't run %s %s.", spec.Engine.Slug(), spec.Version)
 	case spec.MemoryMB < minMemoryMB:
 		return nil, status.Errorf(codes.InvalidArgument, "Give the datastore at least %d MB of memory.", minMemoryMB)
+	case problem != "":
+		return nil, status.Error(codes.InvalidArgument, problem)
 	}
 	release, err := s.reserve(spec.ID)
 	if err != nil {
@@ -156,14 +160,17 @@ func (s *Service) UpdateDatastore(ctx context.Context, req *noryxv1.UpdateDatast
 	defer release()
 	spec := ds.DatastoreSpec
 	spec.MemoryMB, spec.CPUMillis, spec.Version = req.GetMemoryMb(), req.GetCpuMillis(), cmp.Or(req.GetVersion(), spec.Version)
+	spec.MaxConnections, spec.BufferMB = req.GetParameters().GetMaxConnections(), req.GetParameters().GetBufferMb()
 	if req.GetRemovePrevious() {
 		spec.Previous = ""
 	}
-	switch {
+	switch problem := req.GetParameters().Problem(spec.Engine, spec.MemoryMB); {
 	case spec.MemoryMB < minMemoryMB:
 		return nil, status.Errorf(codes.InvalidArgument, "Give the datastore at least %d MB of memory.", minMemoryMB)
 	case !slices.Contains(s.rt.DatastoreVersions()[spec.Engine], spec.Version):
 		return nil, status.Errorf(codes.InvalidArgument, "This agent doesn't run %s %s.", spec.Engine.Slug(), spec.Version)
+	case problem != "":
+		return nil, status.Error(codes.InvalidArgument, problem)
 	}
 	if spec != ds.DatastoreSpec || req.GetUpdateImage() {
 		if err := s.rt.UpdateDatastore(ctx, spec, req.GetUpdateImage()); err != nil {

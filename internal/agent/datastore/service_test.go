@@ -185,6 +185,56 @@ func TestUpgrade(t *testing.T) {
 	}
 }
 
+// TestParameters checks the bounds of the parameters, also those of the memory, which the
+// datastore keeps until they change.
+func TestParameters(t *testing.T) {
+	s, rt, _, id := newService(t)
+	ctx := t.Context()
+	for _, c := range []struct {
+		params *noryxv1.DatastoreParameters
+		ok     bool
+	}{
+		{&noryxv1.DatastoreParameters{MaxConnections: 9}, false},
+		{&noryxv1.DatastoreParameters{MaxConnections: 10}, true},
+		{&noryxv1.DatastoreParameters{MaxConnections: 512}, true}, // one for each MB on MariaDB
+		{&noryxv1.DatastoreParameters{MaxConnections: 513}, false},
+		{&noryxv1.DatastoreParameters{BufferMb: 31}, false},
+		{&noryxv1.DatastoreParameters{BufferMb: 32}, true},
+		{&noryxv1.DatastoreParameters{BufferMb: 384}, true}, // three quarters of the memory
+		{&noryxv1.DatastoreParameters{BufferMb: 385}, false},
+		{nil, true},
+	} {
+		_, err := s.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{Id: id, MemoryMb: 512, Parameters: c.params})
+		if c.ok && err != nil || !c.ok && status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%v: %v", c.params, err)
+		}
+	}
+	params := &noryxv1.DatastoreParameters{MaxConnections: 600, BufferMb: 768}
+	res, err := s.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{Id: id, MemoryMb: 1024, Parameters: params})
+	must(t, err)
+	list, _ := rt.ListDatastores(ctx)
+	if p := res.GetDatastore().GetParameters(); p.GetMaxConnections() != 600 || p.GetBufferMb() != 768 || list[0].MaxConnections != 600 || list[0].BufferMB != 768 {
+		t.Errorf("changed to %v: %+v", p, list[0])
+	}
+	// Less memory needs fewer connections and smaller buffers.
+	if _, err := s.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{Id: id, MemoryMb: 512, Parameters: params}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("kept them with less memory: %v", err)
+	}
+
+	// PostgreSQL takes a connection for each 2 MB, also when it is created.
+	pg := &noryxv1.CreateDatastoreRequest{Id: runtime.NewID(), Engine: noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES, Version: "18", MemoryMb: 512}
+	pg.Parameters = &noryxv1.DatastoreParameters{MaxConnections: 257}
+	if _, err := s.CreateDatastore(ctx, pg); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("created PostgreSQL with 257 connections: %v", err)
+	}
+	pg.Parameters = &noryxv1.DatastoreParameters{MaxConnections: 256, BufferMb: 64}
+	created, err := s.CreateDatastore(ctx, pg)
+	must(t, err)
+	if p := created.GetDatastore().GetParameters(); p.GetMaxConnections() != 256 || p.GetBufferMb() != 64 {
+		t.Errorf("created with %v", p)
+	}
+}
+
 func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {

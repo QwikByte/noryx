@@ -12,9 +12,10 @@ import (
 
 const (
 	// fileFormat marks the files of exported templates, and fileVersion is the version of their
-	// format, which changes whenever the format does: 2 gave plugins their channel.
+	// format, which changes whenever the format does: 2 gave plugins their channel, 3 servers
+	// their extra ports.
 	fileFormat  = "noryx-template"
-	fileVersion = 2
+	fileVersion = 3
 	// maxFile is as much as any request with a template.
 	maxFile = 1 << 20
 )

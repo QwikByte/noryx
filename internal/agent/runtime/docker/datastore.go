@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -57,6 +58,8 @@ type engine struct {
 	data   func(version string) string
 	env    []string
 	health []string
+	// command returns the command of its server with the parameters as options.
+	command func(connections, bufferMB uint32) []string
 }
 
 var engines = map[noryxv1.DatastoreEngine]engine{
@@ -67,6 +70,9 @@ var engines = map[noryxv1.DatastoreEngine]engine{
 		// of the image.
 		env:    []string{"MARIADB_ROOT_PASSWORD_FILE=" + superuserMount, "MARIADB_ROOT_HOST=localhost", "MARIADB_AUTO_UPGRADE=1"},
 		health: []string{"CMD", "healthcheck.sh", "--connect", "--innodb_initialized"},
+		command: func(connections, bufferMB uint32) []string {
+			return []string{"mariadbd", fmt.Sprintf("--max-connections=%d", connections), fmt.Sprintf("--innodb-buffer-pool-size=%dM", bufferMB)}
+		},
 	},
 	noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES: {
 		image: "docker.io/library/postgres", versions: []string{"17", "18"}, port: 5432,
@@ -82,6 +88,9 @@ var engines = map[noryxv1.DatastoreEngine]engine{
 		// Over TCP: the server that initializes new data listens on the Unix socket only, and
 		// stops right after.
 		health: []string{"CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"},
+		command: func(connections, bufferMB uint32) []string {
+			return []string{"postgres", "-c", fmt.Sprintf("max_connections=%d", connections), "-c", fmt.Sprintf("shared_buffers=%dMB", bufferMB)}
+		},
 	},
 }
 
@@ -239,11 +248,13 @@ func (d *Docker) createDatastoreContainer(ctx context.Context, spec runtime.Data
 	if err != nil {
 		return err
 	}
+	tune(&opts, spec)
 	for name := range opts.NetworkingConfig.EndpointsConfig {
 		if err := d.ensureNetwork(ctx, name); err != nil {
 			return err
 		}
 	}
+	opts.HostConfig.LogConfig = d.logConfig()
 	d.adapt(&opts)
 	_, err = d.cli.ContainerCreate(ctx, opts)
 	return err
@@ -308,6 +319,20 @@ func datastoreOptions(spec runtime.DatastoreSpec, dir string) (client.ContainerC
 			},
 		},
 	}, nil
+}
+
+// tune runs the engine of a datastore with its parameters, or their defaults, as options that
+// it builds from the numbers, and gives it room for them: a process or thread for each
+// connection besides those of the engine itself, and for PostgreSQL a quarter of the memory in
+// /dev/shm, which parallel queries share, instead of Docker's 64 MB. Its shared_buffers are
+// anonymous shared memory, which doesn't need room there; both count against the memory limit.
+func tune(opts *client.ContainerCreateOptions, spec runtime.DatastoreSpec) {
+	connections := cmp.Or(spec.MaxConnections, spec.Engine.DefaultConnections())
+	opts.Config.Cmd = engines[spec.Engine].command(connections, cmp.Or(spec.BufferMB, spec.Engine.DefaultBufferMB(spec.MemoryMB)))
+	opts.HostConfig.PidsLimit = new(int64(datastorePids + connections))
+	if spec.Engine == noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES {
+		opts.HostConfig.ShmSize = int64(max(spec.MemoryMB/4, 64)) << 20
+	}
 }
 
 func (d *Docker) StartDatastore(ctx context.Context, id string) error {

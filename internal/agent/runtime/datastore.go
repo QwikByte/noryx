@@ -33,6 +33,10 @@ type DatastoreSpec struct {
 	Overlay string `json:"overlay,omitempty"`
 	// Previous is the version whose data a change of the major version left.
 	Previous string `json:"previous,omitempty"`
+	// MaxConnections and BufferMB tune the engine, each 0 for its default, like the fields of
+	// noryxv1.DatastoreParameters. Datastores of older agents have neither.
+	MaxConnections uint32 `json:"maxConnections,omitempty"`
+	BufferMB       uint32 `json:"bufferMb,omitempty"`
 }
 
 // Datastore is a datastore managed by a runtime.

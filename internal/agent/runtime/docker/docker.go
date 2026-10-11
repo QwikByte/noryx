@@ -48,7 +48,6 @@ const (
 	serverImage = "docker.io/itzg/minecraft-server"
 	proxyImage  = "docker.io/itzg/mc-proxy"
 
-	pidsLimit    = 1024
 	maxLineBytes = 1 << 20
 )
 
@@ -105,6 +104,10 @@ type Docker struct {
 	podman   *podman  // nil for Docker
 	// refused tells why the agent refuses the runtime that answered last; see check.
 	refused atomic.Pointer[error]
+	output  atomic.Pointer[outputLimit] // see LimitLogs
+	// stops counts the stops asked for of each server, so that a restart of a server that hangs
+	// doesn't start one that someone stopped meanwhile; see restartUnlessStopped.
+	stops sync.Map
 }
 
 // Options choose the runtime.
@@ -287,6 +290,7 @@ func (d *Docker) createContainer(ctx context.Context, spec runtime.Spec, netName
 	for _, name := range also {
 		opts.NetworkingConfig.EndpointsConfig[name] = &network.EndpointSettings{}
 	}
+	opts.HostConfig.LogConfig = d.logConfig()
 	d.adapt(&opts)
 	_, err = d.cli.ContainerCreate(ctx, opts)
 	return err
@@ -313,6 +317,9 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 	if spec.AikarFlags {
 		env = append(env, "USE_AIKAR_FLAGS=TRUE")
 	}
+	if spec.InitMemoryMB != 0 { // MEMORY sets the largest heap then
+		env = append(env, fmt.Sprintf("INIT_MEMORY=%dM", spec.InitMemoryMB))
+	}
 	if spec.LoaderVersion != "" {
 		env = append(env, loaderVariables[spec.Type]+"="+spec.LoaderVersion)
 	}
@@ -329,12 +336,21 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 		published[port][0].HostIP = addr // only the proxy's node reaches it, over the private network
 	}
 	if spec.BehindProxy && spec.ProxyOnNode {
-		published = nil // only its proxy connects, over their network
+		published = network.PortMap{} // only its proxy connects, over their network
 	}
 	if spec.BedrockPort != 0 && spec.Type.Proxy() {
 		// Geyser listens at the same port inside the container, so that it tells it correctly.
 		bedrock := network.MustParsePort(fmt.Sprintf("%d/udp", spec.BedrockPort))
 		exposed[bedrock], published[bedrock] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(spec.BedrockPort))}}
+	}
+	for _, p := range spec.ExtraPorts {
+		// Plugins listen at the same port inside the container, which is public like the server's
+		// own, also for a backend whose own port only its proxy reaches.
+		extra, err := network.ParsePort(fmt.Sprintf("%d/%s", p.Port, p.Protocol))
+		if err != nil {
+			return client.ContainerCreateOptions{}, err
+		}
+		exposed[extra], published[extra] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(p.Port))}}
 	}
 	user, capAdd := "", serverCapabilities
 	if img.ref == proxyImage {
@@ -352,6 +368,7 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 			OpenStdin: spec.Type.Proxy(),
 			// Also when Docker stops the container by itself, e.g. as its daemon stops.
 			StopTimeout: new(stopSeconds(spec)),
+			Healthcheck: healthCheck(spec),
 		},
 		NetworkingConfig: &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{netName: {}}},
 		HostConfig: &container.HostConfig{
@@ -364,7 +381,7 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 			Resources: container.Resources{
 				Memory:    noryxv1.ContainerMemoryMB(spec.MemoryMB) << 20,
 				NanoCPUs:  int64(spec.CPUMillis) * 1e6,
-				PidsLimit: new(int64(pidsLimit)),
+				PidsLimit: new(noryxv1.ProcessLimit(spec.ProcessLimit)),
 			},
 		},
 	}, nil
@@ -381,6 +398,11 @@ func (d *Docker) Start(ctx context.Context, id string) error {
 // Stop gives the server its stop timeout, which containers created by older agents don't
 // know, to save its worlds.
 func (d *Docker) Stop(ctx context.Context, id string) error {
+	d.stopsOf(id).Add(1)
+	return d.stop(ctx, id)
+}
+
+func (d *Docker) stop(ctx context.Context, id string) error {
 	_, spec, err := d.inspect(ctx, id)
 	if err != nil {
 		return err
@@ -437,6 +459,23 @@ func (d *Docker) Restart(ctx context.Context, id string) error {
 		return err
 	}
 	return d.Start(ctx, id)
+}
+
+// restartUnlessStopped restarts a server like Restart, but leaves it stopped if someone asked
+// for its stop meanwhile, e.g. an operator who stops a server that hangs.
+func (d *Docker) restartUnlessStopped(ctx context.Context, id string) error {
+	stops := d.stopsOf(id)
+	asked := stops.Load()
+	if err := d.stop(ctx, id); err != nil || stops.Load() != asked {
+		return err
+	}
+	return d.Start(ctx, id)
+}
+
+// stopsOf counts the stops asked for of a server.
+func (d *Docker) stopsOf(id string) *atomic.Int64 {
+	n, _ := d.stops.LoadOrStore(id, new(atomic.Int64))
+	return n.(*atomic.Int64)
 }
 
 // Remove deletes the container and all server data.

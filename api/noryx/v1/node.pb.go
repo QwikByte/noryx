@@ -76,8 +76,10 @@ type GetInfoResponse struct {
 	// empty, as they only run Docker; runtime tells its version.
 	RuntimeName    string `protobuf:"bytes,9,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
 	RuntimeVersion string `protobuf:"bytes,10,opt,name=runtime_version,json=runtimeVersion,proto3" json:"runtime_version,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The settings the agent applies; older agents leave them out.
+	Settings      *NodeSettings `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetInfoResponse) Reset() {
@@ -178,6 +180,13 @@ func (x *GetInfoResponse) GetRuntimeVersion() string {
 		return x.RuntimeVersion
 	}
 	return ""
+}
+
+func (x *GetInfoResponse) GetSettings() *NodeSettings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
 }
 
 // StorageLocation is a directory the node's administrator allowed for server data.
@@ -490,12 +499,166 @@ func (*UpdateResponse) Descriptor() ([]byte, []int) {
 	return file_noryx_v1_node_proto_rawDescGZIP(), []int{8}
 }
 
+// NodeSettings are what the master chose for a node and its agent applies itself, within the
+// bounds that NodeSettings.Problem checks.
+type NodeSettings struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The containers that the agent creates from now on keep log_files files of up to
+	// log_file_mb MB of their output. 0 for both leaves it to the runtime's configuration.
+	LogFileMb uint32 `protobuf:"varint,1,opt,name=log_file_mb,json=logFileMb,proto3" json:"log_file_mb,omitempty"`
+	LogFiles  uint32 `protobuf:"varint,2,opt,name=log_files,json=logFiles,proto3" json:"log_files,omitempty"`
+	// The space in GiB that uploads and backups leave free on a file system.
+	KeepFreeGb uint32 `protobuf:"varint,3,opt,name=keep_free_gb,json=keepFreeGb,proto3" json:"keep_free_gb,omitempty"`
+	// The seconds between two measurements of what the node and its servers use.
+	StatsIntervalSeconds uint32 `protobuf:"varint,4,opt,name=stats_interval_seconds,json=statsIntervalSeconds,proto3" json:"stats_interval_seconds,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *NodeSettings) Reset() {
+	*x = NodeSettings{}
+	mi := &file_noryx_v1_node_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeSettings) ProtoMessage() {}
+
+func (x *NodeSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_noryx_v1_node_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeSettings.ProtoReflect.Descriptor instead.
+func (*NodeSettings) Descriptor() ([]byte, []int) {
+	return file_noryx_v1_node_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *NodeSettings) GetLogFileMb() uint32 {
+	if x != nil {
+		return x.LogFileMb
+	}
+	return 0
+}
+
+func (x *NodeSettings) GetLogFiles() uint32 {
+	if x != nil {
+		return x.LogFiles
+	}
+	return 0
+}
+
+func (x *NodeSettings) GetKeepFreeGb() uint32 {
+	if x != nil {
+		return x.KeepFreeGb
+	}
+	return 0
+}
+
+func (x *NodeSettings) GetStatsIntervalSeconds() uint32 {
+	if x != nil {
+		return x.StatsIntervalSeconds
+	}
+	return 0
+}
+
+type ConfigureRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Settings      *NodeSettings          `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigureRequest) Reset() {
+	*x = ConfigureRequest{}
+	mi := &file_noryx_v1_node_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigureRequest) ProtoMessage() {}
+
+func (x *ConfigureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_noryx_v1_node_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigureRequest.ProtoReflect.Descriptor instead.
+func (*ConfigureRequest) Descriptor() ([]byte, []int) {
+	return file_noryx_v1_node_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ConfigureRequest) GetSettings() *NodeSettings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+type ConfigureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigureResponse) Reset() {
+	*x = ConfigureResponse{}
+	mi := &file_noryx_v1_node_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigureResponse) ProtoMessage() {}
+
+func (x *ConfigureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_noryx_v1_node_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigureResponse.ProtoReflect.Descriptor instead.
+func (*ConfigureResponse) Descriptor() ([]byte, []int) {
+	return file_noryx_v1_node_proto_rawDescGZIP(), []int{11}
+}
+
 var File_noryx_v1_node_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_node_proto_rawDesc = "" +
 	"\n" +
 	"\x13noryx/v1/node.proto\x12\bnoryx.v1\"\x10\n" +
-	"\x0eGetInfoRequest\"\xfa\x02\n" +
+	"\x0eGetInfoRequest\"\xae\x03\n" +
 	"\x0fGetInfoResponse\x12#\n" +
 	"\ragent_version\x18\x01 \x01(\tR\fagentVersion\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x0e\n" +
@@ -507,7 +670,8 @@ const file_noryx_v1_node_proto_rawDesc = "" +
 	"\x1acertificate_not_after_unix\x18\b \x01(\x03R\x17certificateNotAfterUnix\x12!\n" +
 	"\fruntime_name\x18\t \x01(\tR\vruntimeName\x12'\n" +
 	"\x0fruntime_version\x18\n" +
-	" \x01(\tR\x0eruntimeVersion\"y\n" +
+	" \x01(\tR\x0eruntimeVersion\x122\n" +
+	"\bsettings\x18\v \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\"y\n" +
 	"\x0fStorageLocation\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1d\n" +
@@ -523,12 +687,22 @@ const file_noryx_v1_node_proto_rawDesc = "" +
 	"\x1aInstallCertificateResponse\")\n" +
 	"\rUpdateRequest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\"\x10\n" +
-	"\x0eUpdateResponse2\xb1\x02\n" +
+	"\x0eUpdateResponse\"\xa3\x01\n" +
+	"\fNodeSettings\x12\x1e\n" +
+	"\vlog_file_mb\x18\x01 \x01(\rR\tlogFileMb\x12\x1b\n" +
+	"\tlog_files\x18\x02 \x01(\rR\blogFiles\x12 \n" +
+	"\fkeep_free_gb\x18\x03 \x01(\rR\n" +
+	"keepFreeGb\x124\n" +
+	"\x16stats_interval_seconds\x18\x04 \x01(\rR\x14statsIntervalSeconds\"F\n" +
+	"\x10ConfigureRequest\x122\n" +
+	"\bsettings\x18\x01 \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\"\x13\n" +
+	"\x11ConfigureResponse2\xf7\x02\n" +
 	"\vNodeService\x12>\n" +
 	"\aGetInfo\x12\x18.noryx.v1.GetInfoRequest\x1a\x19.noryx.v1.GetInfoResponse\x12D\n" +
 	"\tCreateCSR\x12\x1a.noryx.v1.CreateCSRRequest\x1a\x1b.noryx.v1.CreateCSRResponse\x12_\n" +
 	"\x12InstallCertificate\x12#.noryx.v1.InstallCertificateRequest\x1a$.noryx.v1.InstallCertificateResponse\x12;\n" +
-	"\x06Update\x12\x17.noryx.v1.UpdateRequest\x1a\x18.noryx.v1.UpdateResponseB0Z.github.com/QwikByte/noryx/api/noryx/v1;noryxv1b\x06proto3"
+	"\x06Update\x12\x17.noryx.v1.UpdateRequest\x1a\x18.noryx.v1.UpdateResponse\x12D\n" +
+	"\tConfigure\x12\x1a.noryx.v1.ConfigureRequest\x1a\x1b.noryx.v1.ConfigureResponseB0Z.github.com/QwikByte/noryx/api/noryx/v1;noryxv1b\x06proto3"
 
 var (
 	file_noryx_v1_node_proto_rawDescOnce sync.Once
@@ -542,7 +716,7 @@ func file_noryx_v1_node_proto_rawDescGZIP() []byte {
 	return file_noryx_v1_node_proto_rawDescData
 }
 
-var file_noryx_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_noryx_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_noryx_v1_node_proto_goTypes = []any{
 	(*GetInfoRequest)(nil),             // 0: noryx.v1.GetInfoRequest
 	(*GetInfoResponse)(nil),            // 1: noryx.v1.GetInfoResponse
@@ -553,22 +727,29 @@ var file_noryx_v1_node_proto_goTypes = []any{
 	(*InstallCertificateResponse)(nil), // 6: noryx.v1.InstallCertificateResponse
 	(*UpdateRequest)(nil),              // 7: noryx.v1.UpdateRequest
 	(*UpdateResponse)(nil),             // 8: noryx.v1.UpdateResponse
+	(*NodeSettings)(nil),               // 9: noryx.v1.NodeSettings
+	(*ConfigureRequest)(nil),           // 10: noryx.v1.ConfigureRequest
+	(*ConfigureResponse)(nil),          // 11: noryx.v1.ConfigureResponse
 }
 var file_noryx_v1_node_proto_depIdxs = []int32{
-	2, // 0: noryx.v1.GetInfoResponse.storage:type_name -> noryx.v1.StorageLocation
-	0, // 1: noryx.v1.NodeService.GetInfo:input_type -> noryx.v1.GetInfoRequest
-	3, // 2: noryx.v1.NodeService.CreateCSR:input_type -> noryx.v1.CreateCSRRequest
-	5, // 3: noryx.v1.NodeService.InstallCertificate:input_type -> noryx.v1.InstallCertificateRequest
-	7, // 4: noryx.v1.NodeService.Update:input_type -> noryx.v1.UpdateRequest
-	1, // 5: noryx.v1.NodeService.GetInfo:output_type -> noryx.v1.GetInfoResponse
-	4, // 6: noryx.v1.NodeService.CreateCSR:output_type -> noryx.v1.CreateCSRResponse
-	6, // 7: noryx.v1.NodeService.InstallCertificate:output_type -> noryx.v1.InstallCertificateResponse
-	8, // 8: noryx.v1.NodeService.Update:output_type -> noryx.v1.UpdateResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2,  // 0: noryx.v1.GetInfoResponse.storage:type_name -> noryx.v1.StorageLocation
+	9,  // 1: noryx.v1.GetInfoResponse.settings:type_name -> noryx.v1.NodeSettings
+	9,  // 2: noryx.v1.ConfigureRequest.settings:type_name -> noryx.v1.NodeSettings
+	0,  // 3: noryx.v1.NodeService.GetInfo:input_type -> noryx.v1.GetInfoRequest
+	3,  // 4: noryx.v1.NodeService.CreateCSR:input_type -> noryx.v1.CreateCSRRequest
+	5,  // 5: noryx.v1.NodeService.InstallCertificate:input_type -> noryx.v1.InstallCertificateRequest
+	7,  // 6: noryx.v1.NodeService.Update:input_type -> noryx.v1.UpdateRequest
+	10, // 7: noryx.v1.NodeService.Configure:input_type -> noryx.v1.ConfigureRequest
+	1,  // 8: noryx.v1.NodeService.GetInfo:output_type -> noryx.v1.GetInfoResponse
+	4,  // 9: noryx.v1.NodeService.CreateCSR:output_type -> noryx.v1.CreateCSRResponse
+	6,  // 10: noryx.v1.NodeService.InstallCertificate:output_type -> noryx.v1.InstallCertificateResponse
+	8,  // 11: noryx.v1.NodeService.Update:output_type -> noryx.v1.UpdateResponse
+	11, // 12: noryx.v1.NodeService.Configure:output_type -> noryx.v1.ConfigureResponse
+	8,  // [8:13] is the sub-list for method output_type
+	3,  // [3:8] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_noryx_v1_node_proto_init() }
@@ -582,7 +763,7 @@ func file_noryx_v1_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_noryx_v1_node_proto_rawDesc), len(file_noryx_v1_node_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

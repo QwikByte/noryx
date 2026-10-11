@@ -8,17 +8,18 @@ The panel shows what nodes, servers and [datastores](databases.md#usage) use, no
 
 ### Current values
 
-Every agent measures every 5 seconds: CPU and memory of the node and of each server (without the page cache, like
-`docker stats`), the network traffic of each server, the size of its data (every 5 minutes), the players online and the
-ticks per second of Paper, Purpur and Leaf servers. The number of players comes from the status request that the server
-list in the game sends too, which game servers and Velocity answer; BungeeCord and Waterfall are left out, as they log
-every such request. The names of all players and the ticks per second come through the server's console port (`list`,
-`tps`) over a connection that stays open, because servers log every new one. Game servers behind a proxy only listen
-within the network of their proxy, where the status request can't reach them, so their console tells the number of
-players too. A network counts the players of its game servers, like the **Players** page, or those its proxy counts
-while the agents can't tell them, e.g. agents of older versions. Server cards show CPU, memory and players; the
-**Usage** tab of a server and the node page show the rest. Agents measure the CPU, memory and connections of the
-datastores of their node too, and the size of their data every minute.
+Every agent measures every 5 seconds, unless the [settings of its node](servers.md#node-settings) choose up to 60: CPU
+and memory of the node and of each server (without the page cache, like `docker stats`), the network traffic of each
+server, the size of its data (every 5 minutes), the players online and the ticks per second of Paper, Purpur and Leaf
+servers. The number of players comes from the status request that the server list in the game sends too, which game
+servers and Velocity answer; BungeeCord and Waterfall are left out, as they log every such request. The names of all
+players and the ticks per second come through the server's console port (`list`, `tps`) over a connection that stays
+open, because servers log every new one. Game servers behind a proxy only listen within the network of their proxy,
+where the status request can't reach them, so their console tells the number of players too. A network counts the
+players of its game servers, like the **Players** page, or those its proxy counts while the agents can't tell them, e.g.
+agents of older versions. Server cards show CPU, memory and players; the **Usage** tab of a server and the node page
+show the rest. Agents measure the CPU, memory and connections of the datastores of their node too, and the size of their
+data every minute.
 
 ### History
 

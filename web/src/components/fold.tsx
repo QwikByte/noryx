@@ -7,7 +7,7 @@ export function Fold({ title, summary, className, children }: { title: string; s
   const [open, setOpen] = useState(false)
   const id = useId()
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <button
         type="button"
         aria-expanded={open}

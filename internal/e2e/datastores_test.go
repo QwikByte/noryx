@@ -40,6 +40,8 @@ func TestDatastores(t *testing.T) {
 		{"name": "main", "nodeId": a1.node.ID, "engine": "mysql", "memoryMb": 512},
 		{"name": "main", "nodeId": a1.node.ID, "engine": "mariadb", "memoryMb": 64},
 		{"name": "main", "nodeId": a1.node.ID, "engine": "mariadb", "version": "10.6", "memoryMb": 512},
+		{"name": "main", "nodeId": a1.node.ID, "engine": "postgres", "memoryMb": 512, "maxConnections": 257},
+		{"name": "main", "nodeId": a1.node.ID, "engine": "mariadb", "memoryMb": 512, "bufferMb": 385},
 	} {
 		api.do("POST", base, bad, http.StatusBadRequest, nil)
 	}
@@ -268,11 +270,26 @@ func TestDatastores(t *testing.T) {
 		t.Fatalf("after removing the previous version: %+v", changed)
 	}
 
+	// The connections and buffers of its engine, within bounds that follow its memory, which
+	// it keeps through other changes.
+	for _, bad := range []map[string]any{{"maxConnections": 9}, {"maxConnections": 1001}, {"bufferMb": 769}, {"memoryMb": 512, "bufferMb": 768}} {
+		api.do("PATCH", "/api/datastores/"+ds.ID, bad, http.StatusBadRequest, nil)
+	}
+	api.do("PATCH", "/api/datastores/"+ds.ID, map[string]any{"maxConnections": 400, "bufferMb": 768}, http.StatusOK, &changed)
+	api.do("PATCH", "/api/datastores/"+ds.ID, map[string]any{"memoryMb": 2048}, http.StatusOK, &changed)
+	list, _ = a1.runtime.ListDatastores(t.Context())
+	if changed.MaxConnections != 400 || changed.BufferMB != 768 || changed.Warning != "" || list[0].MaxConnections != 400 || list[0].BufferMB != 768 || list[0].MemoryMB != 2048 {
+		t.Fatalf("after tuning: %+v, on the node %+v", changed, list[0])
+	}
+
 	// A datastore of a node that joins the private network is published for the nodes of the
 	// servers once the network is applied, and no longer once the node leaves.
 	a4 := m.startAgent(t, "node-4")
 	var stats datastore.View
-	api.do("POST", base, map[string]any{"name": "stats", "nodeId": a4.node.ID, "engine": "postgres", "memoryMb": 512}, http.StatusCreated, &stats)
+	api.do("POST", base, map[string]any{"name": "stats", "nodeId": a4.node.ID, "engine": "postgres", "memoryMb": 512, "maxConnections": 256}, http.StatusCreated, &stats)
+	if list, _ := a4.runtime.ListDatastores(t.Context()); stats.MaxConnections != 256 || list[0].MaxConnections != 256 || list[0].BufferMB != 0 {
+		t.Fatalf("created %+v, on the node %+v", stats, list[0])
+	}
 	check(t, agentoverlay.Allow(a4.dir))
 	api.do("POST", "/api/nodes/"+a4.node.ID+"/overlay", map[string]string{"endpoint": "203.0.113.4:51820"}, http.StatusOK, nil)
 	api.do("POST", "/api/networks/"+n.ID+"/apply", nil, http.StatusOK, nil)

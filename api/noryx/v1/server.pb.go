@@ -319,7 +319,25 @@ type Server struct {
 	// for the default of 60, as older agents report it.
 	StopTimeoutSeconds uint32 `protobuf:"varint,21,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
-	TimeZone      string `protobuf:"bytes,22,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	TimeZone string `protobuf:"bytes,22,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// Ports of plugins that the node publishes, e.g. of a web map; agents of older versions have none.
+	ExtraPorts []*ExtraPort `protobuf:"bytes,23,rep,name=extra_ports,json=extraPorts,proto3" json:"extra_ports,omitempty"`
+	// Minutes a game server gets to start before its failed health checks count, e.g. as a large
+	// modpack loads; 0 for the default of 2, as older agents report it.
+	HealthStartMinutes uint32 `protobuf:"varint,24,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	// Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
+	// agents report it.
+	CrashLimit uint32 `protobuf:"varint,25,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	// Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
+	StableAfterMinutes uint32 `protobuf:"varint,26,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	// Minutes after which the agent restarts a running server that stays unhealthy, which counts as
+	// a crash; 0 for never.
+	UnhealthyRestartMinutes uint32 `protobuf:"varint,27,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	// Processes and threads the server's container may run; 0 for the default of 1024, as older
+	// agents report it.
+	ProcessLimit uint32 `protobuf:"varint,28,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	// Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
+	InitMemoryMb  uint32 `protobuf:"varint,29,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -508,6 +526,121 @@ func (x *Server) GetTimeZone() string {
 	return ""
 }
 
+func (x *Server) GetExtraPorts() []*ExtraPort {
+	if x != nil {
+		return x.ExtraPorts
+	}
+	return nil
+}
+
+func (x *Server) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
+}
+
+func (x *Server) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *Server) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *Server) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
+func (x *Server) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *Server) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
+	}
+	return 0
+}
+
+// ExtraPort is a port of a plugin of a server, e.g. of a web map or a voice chat, which the node
+// publishes on all its addresses at the same port of the container, where the plugin listens.
+type ExtraPort struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// From 1024 to 65535, neither the server's own port nor its Bedrock port, nor one its container
+	// uses itself: 25565, 25575 (RCON) and 25577.
+	Port uint32 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
+	// "tcp" or "udp".
+	Protocol string `protobuf:"bytes,2,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// Plain text of up to 32 characters, e.g. "Map".
+	Label         string `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtraPort) Reset() {
+	*x = ExtraPort{}
+	mi := &file_noryx_v1_server_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtraPort) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtraPort) ProtoMessage() {}
+
+func (x *ExtraPort) ProtoReflect() protoreflect.Message {
+	mi := &file_noryx_v1_server_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtraPort.ProtoReflect.Descriptor instead.
+func (*ExtraPort) Descriptor() ([]byte, []int) {
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ExtraPort) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ExtraPort) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *ExtraPort) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
 type ListServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -516,7 +649,7 @@ type ListServersRequest struct {
 
 func (x *ListServersRequest) Reset() {
 	*x = ListServersRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[1]
+	mi := &file_noryx_v1_server_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -528,7 +661,7 @@ func (x *ListServersRequest) String() string {
 func (*ListServersRequest) ProtoMessage() {}
 
 func (x *ListServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[1]
+	mi := &file_noryx_v1_server_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -541,7 +674,7 @@ func (x *ListServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServersRequest.ProtoReflect.Descriptor instead.
 func (*ListServersRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{1}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{2}
 }
 
 type ListServersResponse struct {
@@ -553,7 +686,7 @@ type ListServersResponse struct {
 
 func (x *ListServersResponse) Reset() {
 	*x = ListServersResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[2]
+	mi := &file_noryx_v1_server_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -565,7 +698,7 @@ func (x *ListServersResponse) String() string {
 func (*ListServersResponse) ProtoMessage() {}
 
 func (x *ListServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[2]
+	mi := &file_noryx_v1_server_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -578,7 +711,7 @@ func (x *ListServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServersResponse.ProtoReflect.Descriptor instead.
 func (*ListServersResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{2}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListServersResponse) GetServers() []*Server {
@@ -607,17 +740,24 @@ type CreateServerRequest struct {
 	JvmOptions    []string      `protobuf:"bytes,11,rep,name=jvm_options,json=jvmOptions,proto3" json:"jvm_options,omitempty"`
 	CpuMillis     uint32        `protobuf:"varint,12,opt,name=cpu_millis,json=cpuMillis,proto3" json:"cpu_millis,omitempty"`
 	// Properties of server.properties for a game server, written before its first start.
-	Properties         map[string]string `protobuf:"bytes,13,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	LoaderVersion      string            `protobuf:"bytes,14,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
-	StopTimeoutSeconds uint32            `protobuf:"varint,15,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
-	TimeZone           string            `protobuf:"bytes,16,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	Properties              map[string]string `protobuf:"bytes,13,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	LoaderVersion           string            `protobuf:"bytes,14,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
+	StopTimeoutSeconds      uint32            `protobuf:"varint,15,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
+	TimeZone                string            `protobuf:"bytes,16,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	ExtraPorts              []*ExtraPort      `protobuf:"bytes,17,rep,name=extra_ports,json=extraPorts,proto3" json:"extra_ports,omitempty"`
+	HealthStartMinutes      uint32            `protobuf:"varint,18,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	CrashLimit              uint32            `protobuf:"varint,19,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	StableAfterMinutes      uint32            `protobuf:"varint,20,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	UnhealthyRestartMinutes uint32            `protobuf:"varint,21,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	ProcessLimit            uint32            `protobuf:"varint,22,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	InitMemoryMb            uint32            `protobuf:"varint,23,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *CreateServerRequest) Reset() {
 	*x = CreateServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[3]
+	mi := &file_noryx_v1_server_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +769,7 @@ func (x *CreateServerRequest) String() string {
 func (*CreateServerRequest) ProtoMessage() {}
 
 func (x *CreateServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[3]
+	mi := &file_noryx_v1_server_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -642,7 +782,7 @@ func (x *CreateServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateServerRequest.ProtoReflect.Descriptor instead.
 func (*CreateServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{3}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CreateServerRequest) GetName() string {
@@ -757,6 +897,55 @@ func (x *CreateServerRequest) GetTimeZone() string {
 	return ""
 }
 
+func (x *CreateServerRequest) GetExtraPorts() []*ExtraPort {
+	if x != nil {
+		return x.ExtraPorts
+	}
+	return nil
+}
+
+func (x *CreateServerRequest) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
+	}
+	return 0
+}
+
 type CreateServerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
@@ -766,7 +955,7 @@ type CreateServerResponse struct {
 
 func (x *CreateServerResponse) Reset() {
 	*x = CreateServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[4]
+	mi := &file_noryx_v1_server_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +967,7 @@ func (x *CreateServerResponse) String() string {
 func (*CreateServerResponse) ProtoMessage() {}
 
 func (x *CreateServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[4]
+	mi := &file_noryx_v1_server_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +980,7 @@ func (x *CreateServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateServerResponse.ProtoReflect.Descriptor instead.
 func (*CreateServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{4}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateServerResponse) GetServer() *Server {
@@ -810,7 +999,7 @@ type StartServerRequest struct {
 
 func (x *StartServerRequest) Reset() {
 	*x = StartServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[5]
+	mi := &file_noryx_v1_server_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -822,7 +1011,7 @@ func (x *StartServerRequest) String() string {
 func (*StartServerRequest) ProtoMessage() {}
 
 func (x *StartServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[5]
+	mi := &file_noryx_v1_server_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,7 +1024,7 @@ func (x *StartServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartServerRequest.ProtoReflect.Descriptor instead.
 func (*StartServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{5}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *StartServerRequest) GetId() string {
@@ -853,7 +1042,7 @@ type StartServerResponse struct {
 
 func (x *StartServerResponse) Reset() {
 	*x = StartServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[6]
+	mi := &file_noryx_v1_server_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -865,7 +1054,7 @@ func (x *StartServerResponse) String() string {
 func (*StartServerResponse) ProtoMessage() {}
 
 func (x *StartServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[6]
+	mi := &file_noryx_v1_server_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -878,7 +1067,7 @@ func (x *StartServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartServerResponse.ProtoReflect.Descriptor instead.
 func (*StartServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{6}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{7}
 }
 
 type StopServerRequest struct {
@@ -890,7 +1079,7 @@ type StopServerRequest struct {
 
 func (x *StopServerRequest) Reset() {
 	*x = StopServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[7]
+	mi := &file_noryx_v1_server_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -902,7 +1091,7 @@ func (x *StopServerRequest) String() string {
 func (*StopServerRequest) ProtoMessage() {}
 
 func (x *StopServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[7]
+	mi := &file_noryx_v1_server_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -915,7 +1104,7 @@ func (x *StopServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopServerRequest.ProtoReflect.Descriptor instead.
 func (*StopServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{7}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StopServerRequest) GetId() string {
@@ -933,7 +1122,7 @@ type StopServerResponse struct {
 
 func (x *StopServerResponse) Reset() {
 	*x = StopServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[8]
+	mi := &file_noryx_v1_server_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -945,7 +1134,7 @@ func (x *StopServerResponse) String() string {
 func (*StopServerResponse) ProtoMessage() {}
 
 func (x *StopServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[8]
+	mi := &file_noryx_v1_server_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -958,7 +1147,7 @@ func (x *StopServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopServerResponse.ProtoReflect.Descriptor instead.
 func (*StopServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{8}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{9}
 }
 
 type RestartServerRequest struct {
@@ -970,7 +1159,7 @@ type RestartServerRequest struct {
 
 func (x *RestartServerRequest) Reset() {
 	*x = RestartServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[9]
+	mi := &file_noryx_v1_server_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +1171,7 @@ func (x *RestartServerRequest) String() string {
 func (*RestartServerRequest) ProtoMessage() {}
 
 func (x *RestartServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[9]
+	mi := &file_noryx_v1_server_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +1184,7 @@ func (x *RestartServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartServerRequest.ProtoReflect.Descriptor instead.
 func (*RestartServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{9}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RestartServerRequest) GetId() string {
@@ -1013,7 +1202,7 @@ type RestartServerResponse struct {
 
 func (x *RestartServerResponse) Reset() {
 	*x = RestartServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[10]
+	mi := &file_noryx_v1_server_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1025,7 +1214,7 @@ func (x *RestartServerResponse) String() string {
 func (*RestartServerResponse) ProtoMessage() {}
 
 func (x *RestartServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[10]
+	mi := &file_noryx_v1_server_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1038,7 +1227,7 @@ func (x *RestartServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartServerResponse.ProtoReflect.Descriptor instead.
 func (*RestartServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{10}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{11}
 }
 
 type UpdateServerRequest struct {
@@ -1059,14 +1248,35 @@ type UpdateServerRequest struct {
 	StopTimeoutSeconds uint32 `protobuf:"varint,12,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
 	// for UTC.
-	TimeZone      string `protobuf:"bytes,13,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	TimeZone string `protobuf:"bytes,13,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// Up to 5 ports of plugins to publish; changing them creates the container again.
+	ExtraPorts []*ExtraPort `protobuf:"bytes,14,rep,name=extra_ports,json=extraPorts,proto3" json:"extra_ports,omitempty"`
+	// Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
+	// as older masters send it, means 2. Proxies keep the start period of their image.
+	HealthStartMinutes uint32 `protobuf:"varint,15,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	// Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
+	// the server, from 1 to 20; 0, as older masters send it, means 5.
+	CrashLimit uint32 `protobuf:"varint,16,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	// Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
+	// means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+	StableAfterMinutes uint32 `protobuf:"varint,17,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	// Minutes, from 1 to 60, after which the agent restarts a running server whose health check
+	// keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
+	// of them. 0, as older masters send it, for never.
+	UnhealthyRestartMinutes uint32 `protobuf:"varint,18,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	// Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
+	// send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+	ProcessLimit uint32 `protobuf:"varint,19,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	// Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
+	// 0, as older masters send it, for the same as memory_mb.
+	InitMemoryMb  uint32 `protobuf:"varint,20,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateServerRequest) Reset() {
 	*x = UpdateServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[11]
+	mi := &file_noryx_v1_server_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1078,7 +1288,7 @@ func (x *UpdateServerRequest) String() string {
 func (*UpdateServerRequest) ProtoMessage() {}
 
 func (x *UpdateServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[11]
+	mi := &file_noryx_v1_server_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1091,7 +1301,7 @@ func (x *UpdateServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateServerRequest.ProtoReflect.Descriptor instead.
 func (*UpdateServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{11}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateServerRequest) GetId() string {
@@ -1185,6 +1395,55 @@ func (x *UpdateServerRequest) GetTimeZone() string {
 	return ""
 }
 
+func (x *UpdateServerRequest) GetExtraPorts() []*ExtraPort {
+	if x != nil {
+		return x.ExtraPorts
+	}
+	return nil
+}
+
+func (x *UpdateServerRequest) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
+	}
+	return 0
+}
+
 type UpdateServerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
@@ -1194,7 +1453,7 @@ type UpdateServerResponse struct {
 
 func (x *UpdateServerResponse) Reset() {
 	*x = UpdateServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[12]
+	mi := &file_noryx_v1_server_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1206,7 +1465,7 @@ func (x *UpdateServerResponse) String() string {
 func (*UpdateServerResponse) ProtoMessage() {}
 
 func (x *UpdateServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[12]
+	mi := &file_noryx_v1_server_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1219,7 +1478,7 @@ func (x *UpdateServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateServerResponse.ProtoReflect.Descriptor instead.
 func (*UpdateServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{12}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateServerResponse) GetServer() *Server {
@@ -1238,7 +1497,7 @@ type UpdateImageRequest struct {
 
 func (x *UpdateImageRequest) Reset() {
 	*x = UpdateImageRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[13]
+	mi := &file_noryx_v1_server_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1250,7 +1509,7 @@ func (x *UpdateImageRequest) String() string {
 func (*UpdateImageRequest) ProtoMessage() {}
 
 func (x *UpdateImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[13]
+	mi := &file_noryx_v1_server_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1263,7 +1522,7 @@ func (x *UpdateImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateImageRequest.ProtoReflect.Descriptor instead.
 func (*UpdateImageRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{13}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdateImageRequest) GetId() string {
@@ -1283,7 +1542,7 @@ type UpdateImageResponse struct {
 
 func (x *UpdateImageResponse) Reset() {
 	*x = UpdateImageResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[14]
+	mi := &file_noryx_v1_server_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1295,7 +1554,7 @@ func (x *UpdateImageResponse) String() string {
 func (*UpdateImageResponse) ProtoMessage() {}
 
 func (x *UpdateImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[14]
+	mi := &file_noryx_v1_server_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1308,7 +1567,7 @@ func (x *UpdateImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateImageResponse.ProtoReflect.Descriptor instead.
 func (*UpdateImageResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{14}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateImageResponse) GetUpdated() bool {
@@ -1327,7 +1586,7 @@ type DeleteServerRequest struct {
 
 func (x *DeleteServerRequest) Reset() {
 	*x = DeleteServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[15]
+	mi := &file_noryx_v1_server_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1339,7 +1598,7 @@ func (x *DeleteServerRequest) String() string {
 func (*DeleteServerRequest) ProtoMessage() {}
 
 func (x *DeleteServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[15]
+	mi := &file_noryx_v1_server_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1352,7 +1611,7 @@ func (x *DeleteServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteServerRequest.ProtoReflect.Descriptor instead.
 func (*DeleteServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{15}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeleteServerRequest) GetId() string {
@@ -1370,7 +1629,7 @@ type DeleteServerResponse struct {
 
 func (x *DeleteServerResponse) Reset() {
 	*x = DeleteServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[16]
+	mi := &file_noryx_v1_server_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1382,7 +1641,7 @@ func (x *DeleteServerResponse) String() string {
 func (*DeleteServerResponse) ProtoMessage() {}
 
 func (x *DeleteServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[16]
+	mi := &file_noryx_v1_server_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1395,7 +1654,7 @@ func (x *DeleteServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteServerResponse.ProtoReflect.Descriptor instead.
 func (*DeleteServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{16}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{17}
 }
 
 type StreamLogsRequest struct {
@@ -1412,7 +1671,7 @@ type StreamLogsRequest struct {
 
 func (x *StreamLogsRequest) Reset() {
 	*x = StreamLogsRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[17]
+	mi := &file_noryx_v1_server_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1424,7 +1683,7 @@ func (x *StreamLogsRequest) String() string {
 func (*StreamLogsRequest) ProtoMessage() {}
 
 func (x *StreamLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[17]
+	mi := &file_noryx_v1_server_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1437,7 +1696,7 @@ func (x *StreamLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLogsRequest.ProtoReflect.Descriptor instead.
 func (*StreamLogsRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{17}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StreamLogsRequest) GetId() string {
@@ -1479,7 +1738,7 @@ type StreamLogsResponse struct {
 
 func (x *StreamLogsResponse) Reset() {
 	*x = StreamLogsResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[18]
+	mi := &file_noryx_v1_server_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1750,7 @@ func (x *StreamLogsResponse) String() string {
 func (*StreamLogsResponse) ProtoMessage() {}
 
 func (x *StreamLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[18]
+	mi := &file_noryx_v1_server_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1763,7 @@ func (x *StreamLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLogsResponse.ProtoReflect.Descriptor instead.
 func (*StreamLogsResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{18}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *StreamLogsResponse) GetLine() string {
@@ -1542,7 +1801,7 @@ type SendCommandRequest struct {
 
 func (x *SendCommandRequest) Reset() {
 	*x = SendCommandRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[19]
+	mi := &file_noryx_v1_server_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1554,7 +1813,7 @@ func (x *SendCommandRequest) String() string {
 func (*SendCommandRequest) ProtoMessage() {}
 
 func (x *SendCommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[19]
+	mi := &file_noryx_v1_server_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1567,7 +1826,7 @@ func (x *SendCommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendCommandRequest.ProtoReflect.Descriptor instead.
 func (*SendCommandRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{19}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SendCommandRequest) GetId() string {
@@ -1603,7 +1862,7 @@ type SendCommandResponse struct {
 
 func (x *SendCommandResponse) Reset() {
 	*x = SendCommandResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[20]
+	mi := &file_noryx_v1_server_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1615,7 +1874,7 @@ func (x *SendCommandResponse) String() string {
 func (*SendCommandResponse) ProtoMessage() {}
 
 func (x *SendCommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[20]
+	mi := &file_noryx_v1_server_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1628,7 +1887,7 @@ func (x *SendCommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendCommandResponse.ProtoReflect.Descriptor instead.
 func (*SendCommandResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{20}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SendCommandResponse) GetOutput() string {
@@ -1686,7 +1945,7 @@ type ConfigureNetworkRequest struct {
 
 func (x *ConfigureNetworkRequest) Reset() {
 	*x = ConfigureNetworkRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[21]
+	mi := &file_noryx_v1_server_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1698,7 +1957,7 @@ func (x *ConfigureNetworkRequest) String() string {
 func (*ConfigureNetworkRequest) ProtoMessage() {}
 
 func (x *ConfigureNetworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[21]
+	mi := &file_noryx_v1_server_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1711,7 +1970,7 @@ func (x *ConfigureNetworkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigureNetworkRequest.ProtoReflect.Descriptor instead.
 func (*ConfigureNetworkRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{21}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ConfigureNetworkRequest) GetId() string {
@@ -1817,7 +2076,7 @@ type NetworkBackend struct {
 
 func (x *NetworkBackend) Reset() {
 	*x = NetworkBackend{}
-	mi := &file_noryx_v1_server_proto_msgTypes[22]
+	mi := &file_noryx_v1_server_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1829,7 +2088,7 @@ func (x *NetworkBackend) String() string {
 func (*NetworkBackend) ProtoMessage() {}
 
 func (x *NetworkBackend) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[22]
+	mi := &file_noryx_v1_server_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1842,7 +2101,7 @@ func (x *NetworkBackend) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkBackend.ProtoReflect.Descriptor instead.
 func (*NetworkBackend) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{22}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *NetworkBackend) GetName() string {
@@ -1922,7 +2181,7 @@ type ForcedHost struct {
 
 func (x *ForcedHost) Reset() {
 	*x = ForcedHost{}
-	mi := &file_noryx_v1_server_proto_msgTypes[23]
+	mi := &file_noryx_v1_server_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1934,7 +2193,7 @@ func (x *ForcedHost) String() string {
 func (*ForcedHost) ProtoMessage() {}
 
 func (x *ForcedHost) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[23]
+	mi := &file_noryx_v1_server_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1947,7 +2206,7 @@ func (x *ForcedHost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForcedHost.ProtoReflect.Descriptor instead.
 func (*ForcedHost) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{23}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ForcedHost) GetHost() string {
@@ -1974,7 +2233,7 @@ type ConfigureNetworkResponse struct {
 
 func (x *ConfigureNetworkResponse) Reset() {
 	*x = ConfigureNetworkResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[24]
+	mi := &file_noryx_v1_server_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1986,7 +2245,7 @@ func (x *ConfigureNetworkResponse) String() string {
 func (*ConfigureNetworkResponse) ProtoMessage() {}
 
 func (x *ConfigureNetworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[24]
+	mi := &file_noryx_v1_server_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1999,7 +2258,7 @@ func (x *ConfigureNetworkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigureNetworkResponse.ProtoReflect.Descriptor instead.
 func (*ConfigureNetworkResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{24}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ConfigureNetworkResponse) GetRestarted() bool {
@@ -2021,7 +2280,7 @@ type DuplicateServerRequest struct {
 
 func (x *DuplicateServerRequest) Reset() {
 	*x = DuplicateServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[25]
+	mi := &file_noryx_v1_server_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2033,7 +2292,7 @@ func (x *DuplicateServerRequest) String() string {
 func (*DuplicateServerRequest) ProtoMessage() {}
 
 func (x *DuplicateServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[25]
+	mi := &file_noryx_v1_server_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2046,7 +2305,7 @@ func (x *DuplicateServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DuplicateServerRequest.ProtoReflect.Descriptor instead.
 func (*DuplicateServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{25}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DuplicateServerRequest) GetId() string {
@@ -2079,7 +2338,7 @@ type DuplicateServerResponse struct {
 
 func (x *DuplicateServerResponse) Reset() {
 	*x = DuplicateServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[26]
+	mi := &file_noryx_v1_server_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2091,7 +2350,7 @@ func (x *DuplicateServerResponse) String() string {
 func (*DuplicateServerResponse) ProtoMessage() {}
 
 func (x *DuplicateServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[26]
+	mi := &file_noryx_v1_server_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2104,7 +2363,7 @@ func (x *DuplicateServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DuplicateServerResponse.ProtoReflect.Descriptor instead.
 func (*DuplicateServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{26}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DuplicateServerResponse) GetServer() *Server {
@@ -2127,7 +2386,7 @@ type ImportServerRequest struct {
 
 func (x *ImportServerRequest) Reset() {
 	*x = ImportServerRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[27]
+	mi := &file_noryx_v1_server_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2139,7 +2398,7 @@ func (x *ImportServerRequest) String() string {
 func (*ImportServerRequest) ProtoMessage() {}
 
 func (x *ImportServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[27]
+	mi := &file_noryx_v1_server_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2152,7 +2411,7 @@ func (x *ImportServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportServerRequest.ProtoReflect.Descriptor instead.
 func (*ImportServerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{27}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ImportServerRequest) GetContent() isImportServerRequest_Content {
@@ -2205,7 +2464,7 @@ type ImportServerResponse struct {
 
 func (x *ImportServerResponse) Reset() {
 	*x = ImportServerResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[28]
+	mi := &file_noryx_v1_server_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2217,7 +2476,7 @@ func (x *ImportServerResponse) String() string {
 func (*ImportServerResponse) ProtoMessage() {}
 
 func (x *ImportServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[28]
+	mi := &file_noryx_v1_server_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2230,7 +2489,7 @@ func (x *ImportServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportServerResponse.ProtoReflect.Descriptor instead.
 func (*ImportServerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{28}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ImportServerResponse) GetServer() *Server {
@@ -2252,7 +2511,7 @@ type CreateServerFromArchiveHeader struct {
 
 func (x *CreateServerFromArchiveHeader) Reset() {
 	*x = CreateServerFromArchiveHeader{}
-	mi := &file_noryx_v1_server_proto_msgTypes[29]
+	mi := &file_noryx_v1_server_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2264,7 +2523,7 @@ func (x *CreateServerFromArchiveHeader) String() string {
 func (*CreateServerFromArchiveHeader) ProtoMessage() {}
 
 func (x *CreateServerFromArchiveHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[29]
+	mi := &file_noryx_v1_server_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2277,7 +2536,7 @@ func (x *CreateServerFromArchiveHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateServerFromArchiveHeader.ProtoReflect.Descriptor instead.
 func (*CreateServerFromArchiveHeader) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{29}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CreateServerFromArchiveHeader) GetServer() *CreateServerRequest {
@@ -2307,7 +2566,7 @@ type CreateServerFromArchiveRequest struct {
 
 func (x *CreateServerFromArchiveRequest) Reset() {
 	*x = CreateServerFromArchiveRequest{}
-	mi := &file_noryx_v1_server_proto_msgTypes[30]
+	mi := &file_noryx_v1_server_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2319,7 +2578,7 @@ func (x *CreateServerFromArchiveRequest) String() string {
 func (*CreateServerFromArchiveRequest) ProtoMessage() {}
 
 func (x *CreateServerFromArchiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[30]
+	mi := &file_noryx_v1_server_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2332,7 +2591,7 @@ func (x *CreateServerFromArchiveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateServerFromArchiveRequest.ProtoReflect.Descriptor instead.
 func (*CreateServerFromArchiveRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{30}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CreateServerFromArchiveRequest) GetContent() isCreateServerFromArchiveRequest_Content {
@@ -2388,7 +2647,7 @@ type CreateServerFromArchiveResponse struct {
 
 func (x *CreateServerFromArchiveResponse) Reset() {
 	*x = CreateServerFromArchiveResponse{}
-	mi := &file_noryx_v1_server_proto_msgTypes[31]
+	mi := &file_noryx_v1_server_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2400,7 +2659,7 @@ func (x *CreateServerFromArchiveResponse) String() string {
 func (*CreateServerFromArchiveResponse) ProtoMessage() {}
 
 func (x *CreateServerFromArchiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_server_proto_msgTypes[31]
+	mi := &file_noryx_v1_server_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2413,7 +2672,7 @@ func (x *CreateServerFromArchiveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateServerFromArchiveResponse.ProtoReflect.Descriptor instead.
 func (*CreateServerFromArchiveResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_server_proto_rawDescGZIP(), []int{31}
+	return file_noryx_v1_server_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CreateServerFromArchiveResponse) GetServer() *Server {
@@ -2434,7 +2693,7 @@ var File_noryx_v1_server_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\xd5\x05\n" +
+	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x97\b\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2461,10 +2720,23 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\aoverlay\x18\x13 \x01(\bR\aoverlay\x12\x1c\n" +
 	"\tunhealthy\x18\x14 \x01(\bR\tunhealthy\x120\n" +
 	"\x14stop_timeout_seconds\x18\x15 \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\x16 \x01(\tR\btimeZone\"\x14\n" +
+	"\ttime_zone\x18\x16 \x01(\tR\btimeZone\x124\n" +
+	"\vextra_ports\x18\x17 \x03(\v2\x13.noryx.v1.ExtraPortR\n" +
+	"extraPorts\x120\n" +
+	"\x14health_start_minutes\x18\x18 \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x19 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x1a \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x1b \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x1c \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x1d \x01(\rR\finitMemoryMb\"Q\n" +
+	"\tExtraPort\x12\x12\n" +
+	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1a\n" +
+	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x14\n" +
+	"\x05label\x18\x03 \x01(\tR\x05label\"\x14\n" +
 	"\x12ListServersRequest\"A\n" +
 	"\x13ListServersResponse\x12*\n" +
-	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\x92\x05\n" +
+	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xd4\a\n" +
 	"\x13CreateServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x14.noryx.v1.ServerTypeR\x04type\x12\x18\n" +
@@ -2488,7 +2760,16 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"properties\x12%\n" +
 	"\x0eloader_version\x18\x0e \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\x0f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\x10 \x01(\tR\btimeZone\x1a=\n" +
+	"\ttime_zone\x18\x10 \x01(\tR\btimeZone\x124\n" +
+	"\vextra_ports\x18\x11 \x03(\v2\x13.noryx.v1.ExtraPortR\n" +
+	"extraPorts\x120\n" +
+	"\x14health_start_minutes\x18\x12 \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x13 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x14 \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x15 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x16 \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x17 \x01(\rR\finitMemoryMb\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
@@ -2502,7 +2783,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x12StopServerResponse\"&\n" +
 	"\x14RestartServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15RestartServerResponse\"\xaf\x03\n" +
+	"\x15RestartServerResponse\"\xf1\x05\n" +
 	"\x13UpdateServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2520,7 +2801,16 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	" \x01(\rR\tcpuMillis\x12%\n" +
 	"\x0eloader_version\x18\v \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\r \x01(\tR\btimeZone\"@\n" +
+	"\ttime_zone\x18\r \x01(\tR\btimeZone\x124\n" +
+	"\vextra_ports\x18\x0e \x03(\v2\x13.noryx.v1.ExtraPortR\n" +
+	"extraPorts\x120\n" +
+	"\x14health_start_minutes\x18\x0f \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x10 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x11 \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x12 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x13 \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x14 \x01(\rR\finitMemoryMb\"@\n" +
 	"\x14UpdateServerResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\"$\n" +
 	"\x12UpdateImageRequest\x12\x0e\n" +
@@ -2664,99 +2954,103 @@ func file_noryx_v1_server_proto_rawDescGZIP() []byte {
 }
 
 var file_noryx_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_noryx_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_noryx_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_noryx_v1_server_proto_goTypes = []any{
 	(ServerType)(0),                         // 0: noryx.v1.ServerType
 	(RestartPolicy)(0),                      // 1: noryx.v1.RestartPolicy
 	(ServerState)(0),                        // 2: noryx.v1.ServerState
 	(Forwarding)(0),                         // 3: noryx.v1.Forwarding
 	(*Server)(nil),                          // 4: noryx.v1.Server
-	(*ListServersRequest)(nil),              // 5: noryx.v1.ListServersRequest
-	(*ListServersResponse)(nil),             // 6: noryx.v1.ListServersResponse
-	(*CreateServerRequest)(nil),             // 7: noryx.v1.CreateServerRequest
-	(*CreateServerResponse)(nil),            // 8: noryx.v1.CreateServerResponse
-	(*StartServerRequest)(nil),              // 9: noryx.v1.StartServerRequest
-	(*StartServerResponse)(nil),             // 10: noryx.v1.StartServerResponse
-	(*StopServerRequest)(nil),               // 11: noryx.v1.StopServerRequest
-	(*StopServerResponse)(nil),              // 12: noryx.v1.StopServerResponse
-	(*RestartServerRequest)(nil),            // 13: noryx.v1.RestartServerRequest
-	(*RestartServerResponse)(nil),           // 14: noryx.v1.RestartServerResponse
-	(*UpdateServerRequest)(nil),             // 15: noryx.v1.UpdateServerRequest
-	(*UpdateServerResponse)(nil),            // 16: noryx.v1.UpdateServerResponse
-	(*UpdateImageRequest)(nil),              // 17: noryx.v1.UpdateImageRequest
-	(*UpdateImageResponse)(nil),             // 18: noryx.v1.UpdateImageResponse
-	(*DeleteServerRequest)(nil),             // 19: noryx.v1.DeleteServerRequest
-	(*DeleteServerResponse)(nil),            // 20: noryx.v1.DeleteServerResponse
-	(*StreamLogsRequest)(nil),               // 21: noryx.v1.StreamLogsRequest
-	(*StreamLogsResponse)(nil),              // 22: noryx.v1.StreamLogsResponse
-	(*SendCommandRequest)(nil),              // 23: noryx.v1.SendCommandRequest
-	(*SendCommandResponse)(nil),             // 24: noryx.v1.SendCommandResponse
-	(*ConfigureNetworkRequest)(nil),         // 25: noryx.v1.ConfigureNetworkRequest
-	(*NetworkBackend)(nil),                  // 26: noryx.v1.NetworkBackend
-	(*ForcedHost)(nil),                      // 27: noryx.v1.ForcedHost
-	(*ConfigureNetworkResponse)(nil),        // 28: noryx.v1.ConfigureNetworkResponse
-	(*DuplicateServerRequest)(nil),          // 29: noryx.v1.DuplicateServerRequest
-	(*DuplicateServerResponse)(nil),         // 30: noryx.v1.DuplicateServerResponse
-	(*ImportServerRequest)(nil),             // 31: noryx.v1.ImportServerRequest
-	(*ImportServerResponse)(nil),            // 32: noryx.v1.ImportServerResponse
-	(*CreateServerFromArchiveHeader)(nil),   // 33: noryx.v1.CreateServerFromArchiveHeader
-	(*CreateServerFromArchiveRequest)(nil),  // 34: noryx.v1.CreateServerFromArchiveRequest
-	(*CreateServerFromArchiveResponse)(nil), // 35: noryx.v1.CreateServerFromArchiveResponse
-	nil,                                     // 36: noryx.v1.CreateServerRequest.PropertiesEntry
+	(*ExtraPort)(nil),                       // 5: noryx.v1.ExtraPort
+	(*ListServersRequest)(nil),              // 6: noryx.v1.ListServersRequest
+	(*ListServersResponse)(nil),             // 7: noryx.v1.ListServersResponse
+	(*CreateServerRequest)(nil),             // 8: noryx.v1.CreateServerRequest
+	(*CreateServerResponse)(nil),            // 9: noryx.v1.CreateServerResponse
+	(*StartServerRequest)(nil),              // 10: noryx.v1.StartServerRequest
+	(*StartServerResponse)(nil),             // 11: noryx.v1.StartServerResponse
+	(*StopServerRequest)(nil),               // 12: noryx.v1.StopServerRequest
+	(*StopServerResponse)(nil),              // 13: noryx.v1.StopServerResponse
+	(*RestartServerRequest)(nil),            // 14: noryx.v1.RestartServerRequest
+	(*RestartServerResponse)(nil),           // 15: noryx.v1.RestartServerResponse
+	(*UpdateServerRequest)(nil),             // 16: noryx.v1.UpdateServerRequest
+	(*UpdateServerResponse)(nil),            // 17: noryx.v1.UpdateServerResponse
+	(*UpdateImageRequest)(nil),              // 18: noryx.v1.UpdateImageRequest
+	(*UpdateImageResponse)(nil),             // 19: noryx.v1.UpdateImageResponse
+	(*DeleteServerRequest)(nil),             // 20: noryx.v1.DeleteServerRequest
+	(*DeleteServerResponse)(nil),            // 21: noryx.v1.DeleteServerResponse
+	(*StreamLogsRequest)(nil),               // 22: noryx.v1.StreamLogsRequest
+	(*StreamLogsResponse)(nil),              // 23: noryx.v1.StreamLogsResponse
+	(*SendCommandRequest)(nil),              // 24: noryx.v1.SendCommandRequest
+	(*SendCommandResponse)(nil),             // 25: noryx.v1.SendCommandResponse
+	(*ConfigureNetworkRequest)(nil),         // 26: noryx.v1.ConfigureNetworkRequest
+	(*NetworkBackend)(nil),                  // 27: noryx.v1.NetworkBackend
+	(*ForcedHost)(nil),                      // 28: noryx.v1.ForcedHost
+	(*ConfigureNetworkResponse)(nil),        // 29: noryx.v1.ConfigureNetworkResponse
+	(*DuplicateServerRequest)(nil),          // 30: noryx.v1.DuplicateServerRequest
+	(*DuplicateServerResponse)(nil),         // 31: noryx.v1.DuplicateServerResponse
+	(*ImportServerRequest)(nil),             // 32: noryx.v1.ImportServerRequest
+	(*ImportServerResponse)(nil),            // 33: noryx.v1.ImportServerResponse
+	(*CreateServerFromArchiveHeader)(nil),   // 34: noryx.v1.CreateServerFromArchiveHeader
+	(*CreateServerFromArchiveRequest)(nil),  // 35: noryx.v1.CreateServerFromArchiveRequest
+	(*CreateServerFromArchiveResponse)(nil), // 36: noryx.v1.CreateServerFromArchiveResponse
+	nil,                                     // 37: noryx.v1.CreateServerRequest.PropertiesEntry
 }
 var file_noryx_v1_server_proto_depIdxs = []int32{
 	0,  // 0: noryx.v1.Server.type:type_name -> noryx.v1.ServerType
 	2,  // 1: noryx.v1.Server.state:type_name -> noryx.v1.ServerState
 	1,  // 2: noryx.v1.Server.restart_policy:type_name -> noryx.v1.RestartPolicy
-	4,  // 3: noryx.v1.ListServersResponse.servers:type_name -> noryx.v1.Server
-	0,  // 4: noryx.v1.CreateServerRequest.type:type_name -> noryx.v1.ServerType
-	1,  // 5: noryx.v1.CreateServerRequest.restart_policy:type_name -> noryx.v1.RestartPolicy
-	36, // 6: noryx.v1.CreateServerRequest.properties:type_name -> noryx.v1.CreateServerRequest.PropertiesEntry
-	4,  // 7: noryx.v1.CreateServerResponse.server:type_name -> noryx.v1.Server
-	1,  // 8: noryx.v1.UpdateServerRequest.restart_policy:type_name -> noryx.v1.RestartPolicy
-	4,  // 9: noryx.v1.UpdateServerResponse.server:type_name -> noryx.v1.Server
-	26, // 10: noryx.v1.ConfigureNetworkRequest.backends:type_name -> noryx.v1.NetworkBackend
-	3,  // 11: noryx.v1.ConfigureNetworkRequest.forwarding:type_name -> noryx.v1.Forwarding
-	27, // 12: noryx.v1.ConfigureNetworkRequest.forced_hosts:type_name -> noryx.v1.ForcedHost
-	4,  // 13: noryx.v1.DuplicateServerResponse.server:type_name -> noryx.v1.Server
-	4,  // 14: noryx.v1.ImportServerRequest.header:type_name -> noryx.v1.Server
-	4,  // 15: noryx.v1.ImportServerResponse.server:type_name -> noryx.v1.Server
-	7,  // 16: noryx.v1.CreateServerFromArchiveHeader.server:type_name -> noryx.v1.CreateServerRequest
-	33, // 17: noryx.v1.CreateServerFromArchiveRequest.header:type_name -> noryx.v1.CreateServerFromArchiveHeader
-	4,  // 18: noryx.v1.CreateServerFromArchiveResponse.server:type_name -> noryx.v1.Server
-	5,  // 19: noryx.v1.ServerService.ListServers:input_type -> noryx.v1.ListServersRequest
-	7,  // 20: noryx.v1.ServerService.CreateServer:input_type -> noryx.v1.CreateServerRequest
-	9,  // 21: noryx.v1.ServerService.StartServer:input_type -> noryx.v1.StartServerRequest
-	11, // 22: noryx.v1.ServerService.StopServer:input_type -> noryx.v1.StopServerRequest
-	13, // 23: noryx.v1.ServerService.RestartServer:input_type -> noryx.v1.RestartServerRequest
-	19, // 24: noryx.v1.ServerService.DeleteServer:input_type -> noryx.v1.DeleteServerRequest
-	15, // 25: noryx.v1.ServerService.UpdateServer:input_type -> noryx.v1.UpdateServerRequest
-	17, // 26: noryx.v1.ServerService.UpdateImage:input_type -> noryx.v1.UpdateImageRequest
-	21, // 27: noryx.v1.ServerService.StreamLogs:input_type -> noryx.v1.StreamLogsRequest
-	23, // 28: noryx.v1.ServerService.SendCommand:input_type -> noryx.v1.SendCommandRequest
-	25, // 29: noryx.v1.ServerService.ConfigureNetwork:input_type -> noryx.v1.ConfigureNetworkRequest
-	29, // 30: noryx.v1.ServerService.DuplicateServer:input_type -> noryx.v1.DuplicateServerRequest
-	31, // 31: noryx.v1.ServerService.ImportServer:input_type -> noryx.v1.ImportServerRequest
-	34, // 32: noryx.v1.ServerService.CreateServerFromArchive:input_type -> noryx.v1.CreateServerFromArchiveRequest
-	6,  // 33: noryx.v1.ServerService.ListServers:output_type -> noryx.v1.ListServersResponse
-	8,  // 34: noryx.v1.ServerService.CreateServer:output_type -> noryx.v1.CreateServerResponse
-	10, // 35: noryx.v1.ServerService.StartServer:output_type -> noryx.v1.StartServerResponse
-	12, // 36: noryx.v1.ServerService.StopServer:output_type -> noryx.v1.StopServerResponse
-	14, // 37: noryx.v1.ServerService.RestartServer:output_type -> noryx.v1.RestartServerResponse
-	20, // 38: noryx.v1.ServerService.DeleteServer:output_type -> noryx.v1.DeleteServerResponse
-	16, // 39: noryx.v1.ServerService.UpdateServer:output_type -> noryx.v1.UpdateServerResponse
-	18, // 40: noryx.v1.ServerService.UpdateImage:output_type -> noryx.v1.UpdateImageResponse
-	22, // 41: noryx.v1.ServerService.StreamLogs:output_type -> noryx.v1.StreamLogsResponse
-	24, // 42: noryx.v1.ServerService.SendCommand:output_type -> noryx.v1.SendCommandResponse
-	28, // 43: noryx.v1.ServerService.ConfigureNetwork:output_type -> noryx.v1.ConfigureNetworkResponse
-	30, // 44: noryx.v1.ServerService.DuplicateServer:output_type -> noryx.v1.DuplicateServerResponse
-	32, // 45: noryx.v1.ServerService.ImportServer:output_type -> noryx.v1.ImportServerResponse
-	35, // 46: noryx.v1.ServerService.CreateServerFromArchive:output_type -> noryx.v1.CreateServerFromArchiveResponse
-	33, // [33:47] is the sub-list for method output_type
-	19, // [19:33] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	5,  // 3: noryx.v1.Server.extra_ports:type_name -> noryx.v1.ExtraPort
+	4,  // 4: noryx.v1.ListServersResponse.servers:type_name -> noryx.v1.Server
+	0,  // 5: noryx.v1.CreateServerRequest.type:type_name -> noryx.v1.ServerType
+	1,  // 6: noryx.v1.CreateServerRequest.restart_policy:type_name -> noryx.v1.RestartPolicy
+	37, // 7: noryx.v1.CreateServerRequest.properties:type_name -> noryx.v1.CreateServerRequest.PropertiesEntry
+	5,  // 8: noryx.v1.CreateServerRequest.extra_ports:type_name -> noryx.v1.ExtraPort
+	4,  // 9: noryx.v1.CreateServerResponse.server:type_name -> noryx.v1.Server
+	1,  // 10: noryx.v1.UpdateServerRequest.restart_policy:type_name -> noryx.v1.RestartPolicy
+	5,  // 11: noryx.v1.UpdateServerRequest.extra_ports:type_name -> noryx.v1.ExtraPort
+	4,  // 12: noryx.v1.UpdateServerResponse.server:type_name -> noryx.v1.Server
+	27, // 13: noryx.v1.ConfigureNetworkRequest.backends:type_name -> noryx.v1.NetworkBackend
+	3,  // 14: noryx.v1.ConfigureNetworkRequest.forwarding:type_name -> noryx.v1.Forwarding
+	28, // 15: noryx.v1.ConfigureNetworkRequest.forced_hosts:type_name -> noryx.v1.ForcedHost
+	4,  // 16: noryx.v1.DuplicateServerResponse.server:type_name -> noryx.v1.Server
+	4,  // 17: noryx.v1.ImportServerRequest.header:type_name -> noryx.v1.Server
+	4,  // 18: noryx.v1.ImportServerResponse.server:type_name -> noryx.v1.Server
+	8,  // 19: noryx.v1.CreateServerFromArchiveHeader.server:type_name -> noryx.v1.CreateServerRequest
+	34, // 20: noryx.v1.CreateServerFromArchiveRequest.header:type_name -> noryx.v1.CreateServerFromArchiveHeader
+	4,  // 21: noryx.v1.CreateServerFromArchiveResponse.server:type_name -> noryx.v1.Server
+	6,  // 22: noryx.v1.ServerService.ListServers:input_type -> noryx.v1.ListServersRequest
+	8,  // 23: noryx.v1.ServerService.CreateServer:input_type -> noryx.v1.CreateServerRequest
+	10, // 24: noryx.v1.ServerService.StartServer:input_type -> noryx.v1.StartServerRequest
+	12, // 25: noryx.v1.ServerService.StopServer:input_type -> noryx.v1.StopServerRequest
+	14, // 26: noryx.v1.ServerService.RestartServer:input_type -> noryx.v1.RestartServerRequest
+	20, // 27: noryx.v1.ServerService.DeleteServer:input_type -> noryx.v1.DeleteServerRequest
+	16, // 28: noryx.v1.ServerService.UpdateServer:input_type -> noryx.v1.UpdateServerRequest
+	18, // 29: noryx.v1.ServerService.UpdateImage:input_type -> noryx.v1.UpdateImageRequest
+	22, // 30: noryx.v1.ServerService.StreamLogs:input_type -> noryx.v1.StreamLogsRequest
+	24, // 31: noryx.v1.ServerService.SendCommand:input_type -> noryx.v1.SendCommandRequest
+	26, // 32: noryx.v1.ServerService.ConfigureNetwork:input_type -> noryx.v1.ConfigureNetworkRequest
+	30, // 33: noryx.v1.ServerService.DuplicateServer:input_type -> noryx.v1.DuplicateServerRequest
+	32, // 34: noryx.v1.ServerService.ImportServer:input_type -> noryx.v1.ImportServerRequest
+	35, // 35: noryx.v1.ServerService.CreateServerFromArchive:input_type -> noryx.v1.CreateServerFromArchiveRequest
+	7,  // 36: noryx.v1.ServerService.ListServers:output_type -> noryx.v1.ListServersResponse
+	9,  // 37: noryx.v1.ServerService.CreateServer:output_type -> noryx.v1.CreateServerResponse
+	11, // 38: noryx.v1.ServerService.StartServer:output_type -> noryx.v1.StartServerResponse
+	13, // 39: noryx.v1.ServerService.StopServer:output_type -> noryx.v1.StopServerResponse
+	15, // 40: noryx.v1.ServerService.RestartServer:output_type -> noryx.v1.RestartServerResponse
+	21, // 41: noryx.v1.ServerService.DeleteServer:output_type -> noryx.v1.DeleteServerResponse
+	17, // 42: noryx.v1.ServerService.UpdateServer:output_type -> noryx.v1.UpdateServerResponse
+	19, // 43: noryx.v1.ServerService.UpdateImage:output_type -> noryx.v1.UpdateImageResponse
+	23, // 44: noryx.v1.ServerService.StreamLogs:output_type -> noryx.v1.StreamLogsResponse
+	25, // 45: noryx.v1.ServerService.SendCommand:output_type -> noryx.v1.SendCommandResponse
+	29, // 46: noryx.v1.ServerService.ConfigureNetwork:output_type -> noryx.v1.ConfigureNetworkResponse
+	31, // 47: noryx.v1.ServerService.DuplicateServer:output_type -> noryx.v1.DuplicateServerResponse
+	33, // 48: noryx.v1.ServerService.ImportServer:output_type -> noryx.v1.ImportServerResponse
+	36, // 49: noryx.v1.ServerService.CreateServerFromArchive:output_type -> noryx.v1.CreateServerFromArchiveResponse
+	36, // [36:50] is the sub-list for method output_type
+	22, // [22:36] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_noryx_v1_server_proto_init() }
@@ -2764,15 +3058,15 @@ func file_noryx_v1_server_proto_init() {
 	if File_noryx_v1_server_proto != nil {
 		return
 	}
-	file_noryx_v1_server_proto_msgTypes[22].OneofWrappers = []any{
+	file_noryx_v1_server_proto_msgTypes[23].OneofWrappers = []any{
 		(*NetworkBackend_ServerId)(nil),
 		(*NetworkBackend_Address)(nil),
 	}
-	file_noryx_v1_server_proto_msgTypes[27].OneofWrappers = []any{
+	file_noryx_v1_server_proto_msgTypes[28].OneofWrappers = []any{
 		(*ImportServerRequest_Header)(nil),
 		(*ImportServerRequest_Data)(nil),
 	}
-	file_noryx_v1_server_proto_msgTypes[30].OneofWrappers = []any{
+	file_noryx_v1_server_proto_msgTypes[31].OneofWrappers = []any{
 		(*CreateServerFromArchiveRequest_Header)(nil),
 		(*CreateServerFromArchiveRequest_Data)(nil),
 	}
@@ -2782,7 +3076,7 @@ func file_noryx_v1_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_noryx_v1_server_proto_rawDesc), len(file_noryx_v1_server_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   33,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

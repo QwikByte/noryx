@@ -226,7 +226,7 @@ func (h *Handler) checkMove(ctx context.Context, from, id string, req *moveReque
 	if err != nil {
 		return nil, err
 	}
-	used := slices.IndexFunc(list.GetServers(), func(s *noryxv1.Server) bool { return s.GetPort() == req.Port })
+	used := slices.IndexFunc(list.GetServers(), func(s *noryxv1.Server) bool { return s.Uses(req.Port) })
 	switch {
 	case !slices.ContainsFunc(info.GetStorage(), func(l *noryxv1.StorageLocation) bool { return l.GetName() == req.Storage }):
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Choose a storage location of %s.", to.Name)
@@ -236,6 +236,9 @@ func (h *Handler) checkMove(ctx context.Context, from, id string, req *moveReque
 		return nil, httpapi.Errorf(http.StatusConflict, "Port %d is used by %q on %s. Choose another port.", req.Port, list.GetServers()[used].GetName(), to.Name)
 	case slices.ContainsFunc(list.GetServers(), func(s *noryxv1.Server) bool { return s.GetId() == id }):
 		return nil, httpapi.Errorf(http.StatusConflict, "The server exists on %s already.", to.Name)
+	}
+	if err := h.checkExtraPorts(ctx, to.ID, list.GetServers(), source.GetExtraPorts(), req.Port, 0); err != nil {
+		return nil, err
 	}
 	return h.checkLimits(ctx, to.ID, "", req.Port, source.GetMemoryMb())
 }
@@ -267,6 +270,12 @@ func (h *Handler) runMove(ctx context.Context, mv Move, src *noryxv1.Server, req
 	if err == nil {
 		warnings = h.finish(ctx, mv, running)
 		if w := olderAgentWarning(src.GetStopTimeoutSeconds(), src.GetTimeZone(), imported); w != "" {
+			warnings = append(warnings, w)
+		}
+		if w := olderAgentAdvanced(advancedOf(src), imported); w != "" {
+			warnings = append(warnings, w)
+		}
+		if w := extraPortsWarning(len(src.GetExtraPorts()), imported); w != "" {
 			warnings = append(warnings, w)
 		}
 	}
@@ -335,7 +344,9 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		Id: mv.ServerID, Name: src.GetName(), Type: src.GetType(), Version: src.GetVersion(), MemoryMb: src.GetMemoryMb(),
 		Port: req.Port, Storage: req.Storage, Java: src.GetJava(), RestartPolicy: src.GetRestartPolicy(),
 		AikarFlags: src.GetAikarFlags(), JvmOptions: src.GetJvmOptions(), CpuMillis: src.GetCpuMillis(), LoaderVersion: src.GetLoaderVersion(),
-		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(),
+		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(), ExtraPorts: src.GetExtraPorts(),
+		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
+		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(), ProcessLimit: src.GetProcessLimit(), InitMemoryMb: src.GetInitMemoryMb(),
 	}
 	var res *noryxv1.ImportServerResponse
 	res, err = node.Relay(ctx,

@@ -153,7 +153,8 @@ func (d *Docker) refusal() error {
 }
 
 // imageChecks are the health checks of the images of itzg, which Podman doesn't take from
-// images in the OCI format, as these are.
+// images in the OCI format, as these are. Game servers get theirs on both runtimes, with their
+// start period; see healthCheck.
 var imageChecks = map[string]*container.HealthConfig{
 	serverImage: {Test: []string{"CMD-SHELL", "mc-health"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 2 * time.Minute, Retries: 2},
 	proxyImage:  {Test: []string{"CMD-SHELL", "/usr/bin/health.sh"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 10 * time.Second, Retries: 3},
@@ -237,10 +238,15 @@ func (d *Docker) podmanEvent(ctx context.Context, msg events.Message, w watched)
 	case events.ActionStart:
 		if !l.restarting {
 			delete(w.inRow, id) // started by the agent, which starts a new row
+			delete(w.carried, id)
 		}
 		l.started, l.died, l.restarting = at, nil, false
 	case events.ActionDie:
 		delete(w.unhealthy, id)
+		delete(w.checks, id)
+		// The agent restarts it as it stayed unhealthy, which keeps the row like its restart policy.
+		l.restarting = w.restarting[id]
+		delete(w.restarting, id)
 		if spec, ok := specOf(msg.Actor.Attributes); ok {
 			d.consoles.Close(spec.ID)
 		}
@@ -257,7 +263,7 @@ func (d *Docker) podmanEvent(ctx context.Context, msg events.Message, w watched)
 		died := *l.died
 		l.died, l.restarting = nil, true
 		if spec, ok := specOf(died.Attributes); ok {
-			d.count(ctx, died, spec.ID, math.MaxInt, w.inRow)
+			d.count(ctx, died, spec, math.MaxInt, w.inRow)
 		}
 	case events.ActionHealthStatus:
 		res, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})

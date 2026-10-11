@@ -24,6 +24,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/plugin"
+	"github.com/QwikByte/noryx/internal/master/server"
 	"github.com/QwikByte/noryx/internal/master/tag"
 )
 
@@ -84,6 +85,24 @@ type Settings struct {
 	StopTimeout uint32 `json:"stopTimeout"`
 	// TimeZone is an IANA time zone such as Europe/Berlin; empty means UTC.
 	TimeZone string `json:"timeZone"`
+	// ExtraPorts are ports of plugins that the servers publish, e.g. of a web map, which the
+	// agent checks again, also whether they are free, when a server is created.
+	ExtraPorts []server.ExtraPort `json:"extraPorts"`
+	// HealthStart is how many minutes game servers get to start before their failed health
+	// checks count; 0 means the default.
+	HealthStart uint32 `json:"healthStart"`
+	// CrashLimit is after how many crashes in a row the agent stops a server, each within
+	// StableAfter minutes of its start; 0 means the default of each.
+	CrashLimit  uint32 `json:"crashLimit"`
+	StableAfter uint32 `json:"stableAfter"`
+	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
+	// unhealthy, which counts as a crash; 0 means never.
+	UnhealthyRestart uint32 `json:"unhealthyRestart"`
+	// ProcessLimit is how many processes and threads a server's container may run; 0 means the
+	// default.
+	ProcessLimit uint32 `json:"processLimit"`
+	// InitMemoryMB is the initial heap, below the memory; 0 means as large as the memory.
+	InitMemoryMB uint32 `json:"initMemoryMb"`
 }
 
 // Input is a new or changed template.
@@ -197,7 +216,9 @@ func (s *Service) build(ctx context.Context, in Input) (Template, error) {
 	}
 	t.RestartPolicy = noryxv1.ParseRestartPolicy(t.RestartPolicy).Slug()
 	t.StopTimeout = stopSeconds(t.StopTimeout)
+	t.advancedDefaults()
 	t.JVMOptions = append([]string{}, t.JVMOptions...)
+	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
 	if t.Properties == nil {
 		t.Properties = map[string]string{}
 	}
@@ -273,6 +294,18 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Give the servers 30 seconds to 10 minutes to stop."
 	case !noryxv1.ValidTimeZone(t.TimeZone):
 		return "Choose a time zone such as Europe/Berlin, or none for UTC."
+	case !noryxv1.ValidHealthStart(t.HealthStart):
+		return "Give the servers 2 to 30 minutes to start."
+	case !noryxv1.ValidCrashLimit(t.CrashLimit):
+		return "Stop the servers after 1 to 20 crashes in a row."
+	case !noryxv1.ValidStableAfter(t.StableAfter):
+		return "Count a run as stable after 1 to 120 minutes."
+	case !noryxv1.ValidUnhealthyRestart(t.UnhealthyRestart):
+		return "Restart unhealthy servers after 1 to 60 minutes, or never."
+	case !noryxv1.ValidProcessLimit(t.ProcessLimit):
+		return "Let the servers run 1024 to 8192 processes and threads."
+	case !noryxv1.ValidInitMemory(t.InitMemoryMB, t.MemoryMB, t.AikarFlags):
+		return "Give the servers an initial heap from 512 MB to their memory, and none with Aikar's flags."
 	case len(t.JVMOptions) > maxJVMOptions:
 		return "Use at most 32 JVM options."
 	case typ.Proxy() && len(t.Properties) > 0:
@@ -283,6 +316,9 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Use at most 50 plugins."
 	case len(t.Tags) > tag.MaxPerServer:
 		return fmt.Sprintf("Use at most %d tags.", tag.MaxPerServer)
+	}
+	if msg := noryxv1.CheckExtraPorts(server.ProtoPorts(t.ExtraPorts), 0, 0); msg != "" {
+		return msg
 	}
 	for key, value := range t.Properties {
 		switch {
@@ -340,12 +376,26 @@ func scan(row scanner) (Template, error) {
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
 	t.StopTimeout = stopSeconds(t.StopTimeout) // templates saved before they had one
+	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
+	t.advancedDefaults()
 	return t, nil
 }
 
 // stopSeconds is a stop timeout in seconds; 0 means the default.
 func stopSeconds(seconds uint32) uint32 {
 	return cmp.Or(seconds, uint32(noryxv1.DefaultStopTimeout/time.Second))
+}
+
+// advancedDefaults gives the advanced settings their defaults where they have none, e.g. as the
+// template was saved before it had them. Proxies keep the start period of their image.
+func (s *Settings) advancedDefaults() {
+	if noryxv1.ParseServerType(s.Type).Proxy() {
+		s.HealthStart = 0
+	}
+	s.HealthStart = cmp.Or(s.HealthStart, uint32(noryxv1.DefaultHealthStart/time.Minute))
+	s.CrashLimit = cmp.Or(s.CrashLimit, noryxv1.DefaultCrashLimit)
+	s.StableAfter = cmp.Or(s.StableAfter, uint32(noryxv1.DefaultStableAfter/time.Minute))
+	s.ProcessLimit = cmp.Or(s.ProcessLimit, noryxv1.DefaultProcessLimit)
 }
 
 func uniqueName(err error, name string) error {

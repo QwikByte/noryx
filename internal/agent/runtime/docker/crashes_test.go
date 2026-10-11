@@ -4,14 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"math"
+	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
 func TestCrashState(t *testing.T) {
@@ -66,10 +72,11 @@ func TestRestarts(t *testing.T) {
 
 // Every crash is logged once, the last of maxCrashes in a row as the server is stopped.
 func TestNoteCrash(t *testing.T) {
+	maxCrashes, stableAfter := noryxv1.DefaultCrashLimit, noryxv1.DefaultStableAfter // as the server keeps the defaults
 	logged := captureLog(t)
 	inRow := map[string]int{}
 	crash := func(ran string, restarts int) bool {
-		return noteCrash(inRow, events.Actor{ID: "c1", Attributes: map[string]string{"execDuration": ran, "exitCode": "1"}}, "s1", restarts)
+		return noteCrash(inRow, events.Actor{ID: "c1", Attributes: map[string]string{"execDuration": ran, "exitCode": "1"}}, runtime.Spec{ID: "s1"}, restarts)
 	}
 	for i := 1; i < maxCrashes; i++ {
 		if crash("3", i) {
@@ -98,6 +105,104 @@ func TestNoteCrash(t *testing.T) {
 	}
 	if !strings.HasPrefix(entries[maxCrashes-1]["msg"].(string), "Stop a server") {
 		t.Errorf("last crash in a row: %v", entries[maxCrashes-1])
+	}
+}
+
+// A server's own crash limit and time after which a run is stable apply.
+func TestCrashLimitOfServer(t *testing.T) {
+	captureLog(t)
+	inRow := map[string]int{}
+	spec := runtime.Spec{ID: "s1", CrashLimit: 2, StableAfter: 30}
+	crash := func(ran time.Duration) bool {
+		actor := events.Actor{ID: "c1", Attributes: map[string]string{"execDuration": strconv.Itoa(int(ran.Seconds()))}}
+		return noteCrash(inRow, actor, spec, math.MaxInt)
+	}
+	if crash(20*time.Minute) || !crash(20*time.Minute) {
+		t.Fatal("the second crash in a row within 30 minutes doesn't stop the server")
+	}
+	if crash(30*time.Minute) || inRow["c1"] != 1 {
+		t.Fatalf("crash after a stable run: %d in a row", inRow["c1"])
+	}
+}
+
+// A server that stays unhealthy for its minutes is restarted, which counts as a crash and keeps
+// its row, also as the runtime counts restarts anew; that its crash limit is stopped instead.
+func TestRestartHanging(t *testing.T) {
+	var mu sync.Mutex
+	status, stops := container.Healthy, 0
+	labels := map[string]string{labelManaged: "true", labelSpec: `{"id":"s1","crashLimit":3,"stableAfter":5,"unhealthyRestart":2}`}
+	d := fakeEngine(t, false, "", map[string]http.HandlerFunc{
+		"GET /v1.41/containers/json": func(w http.ResponseWriter, _ *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			c := container.Summary{ID: "c1", State: container.StateRunning, Health: &container.HealthSummary{Status: status}, Labels: labels}
+			_ = json.NewEncoder(w).Encode([]container.Summary{c, {ID: "c2", State: container.StateRunning, Labels: map[string]string{labelSpec: `{"id":"s2"}`}}})
+		},
+		"GET /v1.41/containers/{id}/json": reply(container.InspectResponse{
+			ID: "c1", Config: &container.Config{Labels: labels}, State: &container.State{Status: container.StateExited},
+		}),
+		"POST /v1.41/containers/{id}/stop": func(http.ResponseWriter, *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			stops++
+		},
+	})
+	set := func(s container.HealthStatus) {
+		mu.Lock()
+		defer mu.Unlock()
+		status = s
+	}
+	stopped := func() int {
+		time.Sleep(100 * time.Millisecond) // the restart runs in the background
+		mu.Lock()
+		defer mu.Unlock()
+		return stops
+	}
+	logged := captureLog(t)
+	w := watched{inRow: map[string]int{}, checks: map[string]*checks{}, restarting: map[string]bool{}, carried: map[string]int{}}
+	// It fails for a while after it passed for 4 minutes, less than its 5 to be stable.
+	d.restartHanging(t.Context(), w)
+	w.checks["c1"].passes = time.Now().Add(-4 * time.Minute)
+	set(container.Unhealthy)
+	d.restartHanging(t.Context(), w)
+	if w.checks["c1"].fails.IsZero() || len(w.checks) != 1 || stopped() != 0 {
+		t.Fatalf("checks %v, stopped %d times", w.checks, stops)
+	}
+	w.checks["c1"].fails = time.Now().Add(-2 * time.Minute)
+	w.inRow["c1"] = 1 // crashed before
+	d.restartHanging(t.Context(), w)
+	if !w.restarting["c1"] || w.inRow["c1"] != 2 || w.carried["c1"] != 2 || stopped() != 1 {
+		t.Fatalf("restart: restarting %v, in a row %v, carried %v, stopped %d times", w.restarting, w.inRow, w.carried, stops)
+	}
+	// Its stop by the agent keeps the row, and a crash after the start continues it, while Docker
+	// counts one restart.
+	d.crashed(t.Context(), events.Actor{ID: "c1", Attributes: labels}, w)
+	if len(w.restarting) != 0 || w.inRow["c1"] != 2 {
+		t.Fatalf("after the stop: restarting %v, in a row %v", w.restarting, w.inRow)
+	}
+	spec, _ := specOf(labels)
+	if !noteCrash(w.inRow, events.Actor{ID: "c1", Attributes: map[string]string{"execDuration": "200"}}, spec, 1+w.carried["c1"]) {
+		t.Fatal("the third crash in a row doesn't stop the server")
+	}
+	// The fake runtime doesn't start it again, which is logged in between.
+	entries := slices.DeleteFunc(logged(), func(e map[string]any) bool { return e["crashes"] == nil })
+	if len(entries) != 2 || !strings.HasPrefix(entries[0]["msg"].(string), "Restart a server") || entries[0]["crashes"] != float64(2) ||
+		!strings.HasPrefix(entries[1]["msg"].(string), "Stop a server that crashed 3 times") {
+		t.Fatalf("logged %v", entries)
+	}
+	// One that was healthy for long enough starts a row; the crash limit stops it instead.
+	w.inRow["c1"] = 2
+	w.checks["c1"] = &checks{passes: time.Now().Add(-time.Hour), fails: time.Now().Add(-3 * time.Minute)}
+	d.restartHanging(t.Context(), w)
+	if w.inRow["c1"] != 1 || stopped() != 2 {
+		t.Fatalf("after a stable run: %d in a row", w.inRow["c1"])
+	}
+	w.restarting = map[string]bool{}
+	w.inRow["c1"] = 2
+	w.checks["c1"] = &checks{fails: time.Now().Add(-3 * time.Minute)}
+	d.restartHanging(t.Context(), w)
+	if e := logged()[len(logged())-1]; !strings.HasPrefix(e["msg"].(string), "Stop a server whose health check") || w.restarting["c1"] || stopped() != 3 {
+		t.Fatalf("crash limit: %v, restarting %v", e, w.restarting)
 	}
 }
 
@@ -137,5 +242,41 @@ func captureLog(t *testing.T) func() []map[string]any {
 			entries = append(entries, e)
 		}
 		return entries
+	}
+}
+
+// The restart of a server that hangs leaves it stopped if someone stops it meanwhile, e.g. an
+// operator who stops it while the agent waits for it to stop.
+func TestRestartUnlessStopped(t *testing.T) {
+	var mu sync.Mutex
+	var d *Docker
+	stopping, starts := false, 0
+	labels := map[string]string{labelManaged: "true", labelSpec: `{"id":"s1"}`}
+	d = fakeEngine(t, false, "", map[string]http.HandlerFunc{
+		"GET /v1.41/containers/{id}/json": reply(container.InspectResponse{
+			ID: "c1", Config: &container.Config{Labels: labels}, State: &container.State{Status: container.StateRunning},
+		}),
+		"POST /v1.41/containers/{id}/stop": func(http.ResponseWriter, *http.Request) {
+			mu.Lock()
+			concurrent := stopping
+			mu.Unlock()
+			if concurrent {
+				d.stopsOf("s1").Add(1) // the operator's stop, while the agent's waits
+			}
+		},
+		"POST /v1.41/containers/{id}/start": func(http.ResponseWriter, *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			starts++
+		},
+	})
+	if err := d.restartUnlessStopped(t.Context(), "s1"); err != nil || starts != 1 {
+		t.Fatalf("restart: %v, started %d times", err, starts)
+	}
+	mu.Lock()
+	stopping = true
+	mu.Unlock()
+	if err := d.restartUnlessStopped(t.Context(), "s1"); err != nil || starts != 1 {
+		t.Fatalf("restart with a stop meanwhile: %v, started %d times", err, starts)
 	}
 }

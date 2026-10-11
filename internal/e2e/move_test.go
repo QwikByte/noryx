@@ -91,12 +91,17 @@ func TestMoveServer(t *testing.T) {
 	created := must(noryxv1.NewServerServiceClient(must(m.nodes.Conn(t.Context(), a1.node.ID))).CreateServer(t.Context(), &noryxv1.CreateServerRequest{
 		Name: "Modded", Type: noryxv1.ServerType_SERVER_TYPE_FABRIC, MemoryMb: 1024, Port: 25570, AcceptEula: true, LoaderVersion: "0.16.10",
 		StopTimeoutSeconds: 600, TimeZone: "Asia/Tokyo",
+		HealthStartMinutes: 15, CrashLimit: 3, StableAfterMinutes: 30, UnhealthyRestartMinutes: 5, ProcessLimit: 2048, InitMemoryMb: 512,
 	}))
 	api.do("PUT", "/api/nodes/"+a1.node.ID+"/servers/"+created.GetServer().GetId()+"/notes", map[string]any{"notes": "Modpack test"}, http.StatusNoContent, nil)
 	api.do("POST", "/api/nodes/"+a1.node.ID+"/servers/"+created.GetServer().GetId()+"/move", map[string]any{"node": a2.node.ID}, http.StatusAccepted, nil)
 	mv := waitForMove(t, api, created.GetServer().GetId())
 	if spec := a2.runtime.spec(created.GetServer().GetId()); mv.Phase != "done" || spec.LoaderVersion != "0.16.10" || spec.StopTimeout != 600 || spec.TimeZone != "Asia/Tokyo" {
 		t.Fatalf("move = %+v, spec = %+v", mv, spec)
+	}
+	if spec := a2.runtime.spec(created.GetServer().GetId()); spec.HealthStart != 15 || spec.CrashLimit != 3 || spec.StableAfter != 30 || spec.UnhealthyRestart != 5 ||
+		spec.ProcessLimit != 2048 || spec.InitMemoryMB != 512 {
+		t.Fatalf("advanced settings after the move: %+v", spec)
 	}
 	if notes := must(tag.NewStore(m.db).Notes(t.Context())); notes[tag.Server{NodeID: a2.node.ID, ServerID: created.GetServer().GetId()}] != "Modpack test" {
 		t.Fatalf("notes = %q", notes)

@@ -56,7 +56,7 @@ var errNotFound = httpapi.Errorf(http.StatusNotFound, "Datastore not found.")
 // their databases.
 func (s *Store) list(ctx context.Context, networkID string) ([]Datastore, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, network_id, node_id, name, engine, version, memory_mb, cpu_millis, storage, port, created_at
+		SELECT id, network_id, node_id, name, engine, version, memory_mb, cpu_millis, storage, port, created_at, max_connections, buffer_mb
 		FROM datastores WHERE ? IN ('', network_id) ORDER BY name, id`, networkID)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (s *Store) list(ctx context.Context, networkID string) ([]Datastore, error)
 	for rows.Next() {
 		ds := Datastore{Databases: []Database{}}
 		var created int64
-		if err := rows.Scan(&ds.ID, &ds.NetworkID, &ds.NodeID, &ds.Name, &ds.Engine, &ds.Version, &ds.MemoryMB, &ds.CPUMillis, &ds.Storage, &ds.Port, &created); err != nil {
+		if err := rows.Scan(&ds.ID, &ds.NetworkID, &ds.NodeID, &ds.Name, &ds.Engine, &ds.Version, &ds.MemoryMB, &ds.CPUMillis, &ds.Storage, &ds.Port, &created, &ds.MaxConnections, &ds.BufferMB); err != nil {
 			return nil, err
 		}
 		ds.CreatedAt, index[ds.ID] = time.Unix(created, 0), len(list)
@@ -111,9 +111,9 @@ func (s *Store) get(ctx context.Context, id string) (Datastore, error) {
 
 func (s *Store) insert(ctx context.Context, ds Datastore) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO datastores (id, network_id, node_id, name, engine, version, memory_mb, cpu_millis, storage, port, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-		ds.ID, ds.NetworkID, ds.NodeID, ds.Name, ds.Engine, ds.Version, ds.MemoryMB, ds.CPUMillis, ds.Storage, ds.CreatedAt.Unix())
+		INSERT INTO datastores (id, network_id, node_id, name, engine, version, memory_mb, cpu_millis, storage, port, created_at, max_connections, buffer_mb)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+		ds.ID, ds.NetworkID, ds.NodeID, ds.Name, ds.Engine, ds.Version, ds.MemoryMB, ds.CPUMillis, ds.Storage, ds.CreatedAt.Unix(), ds.MaxConnections, ds.BufferMB)
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return httpapi.Errorf(http.StatusConflict, "The network has a datastore named %q already.", ds.Name)
 	}
@@ -122,8 +122,8 @@ func (s *Store) insert(ctx context.Context, ds Datastore) error {
 
 // update stores the settings of a datastore that may change.
 func (s *Store) update(ctx context.Context, ds Datastore) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE datastores SET version = ?, memory_mb = ?, cpu_millis = ? WHERE id = ?`,
-		ds.Version, ds.MemoryMB, ds.CPUMillis, ds.ID)
+	_, err := s.db.ExecContext(ctx, `UPDATE datastores SET version = ?, memory_mb = ?, cpu_millis = ?, max_connections = ?, buffer_mb = ? WHERE id = ?`,
+		ds.Version, ds.MemoryMB, ds.CPUMillis, ds.MaxConnections, ds.BufferMB, ds.ID)
 	return err
 }
 
@@ -255,6 +255,9 @@ func (s *Store) freePort(ctx context.Context, ds Datastore, refused map[uint32]b
 	used := maps.Clone(refused)
 	for _, srv := range servers.GetServers() {
 		used[srv.GetPort()], used[srv.GetBedrockPort()] = true, true
+		for _, p := range srv.GetExtraPorts() {
+			used[p.GetPort()] = true
+		}
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT port FROM datastores WHERE node_id = ? AND port <> 0`, ds.NodeID)
 	if err != nil {

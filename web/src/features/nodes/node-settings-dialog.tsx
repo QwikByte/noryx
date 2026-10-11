@@ -17,12 +17,20 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatBytes } from "@/lib/format"
+import { AgentFields } from "./agent-fields"
 import { type Node, useUpdateNode } from "./api"
 import { limitsForm, limitsOf } from "./limits"
 import { LimitsFields } from "./limits-fields"
 
 function formOf(node: Node) {
-  return { name: node.name, address: node.address ?? "", defaultStorage: node.defaultStorage, ...limitsForm(node) }
+  const { logFileMb, logFiles, keepFreeGb, statsIntervalSeconds } = node
+  return {
+    name: node.name,
+    address: node.address ?? "",
+    defaultStorage: node.defaultStorage,
+    ...limitsForm(node),
+    agent: { logFileMb, logFiles, keepFreeGb, statsIntervalSeconds },
+  }
 }
 
 /** Settings of a node; the trigger is a button unless one is given, e.g. an icon button. */
@@ -43,7 +51,7 @@ export function NodeSettingsDialog({ node, trigger }: { node: Node; trigger?: Re
   function submit(event: FormEvent) {
     event.preventDefault()
     update.mutate(
-      { name: form.name, address: form.address, defaultStorage: form.defaultStorage, ...limitsOf(form) },
+      { name: form.name, address: form.address, defaultStorage: form.defaultStorage, ...limitsOf(form), ...form.agent },
       {
         onSuccess: ({ warning }) => {
           ;(warning ? toast.warning : toast.success)(t("Saved the settings of {{name}}", { name: form.name }), { description: warning })
@@ -106,6 +114,7 @@ export function NodeSettingsDialog({ node, trigger }: { node: Node; trigger?: Re
               </Field>
             )}
             <LimitsFields id="node-settings" form={form} onChange={set} memoryMb={memoryMb} />
+            <AgentFields id="node-settings" value={form.agent} onChange={(agent) => set({ agent })} />
             {update.error && <FieldError>{update.error.message}</FieldError>}
           </FieldGroup>
           <DialogFooter>

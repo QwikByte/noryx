@@ -30,8 +30,8 @@ const javaVersions: [value: string, label: string][] = [
 ]
 
 const restartPolicies: [RestartPolicy, string, string][] = [
-  ["always", msg("Always running"), msg("Starts with the node and after a crash, unless you stopped it or it crashed 5 times in a row.")],
-  ["on_crash", msg("After a crash"), msg("Starts again when it crashes, up to 5 times in a row.")],
+  ["always", msg("Always running"), msg("Starts with the node and after a crash, unless you stopped it or it keeps crashing.")],
+  ["on_crash", msg("After a crash"), msg("Starts again when it crashes, unless it keeps crashing.")],
   ["never", msg("Only manually"), msg("Starts only when you start it.")],
 ]
 

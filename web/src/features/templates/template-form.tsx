@@ -16,6 +16,9 @@ import { TracksPill } from "@/features/plugins/channel-pill"
 import { PluginIcon } from "@/features/plugins/plugin-icon"
 import { PluginSearch } from "@/features/plugins/plugin-search"
 import { VersionMenu } from "@/features/plugins/version-menu"
+import { CrashFields, HealthStartField, ResourceFields } from "@/features/servers/advanced-fields"
+import { initialHeap } from "@/features/servers/api"
+import { ExtraPortsField } from "@/features/servers/extra-ports"
 import { defaults, serverType, splitOptions } from "@/features/servers/server-types"
 import {
   CpuLimitField,
@@ -59,6 +62,7 @@ export function TemplateForm({
     name: form.name.trim(),
     version: type.proxy ? "LATEST" : form.version,
     jvmOptions: splitOptions(form.jvmOptions),
+    initMemoryMb: initialHeap(form),
     properties: type.proxy ? {} : parseProperties(form.properties),
     plugins: type.addons ? form.plugins : [],
   }
@@ -140,17 +144,23 @@ export function TemplateForm({
           <MemoryField id="template-memory" value={form.memoryMb} onChange={(memoryMb) => set({ memoryMb })} />
         </div>
         <TimeZoneField id="template-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
+        <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} />
       </FormSection>
 
       <FormSection title={t("Starting and stopping")}>
         <RestartPolicyField value={form.restartPolicy} onChange={(restartPolicy) => set({ restartPolicy })} />
         <StopTimeoutField id="template-stop-timeout" value={form.stopTimeout} onChange={(stopTimeout) => set({ stopTimeout })} />
+        {!type.proxy && (
+          <HealthStartField id="template-health-start" value={form.healthStart} onChange={(healthStart) => set({ healthStart })} />
+        )}
+        <CrashFields id="template-crashes" value={form} onChange={set} />
       </FormSection>
 
       <FormSection title={t("Java")}>
         {!type.proxy && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
         <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />
         <CpuLimitField value={form.cpuLimit} onChange={(cpuLimit) => set({ cpuLimit })} />
+        <ResourceFields id="template-resources" value={form} onChange={set} />
       </FormSection>
 
       {!type.proxy && (
