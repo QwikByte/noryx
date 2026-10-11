@@ -244,3 +244,39 @@ func captureLog(t *testing.T) func() []map[string]any {
 		return entries
 	}
 }
+
+// The restart of a server that hangs leaves it stopped if someone stops it meanwhile, e.g. an
+// operator who stops it while the agent waits for it to stop.
+func TestRestartUnlessStopped(t *testing.T) {
+	var mu sync.Mutex
+	var d *Docker
+	stopping, starts := false, 0
+	labels := map[string]string{labelManaged: "true", labelSpec: `{"id":"s1"}`}
+	d = fakeEngine(t, false, "", map[string]http.HandlerFunc{
+		"GET /v1.41/containers/{id}/json": reply(container.InspectResponse{
+			ID: "c1", Config: &container.Config{Labels: labels}, State: &container.State{Status: container.StateRunning},
+		}),
+		"POST /v1.41/containers/{id}/stop": func(http.ResponseWriter, *http.Request) {
+			mu.Lock()
+			concurrent := stopping
+			mu.Unlock()
+			if concurrent {
+				d.stopsOf("s1").Add(1) // the operator's stop, while the agent's waits
+			}
+		},
+		"POST /v1.41/containers/{id}/start": func(http.ResponseWriter, *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			starts++
+		},
+	})
+	if err := d.restartUnlessStopped(t.Context(), "s1"); err != nil || starts != 1 {
+		t.Fatalf("restart: %v, started %d times", err, starts)
+	}
+	mu.Lock()
+	stopping = true
+	mu.Unlock()
+	if err := d.restartUnlessStopped(t.Context(), "s1"); err != nil || starts != 1 {
+		t.Fatalf("restart with a stop meanwhile: %v, started %d times", err, starts)
+	}
+}

@@ -105,6 +105,9 @@ type Docker struct {
 	// refused tells why the agent refuses the runtime that answered last; see check.
 	refused atomic.Pointer[error]
 	output  atomic.Pointer[outputLimit] // see LimitLogs
+	// stops counts the stops asked for of each server, so that a restart of a server that hangs
+	// doesn't start one that someone stopped meanwhile; see restartUnlessStopped.
+	stops sync.Map
 }
 
 // Options choose the runtime.
@@ -395,6 +398,11 @@ func (d *Docker) Start(ctx context.Context, id string) error {
 // Stop gives the server its stop timeout, which containers created by older agents don't
 // know, to save its worlds.
 func (d *Docker) Stop(ctx context.Context, id string) error {
+	d.stopsOf(id).Add(1)
+	return d.stop(ctx, id)
+}
+
+func (d *Docker) stop(ctx context.Context, id string) error {
 	_, spec, err := d.inspect(ctx, id)
 	if err != nil {
 		return err
@@ -451,6 +459,23 @@ func (d *Docker) Restart(ctx context.Context, id string) error {
 		return err
 	}
 	return d.Start(ctx, id)
+}
+
+// restartUnlessStopped restarts a server like Restart, but leaves it stopped if someone asked
+// for its stop meanwhile, e.g. an operator who stops a server that hangs.
+func (d *Docker) restartUnlessStopped(ctx context.Context, id string) error {
+	stops := d.stopsOf(id)
+	asked := stops.Load()
+	if err := d.stop(ctx, id); err != nil || stops.Load() != asked {
+		return err
+	}
+	return d.Start(ctx, id)
+}
+
+// stopsOf counts the stops asked for of a server.
+func (d *Docker) stopsOf(id string) *atomic.Int64 {
+	n, _ := d.stops.LoadOrStore(id, new(atomic.Int64))
+	return n.(*atomic.Int64)
 }
 
 // Remove deletes the container and all server data.

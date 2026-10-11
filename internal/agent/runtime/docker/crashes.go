@@ -266,7 +266,7 @@ func (d *Docker) hung(ctx context.Context, containerID string, spec runtime.Spec
 	}
 	// Like the stop of a crashing server, while the events and other servers go on.
 	go func() {
-		act := d.Restart
+		act := d.restartUnlessStopped
 		if stop {
 			act = d.Stop
 		}
