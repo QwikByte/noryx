@@ -340,7 +340,7 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		AikarFlags: src.GetAikarFlags(), JvmOptions: src.GetJvmOptions(), CpuMillis: src.GetCpuMillis(), LoaderVersion: src.GetLoaderVersion(),
 		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(),
 		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
-		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(),
+		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(), ProcessLimit: src.GetProcessLimit(), InitMemoryMb: src.GetInitMemoryMb(),
 	}
 	var res *noryxv1.ImportServerResponse
 	res, err = node.Relay(ctx,

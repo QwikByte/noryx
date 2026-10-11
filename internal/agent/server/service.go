@@ -261,6 +261,7 @@ func newServer(req *noryxv1.CreateServerRequest) (runtime.Spec, error) {
 		HealthStart:   req.GetHealthStartMinutes(),
 	}
 	spec.CrashLimit, spec.StableAfter, spec.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
+	spec.ProcessLimit, spec.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
 	switch {
 	case !req.GetAcceptEula() && !req.GetType().Proxy():
 		return spec, status.Error(codes.InvalidArgument, "Accept the Minecraft EULA to create a game server.")
@@ -344,7 +345,7 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 		JVMOptions: h.GetJvmOptions(), CPUMillis: h.GetCpuMillis(), LoaderVersion: h.GetLoaderVersion(),
 		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(),
 		HealthStart: h.GetHealthStartMinutes(), CrashLimit: h.GetCrashLimit(), StableAfter: h.GetStableAfterMinutes(),
-		UnhealthyRestart: h.GetUnhealthyRestartMinutes(),
+		UnhealthyRestart: h.GetUnhealthyRestartMinutes(), ProcessLimit: h.GetProcessLimit(), InitMemoryMB: h.GetInitMemoryMb(),
 	}
 	_, knownType := noryxv1.ServerType_name[int32(spec.Type)]
 	switch {
@@ -424,6 +425,7 @@ func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerReq
 	srv.StopTimeout, srv.TimeZone = req.GetStopTimeoutSeconds(), req.GetTimeZone()
 	srv.HealthStart = req.GetHealthStartMinutes()
 	srv.CrashLimit, srv.StableAfter, srv.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
+	srv.ProcessLimit, srv.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
 	release, err := s.check(ctx, srv.Spec)
 	if err != nil {
 		return nil, err
@@ -840,6 +842,7 @@ func toProto(s runtime.Server) *noryxv1.Server {
 		LoaderVersion: s.LoaderVersion, BedrockPort: s.BedrockPort, RefusedJvmOptions: refusedOptions(s.JVMOptions),
 		Overlay: s.Overlay != "", Unhealthy: s.Unhealthy, StopTimeoutSeconds: s.StopTimeout, TimeZone: s.TimeZone,
 		HealthStartMinutes: s.HealthStart, CrashLimit: s.CrashLimit, StableAfterMinutes: s.StableAfter, UnhealthyRestartMinutes: s.UnhealthyRestart,
+		ProcessLimit: s.ProcessLimit, InitMemoryMb: s.InitMemoryMB,
 	}
 }
 

@@ -16,7 +16,7 @@ import { TracksPill } from "@/features/plugins/channel-pill"
 import { PluginIcon } from "@/features/plugins/plugin-icon"
 import { PluginSearch } from "@/features/plugins/plugin-search"
 import { VersionMenu } from "@/features/plugins/version-menu"
-import { CrashFields, HealthStartField } from "@/features/servers/advanced-fields"
+import { CrashFields, HealthStartField, initialHeap, ResourceFields } from "@/features/servers/advanced-fields"
 import { defaults, serverType, splitOptions } from "@/features/servers/server-types"
 import {
   CpuLimitField,
@@ -60,6 +60,7 @@ export function TemplateForm({
     name: form.name.trim(),
     version: type.proxy ? "LATEST" : form.version,
     jvmOptions: splitOptions(form.jvmOptions),
+    initMemoryMb: initialHeap(form),
     properties: type.proxy ? {} : parseProperties(form.properties),
     plugins: type.addons ? form.plugins : [],
   }
@@ -156,6 +157,7 @@ export function TemplateForm({
         {!type.proxy && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
         <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />
         <CpuLimitField value={form.cpuLimit} onChange={(cpuLimit) => set({ cpuLimit })} />
+        <ResourceFields id="template-resources" value={form} onChange={set} />
       </FormSection>
 
       {!type.proxy && (

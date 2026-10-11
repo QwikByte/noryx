@@ -20,23 +20,31 @@ func TestAdvancedSettings(t *testing.T) {
 	type listed struct {
 		ID                                                     string
 		HealthStart, CrashLimit, StableAfter, UnhealthyRestart uint32
+		ProcessLimit, InitMemoryMB                             uint32
 	}
 	get := func() listed {
 		var servers []listed
 		api.do("GET", "/api/nodes/"+lobby.NodeID+"/servers", nil, http.StatusOK, &servers)
 		return servers[0]
 	}
-	if s := get(); s.HealthStart != 2 || s.CrashLimit != 5 || s.StableAfter != 10 || s.UnhealthyRestart != 0 {
+	if s := get(); s != (listed{lobby.ServerID, 2, 5, 10, 0, 1024, 0}) {
 		t.Fatalf("new server = %+v", s)
 	}
 
-	settings := map[string]any{"name": "Lobby", "memoryMb": 1024, "port": 25565, "healthStart": 15, "crashLimit": 2, "stableAfter": 30, "unhealthyRestart": 5}
+	settings := map[string]any{
+		"name": "Lobby", "memoryMb": 2048, "port": 25565, "healthStart": 15, "crashLimit": 2, "stableAfter": 30, "unhealthyRestart": 5,
+		"processLimit": 4096, "initMemoryMb": 512,
+	}
 	api.do("PUT", path, settings, http.StatusOK, nil)
-	want := listed{lobby.ServerID, 15, 2, 30, 5}
-	if s, spec := get(), a.runtime.spec(lobby.ServerID); s != want || spec.HealthStart != 15 || spec.CrashLimit != 2 || spec.StableAfter != 30 || spec.UnhealthyRestart != 5 {
+	want := listed{lobby.ServerID, 15, 2, 30, 5, 4096, 512}
+	spec := a.runtime.spec(lobby.ServerID)
+	if s := get(); s != want || spec.HealthStart != 15 || spec.CrashLimit != 2 || spec.StableAfter != 30 || spec.UnhealthyRestart != 5 ||
+		spec.ProcessLimit != 4096 || spec.InitMemoryMB != 512 {
 		t.Fatalf("server = %+v, spec = %+v", s, spec)
 	}
-	for key, value := range map[string]any{"healthStart": 31, "crashLimit": 21, "stableAfter": 121, "unhealthyRestart": 61} {
+	for key, value := range map[string]any{
+		"healthStart": 31, "crashLimit": 21, "stableAfter": 121, "unhealthyRestart": 61, "processLimit": 8193, "initMemoryMb": 4096, "aikarFlags": true,
+	} {
 		bad := maps.Clone(settings)
 		bad[key] = value
 		api.do("PUT", path, bad, http.StatusBadRequest, nil)
@@ -49,17 +57,22 @@ func TestAdvancedSettings(t *testing.T) {
 	}
 
 	// Templates keep them for new servers; proxies keep the start period of their image.
-	in := map[string]any{"name": "Modded", "type": "neoforge", "memoryMb": 8192, "healthStart": 20, "crashLimit": 3, "stableAfter": 60, "unhealthyRestart": 10}
+	in := map[string]any{
+		"name": "Modded", "type": "neoforge", "memoryMb": 8192, "healthStart": 20, "crashLimit": 3, "stableAfter": 60, "unhealthyRestart": 10,
+		"processLimit": 8192, "initMemoryMb": 4096,
+	}
 	var tmpl template.Template
 	api.do("POST", "/api/templates", in, http.StatusCreated, &tmpl)
-	if s := tmpl.Settings; s.HealthStart != 20 || s.CrashLimit != 3 || s.StableAfter != 60 || s.UnhealthyRestart != 10 {
+	if s := tmpl.Settings; s.HealthStart != 20 || s.CrashLimit != 3 || s.StableAfter != 60 || s.UnhealthyRestart != 10 || s.ProcessLimit != 8192 || s.InitMemoryMB != 4096 {
 		t.Fatalf("template = %+v", tmpl.Settings)
 	}
 	api.do("POST", "/api/templates", map[string]any{"name": "Proxy", "type": "velocity", "memoryMb": 512, "healthStart": 20}, http.StatusCreated, &tmpl)
-	if tmpl.HealthStart != 2 {
+	if tmpl.HealthStart != 2 || tmpl.ProcessLimit != 1024 {
 		t.Fatalf("proxy template = %+v", tmpl.Settings)
 	}
-	for key, value := range map[string]any{"healthStart": 1, "crashLimit": 21, "stableAfter": 121, "unhealthyRestart": 61} {
+	for key, value := range map[string]any{
+		"healthStart": 1, "crashLimit": 21, "stableAfter": 121, "unhealthyRestart": 61, "processLimit": 512, "initMemoryMb": 8193, "aikarFlags": true,
+	} {
 		bad := maps.Clone(in)
 		bad["name"], bad[key] = "Bad "+key, value
 		api.do("POST", "/api/templates", bad, http.StatusBadRequest, nil)

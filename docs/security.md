@@ -129,7 +129,8 @@ Containers run with `no-new-privileges`, memory and PID limits, and only the cap
 data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies run as the user of their image (uid 1000) from the
 start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
 without communication between containers (`noryx-servers`), and a Velocity proxy shares another one only with its
-backends on the node.
+backends on the node. The PID limit lets a server's container run 1,024 processes and threads, or up to 8,192 if its
+settings say so, which the agent checks, so that a compromised server can't exhaust the node, e.g. with a fork bomb.
 
 A node runs its containers with Docker or with Podman as root, and the same holds for both. The agent sets every option
 of a container itself, so that Podman gets the same users, capabilities, limits, health checks and published addresses

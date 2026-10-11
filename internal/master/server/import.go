@@ -78,7 +78,7 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 			AcceptEula: req.AcceptEULA, Storage: req.Storage, Java: req.Java, RestartPolicy: policy, AikarFlags: req.AikarFlags,
 			JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout,
 			TimeZone: req.TimeZone, HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
-			UnhealthyRestartMinutes: req.UnhealthyRestart,
+			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 		}}, archive)
 	}
 	var tooLarge *http.MaxBytesError

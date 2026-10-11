@@ -26,6 +26,10 @@ export interface TemplateSettings {
   stableAfter: number
   /** Minutes after which the agent restarts a running server that stays unhealthy; 0 for never. */
   unhealthyRestart: number
+  /** Processes and threads a server's container may run. */
+  processLimit: number
+  /** The heap Java starts with, below memoryMb; 0 for all of it. */
+  initMemoryMb: number
   /** Written to server.properties before the first start. */
   properties: Record<string, string>
 }
@@ -92,6 +96,8 @@ export const emptyTemplate: TemplateDraft = {
   crashLimit: 5,
   stableAfter: 10,
   unhealthyRestart: 0,
+  processLimit: 1024,
+  initMemoryMb: 0,
   properties: {},
   tags: [],
   plugins: [],
@@ -100,8 +106,9 @@ export const emptyTemplate: TemplateDraft = {
 export function draftOf(t: Template): TemplateDraft {
   const { name, description, type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, tags, plugins } = t
   const settings = { type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties }
-  const { stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart } = t
-  return { name, description, ...settings, stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart, tags, plugins }
+  const { stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = t
+  const advanced = { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
+  return { name, description, ...settings, stopTimeout, timeZone, ...advanced, tags, plugins }
 }
 
 export const templatesQuery = queryOptions({

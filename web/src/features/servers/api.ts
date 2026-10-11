@@ -51,6 +51,10 @@ export interface Server {
   stableAfter: number
   /** Minutes after which the agent restarts a running server that stays unhealthy, which counts as a crash; 0 for never. */
   unhealthyRestart: number
+  /** Processes and threads the server's container may run. */
+  processLimit: number
+  /** The heap Java starts with, below memoryMb; 0 for all of it. */
+  initMemoryMb: number
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -78,10 +82,15 @@ export type ServerSettings = Pick<
   | "crashLimit"
   | "stableAfter"
   | "unhealthyRestart"
+  | "processLimit"
+  | "initMemoryMb"
 >
 
 /** When the agent stops a server that keeps crashing, and restarts one that stays unhealthy. */
 export type CrashSettings = Pick<Server, "crashLimit" | "stableAfter" | "unhealthyRestart">
+
+/** How many processes a server may run, and the heap Java starts with. */
+export type ResourceSettings = Pick<Server, "processLimit" | "initMemoryMb">
 
 /** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
 export interface NewServerSettings {
@@ -148,6 +157,8 @@ export interface NewServer
   crashLimit?: number
   stableAfter?: number
   unhealthyRestart?: number
+  processLimit?: number
+  initMemoryMb?: number
   /** A modpack decides the type and the versions of the server. */
   modpack?: ModpackChoice
   /** Given to the new server, e.g. those of its template. */

@@ -94,6 +94,11 @@ type Settings struct {
 	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
 	// unhealthy, which counts as a crash; 0 means never.
 	UnhealthyRestart uint32 `json:"unhealthyRestart"`
+	// ProcessLimit is how many processes and threads a server's container may run; 0 means the
+	// default.
+	ProcessLimit uint32 `json:"processLimit"`
+	// InitMemoryMB is the initial heap, below the memory; 0 means as large as the memory.
+	InitMemoryMB uint32 `json:"initMemoryMb"`
 }
 
 // Input is a new or changed template.
@@ -292,6 +297,10 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Count a run as stable after 1 to 120 minutes."
 	case !noryxv1.ValidUnhealthyRestart(t.UnhealthyRestart):
 		return "Restart unhealthy servers after 1 to 60 minutes, or never."
+	case !noryxv1.ValidProcessLimit(t.ProcessLimit):
+		return "Let the servers run 1024 to 8192 processes and threads."
+	case !noryxv1.ValidInitMemory(t.InitMemoryMB, t.MemoryMB, t.AikarFlags):
+		return "Give the servers an initial heap from 512 MB to their memory, and none with Aikar's flags."
 	case len(t.JVMOptions) > maxJVMOptions:
 		return "Use at most 32 JVM options."
 	case typ.Proxy() && len(t.Properties) > 0:
@@ -377,6 +386,7 @@ func (s *Settings) advancedDefaults() {
 	s.HealthStart = cmp.Or(s.HealthStart, uint32(noryxv1.DefaultHealthStart/time.Minute))
 	s.CrashLimit = cmp.Or(s.CrashLimit, noryxv1.DefaultCrashLimit)
 	s.StableAfter = cmp.Or(s.StableAfter, uint32(noryxv1.DefaultStableAfter/time.Minute))
+	s.ProcessLimit = cmp.Or(s.ProcessLimit, noryxv1.DefaultProcessLimit)
 }
 
 func uniqueName(err error, name string) error {

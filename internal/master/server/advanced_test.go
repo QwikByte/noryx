@@ -29,6 +29,9 @@ func TestWarnsOfOlderAgentsAdvanced(t *testing.T) {
 			`, "crashLimit": 2`:       true,
 			`, "stableAfter": 30`:     true,
 			`, "unhealthyRestart": 5`: true,
+			`, "processLimit": 1024`:  false,
+			`, "processLimit": 4096`:  true,
+			`, "initMemoryMb": 512`:   true,
 		} {
 			body := `{` + req.body + `"name": "Lobby", "memoryMb": 1024, "port": 25565` + settings + `}`
 			rec := httptest.NewRecorder()
@@ -40,7 +43,7 @@ func TestWarnsOfOlderAgentsAdvanced(t *testing.T) {
 			if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code >= 300 {
 				t.Fatalf("%s %s: status %d: %s", req.method, body, rec.Code, rec.Body)
 			}
-			if res.advanced != (advanced{2, 5, 10, 0}) || (res.Warning != "") != warns {
+			if res.advanced != (advanced{HealthStart: 2, CrashLimit: 5, StableAfter: 10, ProcessLimit: 1024}) || (res.Warning != "") != warns {
 				t.Errorf("%s %s: %+v", req.method, body, res)
 			}
 		}

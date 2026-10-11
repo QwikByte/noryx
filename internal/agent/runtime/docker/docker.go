@@ -48,7 +48,6 @@ const (
 	serverImage = "docker.io/itzg/minecraft-server"
 	proxyImage  = "docker.io/itzg/mc-proxy"
 
-	pidsLimit    = 1024
 	maxLineBytes = 1 << 20
 )
 
@@ -313,6 +312,9 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 	if spec.AikarFlags {
 		env = append(env, "USE_AIKAR_FLAGS=TRUE")
 	}
+	if spec.InitMemoryMB != 0 { // MEMORY sets the largest heap then
+		env = append(env, fmt.Sprintf("INIT_MEMORY=%dM", spec.InitMemoryMB))
+	}
 	if spec.LoaderVersion != "" {
 		env = append(env, loaderVariables[spec.Type]+"="+spec.LoaderVersion)
 	}
@@ -365,7 +367,7 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 			Resources: container.Resources{
 				Memory:    noryxv1.ContainerMemoryMB(spec.MemoryMB) << 20,
 				NanoCPUs:  int64(spec.CPUMillis) * 1e6,
-				PidsLimit: new(int64(pidsLimit)),
+				PidsLimit: new(noryxv1.ProcessLimit(spec.ProcessLimit)),
 			},
 		},
 	}, nil

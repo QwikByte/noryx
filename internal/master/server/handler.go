@@ -410,7 +410,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			AikarFlags: req.AikarFlags, JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, Properties: req.Properties,
 			LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout, TimeZone: req.TimeZone,
 			HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
-			UnhealthyRestartMinutes: req.UnhealthyRestart,
+			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 		}
 		var pack *modpack.Pack
 		if req.Modpack != nil {
@@ -641,7 +641,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 				Java: req.Java, RestartPolicy: policy, AikarFlags: req.AikarFlags, JvmOptions: req.JVMOptions, CpuMillis: cpuMillis,
 				LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout, TimeZone: req.TimeZone,
 				HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
-				UnhealthyRestartMinutes: req.UnhealthyRestart,
+				UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
 			})
 			return err
 		})

@@ -2,8 +2,9 @@ import { t } from "i18next"
 import { Fold } from "@/components/fold"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatSeconds } from "@/lib/format"
-import type { CrashSettings } from "./api"
+import { formatMegabytes, formatSeconds } from "@/lib/format"
+import type { CrashSettings, ResourceSettings } from "./api"
+import { memoryOptionsMb } from "./server-types"
 
 // Advanced settings shared by the settings of a server and the templates for new servers.
 
@@ -17,6 +18,7 @@ function NumberSelect({
   fallback,
   label,
   onChange,
+  disabled,
 }: {
   id: string
   value: number
@@ -24,9 +26,10 @@ function NumberSelect({
   fallback: number
   label: (n: number) => string
   onChange: (n: number) => void
+  disabled?: boolean
 }) {
   return (
-    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))} disabled={disabled}>
       <SelectTrigger id={id} className="w-full sm:w-64">
         <SelectValue />
       </SelectTrigger>
@@ -62,6 +65,65 @@ export function HealthStartField({
         {t("How long the server may take to start before a failing health check makes it unhealthy. Large modpacks may need 10 minutes or more.")}
       </FieldDescription>
     </Field>
+  )
+}
+
+/** The initial heap a server gets: none below its memory with Aikar's flags, which start Java with all of it. */
+export const initialHeap = ({ initMemoryMb, memoryMb, aikarFlags }: { initMemoryMb: number; memoryMb: number; aikarFlags: boolean }) =>
+  aikarFlags || initMemoryMb >= memoryMb ? 0 : initMemoryMb
+
+/** How many processes a server may run, and the heap Java starts with, folded away. */
+export function ResourceFields({
+  id,
+  value,
+  onChange,
+}: {
+  id: string
+  value: ResourceSettings & { memoryMb: number; aikarFlags: boolean }
+  onChange: (change: Partial<ResourceSettings>) => void
+}) {
+  const { processLimit, memoryMb } = value
+  const heap = initialHeap(value)
+  const summary = [
+    t("{{count}} processes", { count: processLimit, defaultValue_one: "{{count}} process" }),
+    heap ? t("starts with {{memory}}", { memory: formatMegabytes(heap) }) : t("starts with all of its memory"),
+  ]
+  return (
+    <Fold title={t("Processes and heap")} summary={summary.join(" · ")}>
+      <Field>
+        <FieldLabel htmlFor={`${id}-processes`}>{t("Processes and threads")}</FieldLabel>
+        <NumberSelect
+          id={`${id}-processes`}
+          value={processLimit}
+          options={[1024, 2048, 4096, 8192]}
+          fallback={1024}
+          label={String}
+          onChange={(processLimit) => onChange({ processLimit })}
+        />
+        <FieldDescription>
+          {t(
+            "How many processes and threads the server may run. Java runs threads for each CPU core, and large modded servers, e.g. with C2ME or many worlds, may need more. The limit keeps a compromised server from overloading the node.",
+          )}
+        </FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-heap`}>{t("Initial heap")}</FieldLabel>
+        <NumberSelect
+          id={`${id}-heap`}
+          value={heap}
+          options={[0, ...memoryOptionsMb.filter((mb) => mb < memoryMb)]}
+          fallback={0}
+          label={(mb) => (mb ? formatMegabytes(mb) : t("All of its memory"))}
+          onChange={(initMemoryMb) => onChange({ initMemoryMb })}
+          disabled={value.aikarFlags}
+        />
+        <FieldDescription>
+          {value.aikarFlags
+            ? t("Aikar's flags start Java with all of its memory.")
+            : t("The heap Java starts with, which grows up to the memory as the server needs it.")}
+        </FieldDescription>
+      </Field>
+    </Fold>
   )
 }
 

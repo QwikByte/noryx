@@ -8,8 +8,8 @@ import (
 )
 
 // checkAdvanced returns a message for the operator if an advanced setting of a server is invalid:
-// the start period of its health check, and when the agent stops it after crashes or restarts it
-// as it stays unhealthy.
+// the start period of its health check, when the agent stops it after crashes or restarts it as
+// it stays unhealthy, the limit of its processes and its initial heap.
 func checkAdvanced(spec runtime.Spec) string {
 	switch {
 	case !noryxv1.ValidHealthStart(spec.HealthStart):
@@ -22,6 +22,12 @@ func checkAdvanced(spec runtime.Spec) string {
 		return fmt.Sprintf("Count a run as stable after 1 to %.0f minutes.", noryxv1.MaxStableAfter.Minutes())
 	case !noryxv1.ValidUnhealthyRestart(spec.UnhealthyRestart):
 		return fmt.Sprintf("Restart an unhealthy server after 1 to %.0f minutes, or never.", noryxv1.MaxUnhealthyRestart.Minutes())
+	case !noryxv1.ValidProcessLimit(spec.ProcessLimit):
+		return fmt.Sprintf("Let the server run %d to %d processes and threads.", noryxv1.DefaultProcessLimit, noryxv1.MaxProcessLimit)
+	case spec.InitMemoryMB != 0 && spec.AikarFlags:
+		return "Aikar's flags start Java with all of its memory. Turn them off to choose a smaller initial heap."
+	case !noryxv1.ValidInitMemory(spec.InitMemoryMB, spec.MemoryMB, spec.AikarFlags):
+		return fmt.Sprintf("Give the server an initial heap from %d MB to its memory.", noryxv1.MinMemoryMB)
 	}
 	return ""
 }

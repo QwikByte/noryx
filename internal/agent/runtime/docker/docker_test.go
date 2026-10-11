@@ -138,6 +138,32 @@ func TestHealthCheck(t *testing.T) {
 	}
 }
 
+// A server's container runs as many processes as its settings allow, and Java starts with the
+// initial heap the settings choose, up to MEMORY.
+func TestProcessLimitAndInitialHeap(t *testing.T) {
+	for _, tc := range []struct {
+		spec runtime.Spec
+		pids int64
+		init string // the variable, or empty for none
+	}{
+		{runtime.Spec{MemoryMB: 4096}, 1024, ""},
+		{runtime.Spec{MemoryMB: 4096, ProcessLimit: 8192, InitMemoryMB: 1024}, 8192, "INIT_MEMORY=1024M"},
+	} {
+		tc.spec.ID, tc.spec.Type, tc.spec.Port = "server", noryxv1.ServerType_SERVER_TYPE_FORGE, 25565
+		opts, err := containerOptions(tc.spec, "/data", sharedNetwork)
+		if err != nil {
+			t.Fatal(err)
+		}
+		init := ""
+		if i := slices.IndexFunc(opts.Config.Env, func(v string) bool { return strings.HasPrefix(v, "INIT_MEMORY=") }); i >= 0 {
+			init = opts.Config.Env[i]
+		}
+		if *opts.HostConfig.PidsLimit != tc.pids || init != tc.init || !slices.Contains(opts.Config.Env, "MEMORY=4096M") {
+			t.Errorf("%+v: processes %d, %v", tc.spec, *opts.HostConfig.PidsLimit, opts.Config.Env)
+		}
+	}
+}
+
 // A line longer than any the agent sends is cut, and the lines after it still come.
 func TestEachLine(t *testing.T) {
 	long := strings.Repeat("x", 3*maxLineBytes)

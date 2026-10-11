@@ -84,6 +84,8 @@ export function SaveTemplateDialog({
         crashLimit: server.crashLimit,
         stableAfter: server.stableAfter,
         unhealthyRestart: server.unhealthyRestart,
+        processLimit: server.processLimit,
+        initMemoryMb: server.initMemoryMb,
         properties: props,
         tags: server.tags,
         plugins: projects,

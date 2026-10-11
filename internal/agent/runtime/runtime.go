@@ -103,6 +103,10 @@ type Spec struct {
 	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
 	// unhealthy, which counts as a crash; 0 means never.
 	UnhealthyRestart uint32 `json:"unhealthyRestart,omitempty"`
+	// ProcessLimit is how many processes and threads the container may run; 0 means the default.
+	ProcessLimit uint32 `json:"processLimit,omitempty"`
+	// InitMemoryMB is the initial heap, below MemoryMB; 0 means as large as MemoryMB.
+	InitMemoryMB uint32 `json:"initMemoryMb,omitempty"`
 }
 
 // Uses reports whether a server uses a port of the node: its own, or the UDP port at which

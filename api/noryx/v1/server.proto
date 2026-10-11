@@ -146,6 +146,11 @@ message Server {
   // Minutes after which the agent restarts a running server that stays unhealthy, which counts as
   // a crash; 0 for never.
   uint32 unhealthy_restart_minutes = 27;
+  // Processes and threads the server's container may run; 0 for the default of 1024, as older
+  // agents report it.
+  uint32 process_limit = 28;
+  // Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
+  uint32 init_memory_mb = 29;
 }
 
 message ListServersRequest {}
@@ -180,6 +185,8 @@ message CreateServerRequest {
   uint32 crash_limit = 19;
   uint32 stable_after_minutes = 20;
   uint32 unhealthy_restart_minutes = 21;
+  uint32 process_limit = 22;
+  uint32 init_memory_mb = 23;
 }
 
 message CreateServerResponse {
@@ -235,6 +242,12 @@ message UpdateServerRequest {
   // keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
   // of them. 0, as older masters send it, for never.
   uint32 unhealthy_restart_minutes = 18;
+  // Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
+  // send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+  uint32 process_limit = 19;
+  // Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
+  // 0, as older masters send it, for the same as memory_mb.
+  uint32 init_memory_mb = 20;
 }
 
 message UpdateServerResponse {

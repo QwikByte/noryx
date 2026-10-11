@@ -123,12 +123,13 @@ needs the permission to change files.
 The settings of a server can be changed after it was created: name, Minecraft version, the version of the mod loader of
 Fabric, Quilt, Forge and NeoForge servers (the newest unless set), memory, port, Java version (8, 11, 17, 21, 25 or the
 newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout, the time zone, the start
-period of a game server's health check and how the agent treats [crashes and hangs](#crashes-and-health). The agent
-creates the container again with the same data; the old container is only removed once the new one exists. A server
-keeps the image it was created with; **Update image** in its settings pulls the newest one and, if it changed, creates
-the container again the same way. The old image is removed once no server uses it. New servers get the newest image too:
-creating one pulls it, which downloads its changes if it was updated since. Deleting servers keeps their images. Servers
-created from a modpack show it in their settings, where they move to [another version of it](library.md#modpacks).
+period of a game server's health check, how the agent treats [crashes and hangs](#crashes-and-health), the limit of
+processes and the initial heap. The agent creates the container again with the same data; the old container is only
+removed once the new one exists. A server keeps the image it was created with; **Update image** in its settings pulls
+the newest one and, if it changed, creates the container again the same way. The old image is removed once no server
+uses it. New servers get the newest image too: creating one pulls it, which downloads its changes if it was updated
+since. Deleting servers keeps their images. Servers created from a modpack show it in their settings, where they move to
+[another version of it](library.md#modpacks).
 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
@@ -142,6 +143,16 @@ unhealthy while it loads. Servers created from a [modpack](library.md#modpacks) 
 container again, as other settings do. Docker and Podman give the server the same check, that of its image, so that both
 behave the same; proxies keep the check of their image, which starts after 10 seconds. Agents of earlier versions keep 2
 minutes, which saving the settings, creating a server and moving one to their node tell.
+
+**Processes and heap** under **Resources** limits how many processes and threads a server's container may run: 1,024
+unless changed, up to 8,192. Java runs threads for each CPU core, e.g. to collect garbage, compile code and serve
+players, and large modded servers, e.g. with C2ME, many worlds or mods that render maps, may need more; a server that
+reaches the limit can't start threads and crashes. The limit keeps a compromised server from exhausting the node, e.g.
+with a fork bomb. The **initial heap** is the memory Java starts with, from 512 MB up to the server's memory, which the
+heap grows to as needed. Without it, and always with Aikar's flags, which want both the same, Java starts with all of
+it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way. Agents of
+earlier versions keep 1,024 processes and all of the memory, which saving the settings, creating a server and moving one
+to their node tell.
 
 Stopping and restarting a server run as [operations](panel.md#operations), as they may take as long as its stop
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives

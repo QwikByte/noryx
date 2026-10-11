@@ -15,7 +15,7 @@ import { nodeQuery } from "@/features/nodes/api"
 import { useOperation } from "@/features/operations/use-operation"
 import { UsageWarnings } from "@/features/usage/thresholds"
 import { cn } from "@/lib/utils"
-import { CrashFields, HealthStartField } from "./advanced-fields"
+import { CrashFields, HealthStartField, initialHeap, ResourceFields } from "./advanced-fields"
 import { freeMemoryMb, type Server, type ServerSettings, serversQuery, useServer, useUpdateImage, useUpdateServer } from "./api"
 import { isModded, serverType, splitOptions } from "./server-types"
 import {
@@ -93,8 +93,8 @@ function UpdateImage({ nodeId, server }: { nodeId: string; server: Server }) {
 function settingsOf(s: Server): ServerSettings {
   const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone } = s
   const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone }
-  const { healthStart, crashLimit, stableAfter, unhealthyRestart } = s
-  return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart }
+  const { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = s
+  return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
 }
 
 function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
@@ -106,7 +106,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
   const { data: servers } = useQuery(serversQuery(nodeId))
   const game = !serverType(server.type).proxy
   const modded = isModded(server.type)
-  const settings: ServerSettings = { ...form, jvmOptions: splitOptions(form.jvmOptions) }
+  const settings: ServerSettings = { ...form, jvmOptions: splitOptions(form.jvmOptions), initMemoryMb: initialHeap(form) }
   const dirty = JSON.stringify(settings) !== JSON.stringify(initial)
   const blocker = useBlocker({ shouldBlockFn: () => dirty && !update.isPending, enableBeforeUnload: () => dirty, withResolver: true })
   const set = (change: Partial<typeof form>) => setForm({ ...form, ...change })
@@ -190,6 +190,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
 
       <FormSection title={t("Resources")}>
         <CpuLimitField value={form.cpuLimit} onChange={(cpuLimit) => set({ cpuLimit })} cpus={node?.info?.cpuCount} />
+        <ResourceFields id="settings-resources" value={form} onChange={set} />
         <p className="text-sm text-muted-foreground">
           <Trans
             i18nKey="The data is kept in the storage location <name/>."

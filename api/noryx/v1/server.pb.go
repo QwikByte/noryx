@@ -331,8 +331,13 @@ type Server struct {
 	// Minutes after which the agent restarts a running server that stays unhealthy, which counts as
 	// a crash; 0 for never.
 	UnhealthyRestartMinutes uint32 `protobuf:"varint,27,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Processes and threads the server's container may run; 0 for the default of 1024, as older
+	// agents report it.
+	ProcessLimit uint32 `protobuf:"varint,28,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	// Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
+	InitMemoryMb  uint32 `protobuf:"varint,29,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -547,6 +552,20 @@ func (x *Server) GetUnhealthyRestartMinutes() uint32 {
 	return 0
 }
 
+func (x *Server) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *Server) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
+	}
+	return 0
+}
+
 type ListServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -654,6 +673,8 @@ type CreateServerRequest struct {
 	CrashLimit              uint32            `protobuf:"varint,19,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
 	StableAfterMinutes      uint32            `protobuf:"varint,20,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
 	UnhealthyRestartMinutes uint32            `protobuf:"varint,21,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	ProcessLimit            uint32            `protobuf:"varint,22,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	InitMemoryMb            uint32            `protobuf:"varint,23,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -824,6 +845,20 @@ func (x *CreateServerRequest) GetStableAfterMinutes() uint32 {
 func (x *CreateServerRequest) GetUnhealthyRestartMinutes() uint32 {
 	if x != nil {
 		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
 	}
 	return 0
 }
@@ -1144,8 +1179,14 @@ type UpdateServerRequest struct {
 	// keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
 	// of them. 0, as older masters send it, for never.
 	UnhealthyRestartMinutes uint32 `protobuf:"varint,18,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
+	// send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+	ProcessLimit uint32 `protobuf:"varint,19,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
+	// Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
+	// 0, as older masters send it, for the same as memory_mb.
+	InitMemoryMb  uint32 `protobuf:"varint,20,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateServerRequest) Reset() {
@@ -1293,6 +1334,20 @@ func (x *UpdateServerRequest) GetStableAfterMinutes() uint32 {
 func (x *UpdateServerRequest) GetUnhealthyRestartMinutes() uint32 {
 	if x != nil {
 		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetProcessLimit() uint32 {
+	if x != nil {
+		return x.ProcessLimit
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetInitMemoryMb() uint32 {
+	if x != nil {
+		return x.InitMemoryMb
 	}
 	return 0
 }
@@ -2546,7 +2601,7 @@ var File_noryx_v1_server_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x96\a\n" +
+	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\xe1\a\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2578,10 +2633,12 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\vcrash_limit\x18\x19 \x01(\rR\n" +
 	"crashLimit\x120\n" +
 	"\x14stable_after_minutes\x18\x1a \x01(\rR\x12stableAfterMinutes\x12:\n" +
-	"\x19unhealthy_restart_minutes\x18\x1b \x01(\rR\x17unhealthyRestartMinutes\"\x14\n" +
+	"\x19unhealthy_restart_minutes\x18\x1b \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x1c \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x1d \x01(\rR\finitMemoryMb\"\x14\n" +
 	"\x12ListServersRequest\"A\n" +
 	"\x13ListServersResponse\x12*\n" +
-	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xd3\x06\n" +
+	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\x9e\a\n" +
 	"\x13CreateServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x14.noryx.v1.ServerTypeR\x04type\x12\x18\n" +
@@ -2610,7 +2667,9 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\vcrash_limit\x18\x13 \x01(\rR\n" +
 	"crashLimit\x120\n" +
 	"\x14stable_after_minutes\x18\x14 \x01(\rR\x12stableAfterMinutes\x12:\n" +
-	"\x19unhealthy_restart_minutes\x18\x15 \x01(\rR\x17unhealthyRestartMinutes\x1a=\n" +
+	"\x19unhealthy_restart_minutes\x18\x15 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x16 \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x17 \x01(\rR\finitMemoryMb\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
@@ -2624,7 +2683,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x12StopServerResponse\"&\n" +
 	"\x14RestartServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15RestartServerResponse\"\xf0\x04\n" +
+	"\x15RestartServerResponse\"\xbb\x05\n" +
 	"\x13UpdateServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2647,7 +2706,9 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\vcrash_limit\x18\x10 \x01(\rR\n" +
 	"crashLimit\x120\n" +
 	"\x14stable_after_minutes\x18\x11 \x01(\rR\x12stableAfterMinutes\x12:\n" +
-	"\x19unhealthy_restart_minutes\x18\x12 \x01(\rR\x17unhealthyRestartMinutes\"@\n" +
+	"\x19unhealthy_restart_minutes\x18\x12 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
+	"\rprocess_limit\x18\x13 \x01(\rR\fprocessLimit\x12$\n" +
+	"\x0einit_memory_mb\x18\x14 \x01(\rR\finitMemoryMb\"@\n" +
 	"\x14UpdateServerResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\"$\n" +
 	"\x12UpdateImageRequest\x12\x0e\n" +
