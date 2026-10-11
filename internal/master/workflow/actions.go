@@ -433,7 +433,7 @@ func runImage(ctx context.Context, x *scope, _ Step, s *Servers) (any, error) {
 	})
 }
 
-// runPlugins updates the plugins and mods of servers to their newest releases, never betas.
+// runPlugins updates the plugins and mods of servers to the newest versions of their channels.
 func runPlugins(ctx context.Context, x *scope, _ Step, s *Servers) (any, error) {
 	list, listErr := x.resolve(ctx, *s)
 	a := action{log: "Update plugins", done: "Updated the plugins of", left: "can't have plugins or mods",

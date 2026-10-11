@@ -230,28 +230,36 @@ function runs<P extends HistoryPoint>(points: P[], s: ChartSeries<P>, stepMs: nu
 }
 
 const day = 24 * 3_600_000
+const week = 7 * day
+const month = 31 * day
 
-/** Every 6 hours for a day, every midnight for longer, in the viewer's time zone, away from the edges. */
+/**
+ * Every 6 hours for a day, every midnight for a week, every fifth for a month and the first of every month for longer,
+ * in the viewer's time zone, away from the edges.
+ */
 function ticks(from: number, to: number, span: number) {
-  const step = span <= day ? day / 4 : day
   const offset = zoneOffset(from)
-  const out: number[] = []
-  for (let t = Math.ceil((from + offset) / step) * step - offset; t < to; t += step) {
-    if (t - from > span * 0.04 && to - t > span * 0.04) out.push(t)
+  const all: number[] = []
+  if (span > month) {
+    // Ranges cover a year at most.
+    const start = new Date(from + offset)
+    for (let m = 1; m <= 12; m++) all.push(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + m, 1) - offset)
+  } else {
+    const step = span <= day ? day / 4 : span <= week ? day : 5 * day
+    for (let t = Math.ceil((from + offset) / step) * step - offset; t < to; t += step) all.push(t)
   }
-  return out
+  return all.filter((t) => t - from > span * 0.04 && to - t > span * 0.04)
 }
 
 function formatTick(t: number, span: number) {
   const date = new Date(t)
-  return span <= day
-    ? date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone })
-    : date.toLocaleDateString(locale, { month: "short", day: "numeric", timeZone })
+  if (span <= day) return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone })
+  return date.toLocaleDateString(locale, span <= month ? { month: "short", day: "numeric", timeZone } : { month: "short", timeZone })
 }
 
 function formatTime(t: number, span: number) {
   const date = new Date(t)
-  return span <= day
-    ? date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone })
-    : date.toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone })
+  if (span <= day) return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone })
+  if (span <= week) return date.toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone })
+  return date.toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone })
 }

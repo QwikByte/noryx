@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QwikByte/noryx/internal/master/auth"
+	"github.com/QwikByte/noryx/internal/master/settings"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
@@ -24,7 +25,11 @@ func TestBackupMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := auth.NewService(db).CreateUser(t.Context(), "admin", "correct horse battery"); err != nil {
+	conf, err := settings.Load(t.Context(), db, settings.Master{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.NewService(db, conf).CreateUser(t.Context(), "admin", "correct horse battery"); err != nil {
 		t.Fatal(err)
 	}
 	ca, err := pki.LoadOrCreateCA(filepath.Join(cfg.dataDir, "pki"))
@@ -53,7 +58,7 @@ func TestBackupMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db2.Close()
-	if _, _, err := auth.NewService(db2).Login(t.Context(), "admin", "correct horse battery", "", time.Hour, auth.Client{}); err != nil {
+	if _, _, err := auth.NewService(db2, conf).Login(t.Context(), "admin", "correct horse battery", "", time.Hour, auth.Client{}); err != nil {
 		t.Errorf("sign in after restoring: %v", err)
 	}
 	ca2, err := pki.LoadOrCreateCA(filepath.Join(restored.dataDir, "pki"))

@@ -79,9 +79,9 @@ type FileSets interface {
 }
 
 // Plugins installs plugins and mods, e.g. those of a template on a new server, in the versions
-// kept for them by project ID.
+// kept for them and the channels chosen for them by project ID.
 type Plugins interface {
-	InstallOn(ctx context.Context, projects []string, kept map[string]string, nodeID, serverID string) error
+	InstallOn(ctx context.Context, projects []string, kept, channels map[string]string, nodeID, serverID string) error
 }
 
 // Modpacks installs Modrinth modpacks on new servers, and gives copies the pack of the original.
@@ -348,10 +348,12 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		Storage    string `json:"storage"`
 		settings
 		Properties map[string]string `json:"properties"`
-		// Plugins are the IDs of projects of Modrinth or Hangar to install on the new server, and
-		// Versions the IDs of the versions to keep of some, by project ID, e.g. of a template.
+		// Plugins are the IDs of projects of Modrinth or Hangar to install on the new server,
+		// Versions the IDs of the versions to keep of some and Channels the channels to take
+		// some in, by project ID, e.g. of a template.
 		Plugins  []string          `json:"plugins"`
 		Versions map[string]string `json:"versions"`
+		Channels map[string]string `json:"channels"`
 		// Tags are given to the new server, e.g. those of its template.
 		Tags []string `json:"tags"`
 		// Modpack is a version of a Modrinth modpack to install on the new server.
@@ -458,7 +460,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(req.Plugins) > 0 {
 			operation.Step(ctx, "plugins")
-			if err := h.plugins.InstallOn(ctx, req.Plugins, req.Versions, nodeID, id); err != nil {
+			if err := h.plugins.InstallOn(ctx, req.Plugins, req.Versions, req.Channels, nodeID, id); err != nil {
 				created.PluginError = httpapi.Message(err)
 			}
 		}

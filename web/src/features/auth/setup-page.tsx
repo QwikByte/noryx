@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { publicSettingsQuery } from "@/features/settings/public"
+import { formatHours } from "@/lib/format"
 import { setupUserQuery, useSetup } from "./api"
 import { AuthLayout } from "./auth-layout"
 
@@ -17,10 +19,14 @@ export function SetupPage() {
   // The token leaves the address bar and the history once it was read.
   useEffect(() => history.replaceState(null, "", location.pathname), [])
   const { data: user, isPending, error } = useQuery({ ...setupUserQuery(token), enabled: token !== "" })
+  const hours = useQuery(publicSettingsQuery).data?.setupLinkHours
 
   if (!token || error) {
     return (
-      <AuthLayout title={t("This link doesn't work")} description={t("Setup links work once and expire after three days.")}>
+      <AuthLayout
+        title={t("This link doesn't work")}
+        description={hours && t("Setup links work once and expire after {{time}}.", { time: formatHours(hours) })}
+      >
         <p className="text-sm text-muted-foreground">
           {error?.message ?? t("The link is incomplete.")}{" "}
           <Trans
@@ -45,6 +51,7 @@ function PasswordForm({ token, username }: { token: string; username: string }) 
   const setup = useSetup()
   const navigate = useNavigate()
   const mismatch = form.repeat !== "" && form.repeat !== form.password
+  const length = useQuery(publicSettingsQuery).data?.minPasswordLength
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -74,11 +81,11 @@ function PasswordForm({ token, username }: { token: string; username: string }) 
             autoComplete="new-password"
             autoFocus
             required
-            minLength={12}
+            minLength={length}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
-          <FieldDescription>{t("At least 12 characters.")}</FieldDescription>
+          {length && <FieldDescription>{t("At least {{length}} characters.", { length })}</FieldDescription>}
         </Field>
         <Field data-invalid={mismatch}>
           <FieldLabel htmlFor="setup-repeat">{t("Repeat password")}</FieldLabel>

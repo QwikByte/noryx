@@ -22,11 +22,17 @@ the player was first and last seen, how many minutes they played on each day and
 ban list, whitelist and operators of the servers, and the actions below.
 
 The master notes every minute which players are online on each game server, as its agent measures them anyway, and
-keeps where they played for as long as the [log](monitoring.md#logs) (30 days unless the settings say otherwise). It
+keeps where they played for as long as **Settings → General → Retention** says: 1 day to a year, by default as long as
+the [log](monitoring.md#logs) was kept before this setting came, so 30 days unless the settings said otherwise. It
 counts a minute for each measurement that names the player, so the time of a server whose console doesn't answer, which
 then only names some players, is missing. Proxies aren't counted, as their players are those of the game servers.
 Sightings move with a server to another node and go with a deleted server. Users only see the sightings on the
 servers they may see.
+
+**Record players seen** in the same section turns this off, e.g. for privacy: the master then notes nobody, and what it
+noted before stays until its time is up, unless **Delete players seen** deletes it for all servers at once, which needs
+the permission to change the master's settings. **Seen** then says that nobody is noted, and the pages of players show
+only what is left.
 
 ## Actions
 

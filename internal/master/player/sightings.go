@@ -28,31 +28,38 @@ const (
 	MaxSeen = 500
 )
 
-// Retention tells how long sightings are kept: as long as the log.
-type Retention interface {
-	LogRetention() time.Duration
+// Config provides the settings of the master that concern sightings. They can change at any time.
+type Config interface {
+	// SeenPlayers tells whether sightings are recorded.
+	SeenPlayers() bool
+	// SeenRetention is how long they are kept, also while none are recorded.
+	SeenRetention() time.Duration
 }
 
 // Sightings keeps where players were online and for how long, from the names of the players of
 // game servers in the measurements of the agents: per player, server and day, without IP
 // addresses or anything else about them.
 type Sightings struct {
-	db        *sql.DB
-	retention Retention
+	db   *sql.DB
+	conf Config
 
 	mu     sync.Mutex
 	pruned time.Time
 	full   map[string]int64 // the day on which a node had maxPerDay, which was logged
 }
 
-func NewSightings(db *sql.DB, retention Retention) *Sightings {
-	return &Sightings{db: db, retention: retention, full: map[string]int64{}}
+func NewSightings(db *sql.DB, conf Config) *Sightings {
+	return &Sightings{db: db, conf: conf, full: map[string]int64{}}
 }
 
 // Record notes the players of the game servers of a node that were online at a measurement,
-// which the agent made a minute after the one before. Invalid and repeated names are left out.
+// which the agent made a minute after the one before, unless the settings turned that off.
+// Invalid and repeated names are left out.
 func (s *Sightings) Record(ctx context.Context, nodeID string, at time.Time, servers []*noryxv1.ServerStats) error {
 	s.prune(ctx, at)
+	if !s.conf.SeenPlayers() {
+		return nil
+	}
 	today := at.Unix() / daySeconds
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -140,10 +147,16 @@ func (s *Sightings) prune(ctx context.Context, now time.Time) {
 	if !due {
 		return
 	}
-	first := now.Add(-s.retention.LogRetention()).Unix() / daySeconds
+	first := now.Add(-s.conf.SeenRetention()).Unix() / daySeconds
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM player_sightings WHERE day < ?`, first); err != nil {
 		slog.Warn("Can't delete old sightings of players", logging.Players, "err", err)
 	}
+}
+
+// DeleteAll deletes all sightings, e.g. once they are no longer recorded.
+func (s *Sightings) DeleteAll(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM player_sightings`)
+	return err
 }
 
 // Forget deletes the sightings of a deleted server.

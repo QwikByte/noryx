@@ -5,7 +5,7 @@ import { Segmented } from "@/components/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { nodesQuery } from "@/features/nodes/api"
-import { historyQuery, ranges, type UsagePoint, type UsageRange } from "@/features/usage/api"
+import { alwaysKept, historyQuery, ranges, type UsagePoint } from "@/features/usage/api"
 import { formatCores } from "@/features/usage/format"
 import { TimeChart } from "@/features/usage/time-chart"
 import type { ChartSpec } from "@/features/usage/usage-history"
@@ -15,13 +15,13 @@ import { chosen, type WidgetProps } from "./options"
 import { Calm, Panel } from "./panel"
 
 /**
- * What the nodes the user may see used together during the last day or week, all of them or those chosen, one
+ * What the nodes the user may see used together during the last day, week or month, all of them or those chosen, one
  * measure at a time, which the widget keeps.
  */
 export function Resources({ title, options, setOption }: WidgetProps) {
   const { can } = useAccess()
   const measure = options.measure === "memory" ? "memory" : "cpu"
-  const range: UsageRange = options.range === "week" ? "week" : "day"
+  const range = alwaysKept.find((r) => r === options.range) ?? "day"
   const { data: nodes = [] } = useQuery(nodesQuery)
   const all = nodes.filter((n) => n.info && can("nodes.view", n.id))
   const shown = chosen(all, options.nodes)

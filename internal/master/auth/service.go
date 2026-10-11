@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -14,14 +15,10 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/web"
-)
-
-const (
-	minPasswordLen = 12
-	setupLinkTTL   = 72 * time.Hour
 )
 
 var (
@@ -64,13 +61,26 @@ type SetupLink struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-type Service struct{ db *sql.DB }
+type Service struct {
+	db     *sql.DB
+	limits Limits
+}
 
-func NewService(db *sql.DB) *Service { return &Service{db: db} }
+// Limits are what the settings say about sign-ins: how many characters new passwords need,
+// how long setup links are valid, how long new API tokens may last and after how long without
+// use sessions end; the last two are 0 for no limit.
+type Limits interface {
+	MinPasswordLength() int
+	SetupLinkTTL() time.Duration
+	MaxTokenLifetime() time.Duration
+	SessionIdleTimeout() time.Duration
+}
+
+func NewService(db *sql.DB, limits Limits) *Service { return &Service{db: db, limits: limits} }
 
 // CreateUser adds a user with a password, e.g. the first administrator.
 func (s *Service) CreateUser(ctx context.Context, username, password string) (User, error) {
-	if err := checkPassword(password); err != nil {
+	if err := s.checkPassword(password); err != nil {
 		return User{}, err
 	}
 	return s.insert(ctx, username, hashPassword(password))
@@ -102,9 +112,11 @@ func (s *Service) insert(ctx context.Context, username, hash string) (User, erro
 	return User{ID: id, Username: username}, err
 }
 
-func checkPassword(password string) error {
-	if len(password) < minPasswordLen {
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a password with at least %d characters.", minPasswordLen)
+// checkPassword checks that a new password has as many characters as the settings say.
+// Passwords set before keep working, also if they are shorter.
+func (s *Service) checkPassword(password string) error {
+	if n := s.limits.MinPasswordLength(); utf8.RuneCountInString(password) < n {
+		return httpapi.Errorf(http.StatusBadRequest, "Choose a password with at least %d characters.", n)
 	}
 	return nil
 }
@@ -168,7 +180,7 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 // NewSetupLink replaces the setup link of a user, e.g. to reset a forgotten password. The
 // current password stays valid until the user sets a new one.
 func (s *Service) NewSetupLink(ctx context.Context, id int64) (SetupLink, error) {
-	link := SetupLink{Token: rand.Text(), ExpiresAt: time.Now().Add(setupLinkTTL)}
+	link := SetupLink{Token: rand.Text(), ExpiresAt: time.Now().Add(s.limits.SetupLinkTTL())}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO setup_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET token_hash = excluded.token_hash, expires_at = excluded.expires_at`,
@@ -196,7 +208,7 @@ func (s *Service) SetupUser(ctx context.Context, token string) (User, error) {
 // which lasts for ttl, unless signing in needs a code too: then the returned token is
 // empty, so that a setup link can't replace the code.
 func (s *Service) Setup(ctx context.Context, token, password string, ttl time.Duration, client Client) (User, string, error) {
-	if err := checkPassword(password); err != nil {
+	if err := s.checkPassword(password); err != nil {
 		return User{}, "", err
 	}
 	u, err := s.SetupUser(ctx, token)
@@ -235,7 +247,7 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, current, next, k
 	if err := s.confirmPassword(ctx, id, current); err != nil {
 		return err
 	}
-	if err := checkPassword(next); err != nil {
+	if err := s.checkPassword(next); err != nil {
 		return err
 	}
 	// A setup link would set the password again, and other sessions may belong to whoever
@@ -289,18 +301,22 @@ func (s *Service) Login(ctx context.Context, username, password, code string, tt
 }
 
 // Authenticate returns the enabled user owning a valid session token, and notes that client
-// uses the session.
+// uses the session. A session unused for longer than the settings allow ends.
 func (s *Service) Authenticate(ctx context.Context, token string, client Client) (User, error) {
 	var user User
 	var lastUsed int64
-	hash := hashToken(token)
+	now, hash := time.Now(), hashToken(token)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT u.id, u.username, u.language, COALESCE(m.enabled, 0), s.last_used_at
 		FROM sessions s JOIN users u ON u.id = s.user_id LEFT JOIN user_mfa m ON m.user_id = u.id
-		WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`, hash, time.Now().Unix()).
+		WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`, hash, now.Unix()).
 		Scan(&user.ID, &user.Username, &user.Language, &user.MFA, &lastUsed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return user, ErrNoSession
+	}
+	if err == nil && lastUsed <= s.unusedSince(now) {
+		// It ends for good, also if the settings allow longer later.
+		return User{}, cmp.Or(s.Logout(ctx, token), ErrNoSession)
 	}
 	if err == nil {
 		err = s.touch(ctx, hash, lastUsed, client)

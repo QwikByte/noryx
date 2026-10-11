@@ -24,6 +24,9 @@ export interface PublicSettings {
   /** Plain text for the sign-in page, e.g. whom to ask for access; empty for none. */
   notice: string
   defaults: UserDefaults
+  /** How many characters new passwords need, and how many hours setup links are valid, for the page of setup links. */
+  minPasswordLength: number
+  setupLinkHours: number
 }
 
 export const publicSettingsQuery = queryOptions({

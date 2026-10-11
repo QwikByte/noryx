@@ -35,8 +35,8 @@ function fromMove(m: Move): Operation {
 }
 
 /**
- * The operations in progress and those of the last hour, behind a button that shows how many
- * run. The ones this browser follows show up at once, the others with the next update.
+ * The operations in progress and those that ended recently, as long as the settings say, behind a button that shows
+ * how many run. The ones this browser follows show up at once, the others with the next update.
  */
 export function Activity() {
   const [open, setOpen] = useState(false)
@@ -77,7 +77,7 @@ export function Activity() {
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
         <SheetHeader className="border-b">
           <SheetTitle>{t("Operations")}</SheetTitle>
-          <SheetDescription>{t("What's running now, and what ran in the last hour.")}</SheetDescription>
+          <SheetDescription>{t("What's running now, and what ran recently.")}</SheetDescription>
         </SheetHeader>
         {ops.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted-foreground">

@@ -76,12 +76,27 @@ export function useServerUsage(nodeId: string, serverId: string) {
   return { ...query, usage: query.data?.servers.find((s) => s.id === serverId) }
 }
 
-export type UsageRange = "day" | "week"
+export type UsageRange = "day" | "week" | "month" | "quarter" | "year"
 
+const day = 24 * 3_600_000
+
+/** The ranges of histories, the shortest first: those beyond a week come from the averages of each hour. */
 export const ranges: Record<UsageRange, { label: string; span: number }> = {
-  day: { label: msg("24 hours"), span: 24 * 3_600_000 },
-  week: { label: msg("7 days"), span: 7 * 24 * 3_600_000 },
+  day: { label: msg("24 hours"), span: day },
+  week: { label: msg("7 days"), span: 7 * day },
+  month: { label: msg("30 days"), span: 30 * day },
+  quarter: { label: msg("90 days"), span: 90 * day },
+  year: { label: msg("365 days"), span: 365 * day },
 }
+
+/** The ranges that the master always keeps, as it keeps the hours for 30 days at least. */
+export const alwaysKept: UsageRange[] = ["day", "week", "month"]
+
+/** The ranges that the master keeps as its settings say, the shortest first. */
+export const keptRangesQuery = queryOptions({
+  queryKey: ["usage", "ranges"],
+  queryFn: () => api<UsageRange[]>("/usage/ranges"),
+})
 
 /** A step of a history, whose measures depend on what it is of. */
 export interface HistoryPoint {

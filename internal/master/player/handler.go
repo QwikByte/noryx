@@ -43,8 +43,10 @@ func (h *Handler) Register(mux access.Mux) {
 	mux.Handle("POST /api/players/actions", access.SignedIn, h.change)
 	mux.Handle("POST /api/players/message", access.SignedIn, h.message)
 	mux.Handle("GET /api/players/lists", access.SignedIn, h.lists)
-	// Only the sightings on the servers the user may see count.
+	// Only the sightings on the servers the user may see count. Deleting all of them needs the
+	// permission to change the settings, which can stop recording them and keep them for a day.
 	mux.Handle("GET /api/players/seen", access.SignedIn, h.seenPlayers)
+	mux.Handle("DELETE /api/players/seen", access.Everywhere(access.SettingsEdit), h.deleteSeen)
 	mux.Handle("GET /api/players/seen/{name}", access.SignedIn, h.history)
 	mux.Handle("GET /api/players/faces/{name}", access.SignedIn, h.face)
 	mux.Handle("POST /api/networks/{id}/players/send", access.Everywhere(access.NetworksView), h.send)
@@ -262,7 +264,7 @@ func (h *Handler) face(w http.ResponseWriter, r *http.Request) {
 
 // seenPlayers returns the players seen on the servers the user may see, of a network
 // (?network=), of one server (?node=&server=) or all, whose name contains ?q=, those seen last
-// first and up to ?limit=.
+// first and up to ?limit=, and whether the master records them.
 func (h *Handler) seenPlayers(w http.ResponseWriter, r *http.Request) {
 	ctx, q := r.Context(), r.URL.Query()
 	visible, err := h.visible(ctx, q.Get("network"))
@@ -283,7 +285,16 @@ func (h *Handler) seenPlayers(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"players": players, "total": total})
+	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"players": players, "total": total, "recording": h.seen.conf.SeenPlayers()})
+}
+
+// deleteSeen deletes where and when all players were seen.
+func (h *Handler) deleteSeen(w http.ResponseWriter, r *http.Request) {
+	if err := h.seen.DeleteAll(r.Context()); err != nil {
+		httpapi.WriteError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // history returns where and when a player was online on the servers the user may see.

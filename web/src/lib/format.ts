@@ -77,6 +77,12 @@ export function formatDuration(ms: number): string {
   return new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "long" }).format(Math.floor(ms / size))
 }
 
+/** Formats whole hours in the viewer's locale, as days where they are whole ones, e.g. "3 days" or "36 hours". */
+export function formatHours(hours: number): string {
+  const days = hours % 24 === 0
+  return new Intl.NumberFormat(locale, { style: "unit", unit: days ? "day" : "hour", unitDisplay: "long" }).format(days ? hours / 24 : hours)
+}
+
 /** Formats minutes as hours and minutes in the viewer's locale, e.g. "45 min" or "12 hr, 5 min". */
 export function formatMinutes(minutes: number): string {
   const unit = (unit: string, value: number) => new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" }).format(value)

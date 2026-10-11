@@ -17,9 +17,11 @@ const (
 	proxy = "proxyproxyproxyproxyproxya"
 )
 
-type retention time.Duration
+type config struct{ off bool }
 
-func (r retention) LogRetention() time.Duration { return time.Duration(r) }
+func (c *config) SeenPlayers() bool { return !c.off }
+
+func (*config) SeenRetention() time.Duration { return 30 * 24 * time.Hour }
 
 func newSightings(t *testing.T) *Sightings {
 	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -32,7 +34,7 @@ func newSightings(t *testing.T) *Sightings {
 			t.Fatal(err)
 		}
 	}
-	return NewSightings(db, retention(30*24*time.Hour))
+	return NewSightings(db, &config{})
 }
 
 func online(id string, names ...string) *noryxv1.ServerStats {
@@ -113,6 +115,19 @@ func TestSightings(t *testing.T) {
 	record(start.Add(32*24*time.Hour), online(game, "Steve"))
 	if players, total, _ := s.SeenPlayers(ctx, "", MaxSeen, everything); total != 1 || players[0].Name != "Steve" {
 		t.Fatalf("seen after the retention = %+v", players)
+	}
+
+	// Once the settings turn recording off, nobody new is noted, and what was can be deleted.
+	s.conf.(*config).off = true
+	record(start.Add(32*24*time.Hour+time.Minute), online(game, "Steve", "Notch"))
+	if h, _ := s.History(ctx, "Steve", everything); h.Minutes != 1 {
+		t.Fatalf("recorded while off = %+v", h)
+	}
+	if err := s.DeleteAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, total, _ := s.SeenPlayers(ctx, "", MaxSeen, everything); total != 0 {
+		t.Fatalf("%d players seen after deleting them", total)
 	}
 }
 

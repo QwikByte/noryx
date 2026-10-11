@@ -294,3 +294,5 @@ func TestOwnThresholds(t *testing.T) {
 type config struct{ defaults Defaults }
 
 func (c config) Thresholds() Defaults { return c.defaults.Clone() }
+
+func (config) UsageRetention() time.Duration { return 30 * 24 * time.Hour }

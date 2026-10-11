@@ -61,7 +61,7 @@ export const actions: Record<PolicyAction, { label: string; description: string;
   },
   plugins: {
     label: msg("Update plugins"),
-    description: msg("Plugins and mods get their newest release, never a beta; servers load them when they restart."),
+    description: msg("Plugins and mods get the newest version of their channel, releases unless chosen; servers load them when they restart."),
     icon: PuzzlePieceIcon,
   },
 }

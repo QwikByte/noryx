@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query
 import { useSyncExternalStore } from "react"
 import { api, ApiError, read, type RequestInit, request } from "@/lib/api"
 
-/** A long action of the master, in progress or ended within the last hour. */
+/** A long action of the master, in progress or ended recently, as long as the settings say. */
 export interface Operation {
   id: string
   /** What it does, e.g. server.create. */

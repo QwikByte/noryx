@@ -3,6 +3,7 @@ package plugin
 import (
 	"cmp"
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -63,10 +64,11 @@ func (s *Service) Everywhere(ctx context.Context, grants access.Grants) (Everywh
 	if err != nil {
 		return Everywhere{}, err
 	}
-	pinned, err := s.pins.all(ctx, nil)
+	all, err := s.pins.all(ctx, nil)
 	if err != nil {
 		return Everywhere{}, err
 	}
+	channels := inUse(slices.Collect(maps.Values(all))...)
 	out := Everywhere{Projects: []InstalledProject{}, Unreachable: []Unreachable{}}
 	var (
 		mu       sync.Mutex
@@ -112,13 +114,13 @@ func (s *Service) Everywhere(ctx context.Context, grants access.Grants) (Everywh
 		if len(files) == 0 {
 			continue
 		}
-		c, err := s.identify(ctx, targets[key], files)
+		c, err := s.identify(ctx, targets[key], files, channels)
 		if err != nil {
 			out.CatalogueError = cmp.Or(out.CatalogueError, httpapi.Message(err))
 			continue
 		}
 		for _, l := range group {
-			for _, p := range c.describe(l.res.GetFolder(), l.res.GetPlugins(), pinned[l.ref]) {
+			for _, p := range c.describe(l.res.GetFolder(), l.res.GetPlugins(), all[l.ref]) {
 				if p.Project == nil {
 					continue
 				}

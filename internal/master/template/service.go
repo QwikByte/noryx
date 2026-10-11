@@ -1,7 +1,8 @@
 // Package template stores templates for new servers: their settings, server.properties, tags
 // and plugins, and exports and imports them as files. Plugins are projects of Modrinth or
-// Hangar; unless a template keeps a version of one, the version that suits a new server is
-// installed when the server is created from the template, so templates don't go stale.
+// Hangar; unless a template keeps a version of one, the version of its channel that suits a
+// new server is installed when the server is created from the template, so templates don't go
+// stale.
 package template
 
 import (
@@ -57,12 +58,14 @@ type Content struct {
 }
 
 // Plugin is a plugin or mod of a template, which new servers get in the version the template
-// keeps, or else in the newest release that suits them.
+// keeps, or else in the newest version of its channel that suits them, and take in its channel.
 type Plugin struct {
 	plugin.Project
 	// Version is the ID of the version the template keeps, VersionNumber its number, e.g. 5.4.137.
 	Version       string `json:"version,omitempty"`
 	VersionNumber string `json:"versionNumber,omitempty"`
+	// Channel is the channel of the plugin, beta or alpha, if not only releases; see plugin.Channels.
+	Channel string `json:"channel,omitempty"`
 }
 
 // Settings are the settings and server.properties of the servers created from a template.
@@ -93,6 +96,8 @@ type Input struct {
 	Plugins []string `json:"plugins"`
 	// Versions are the IDs of the versions the template keeps, by project ID.
 	Versions map[string]string `json:"versions"`
+	// Channels are the channels of the plugins, by project ID; releases if not set.
+	Channels map[string]string `json:"channels"`
 }
 
 // Plugins looks up projects of Modrinth and Hangar, and their versions.
@@ -220,6 +225,9 @@ func (s *Service) build(ctx context.Context, in Input) (Template, error) {
 			return t, httpapi.Errorf(http.StatusBadRequest, "%s doesn't run on %s servers.", projects[i].Title, t.Type)
 		}
 		p := Plugin{Project: s.plugins.Describe(projects[i]), Version: in.Versions[id]}
+		if c := in.Channels[id]; c != "release" {
+			p.Channel = c
+		}
 		if p.Version != "" {
 			if p.VersionNumber, err = s.versionNumber(ctx, t, typ, projects[i], p.Version); err != nil {
 				return t, err
@@ -295,6 +303,11 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 	for id, version := range in.Versions {
 		if !slices.Contains(in.Plugins, id) || !plugin.ValidProjectID(version) {
 			return "Choose versions only for the plugins of the template."
+		}
+	}
+	for id, channel := range in.Channels {
+		if !slices.Contains(in.Plugins, id) || !plugin.ValidChannel(channel) {
+			return "Choose the channel release, beta or alpha, and only for the plugins of the template."
 		}
 	}
 	return ""

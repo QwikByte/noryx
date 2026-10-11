@@ -25,7 +25,7 @@ func TestLoginSessionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 
 	if _, err := svc.CreateUser(ctx, "admin", "short"); err == nil {
 		t.Fatal("short password accepted")
@@ -69,7 +69,7 @@ func TestInviteDisableAndChangePassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 
 	// An invited user can't sign in until the password is set with the setup link.
 	user, link, err := svc.Invite(ctx, "alice")
@@ -142,6 +142,48 @@ func TestInviteDisableAndChangePassword(t *testing.T) {
 	}
 }
 
+// New passwords need as many characters as the settings say, also with setup links, which are
+// valid as long as the settings say, while passwords set before keep working.
+func TestPasswordLength(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := t.Context()
+	if _, err := NewService(db, config{}).CreateUser(ctx, "alice", "twelve-chars"); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(db, config{minPassword: 16, setupLink: time.Hour})
+	// Characters count, not bytes.
+	for _, short := range []string{"fifteen-chars!!", "äöüäöüäöüäöüäöü"} {
+		if _, err := svc.CreateUser(ctx, "bob", short); err == nil {
+			t.Errorf("%q accepted", short)
+		}
+	}
+	if _, err := svc.CreateUser(ctx, "bob", "äöüäöüäöüäöüäöüß"); err != nil {
+		t.Fatal(err)
+	}
+
+	alice, session, err := svc.Login(ctx, "alice", "twelve-chars", "", time.Hour, Client{})
+	if err != nil {
+		t.Fatalf("password set before: %v", err)
+	}
+	if err := svc.ChangePassword(ctx, alice.ID, "twelve-chars", "fifteen-chars!!", session); err == nil {
+		t.Fatal("short new password accepted")
+	}
+	link, err := svc.NewSetupLink(ctx, alice.ID)
+	if valid := time.Until(link.ExpiresAt); err != nil || valid > time.Hour || valid < 59*time.Minute {
+		t.Fatalf("setup link = %+v, %v", link, err)
+	}
+	if _, _, err := svc.Setup(ctx, link.Token, "fifteen-chars!!", time.Hour, Client{}); err == nil {
+		t.Fatal("short password set with a setup link")
+	}
+	if _, _, err := svc.Setup(ctx, link.Token, "sixteen-chars!!!", time.Hour, Client{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // The language a user chose comes with each sign-in and session, to every browser.
 func TestLanguage(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -149,7 +191,7 @@ func TestLanguage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	user, err := svc.CreateUser(ctx, "admin", "a-long-enough-password")
 	if err != nil {
 		t.Fatal(err)

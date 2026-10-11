@@ -286,8 +286,8 @@ func (r *run) updateImage(ctx context.Context, srv schedule.Server) (string, err
 	return "It got a new image.", nil
 }
 
-// updatePlugins updates the plugins or mods of a server to their newest releases, and tells
-// the files it wrote, if any, and then the projects it kept at their version.
+// updatePlugins updates the plugins or mods of a server to the newest versions of their
+// channels, and tells the files it wrote, if any, and then the projects it kept at their version.
 func (r *run) updatePlugins(ctx context.Context, srv schedule.Server) (string, error) {
 	res := r.plugins.Update(ctx, []plugin.Ref{{NodeID: srv.NodeID, ServerID: srv.GetId()}}, nil)[0]
 	var change []string

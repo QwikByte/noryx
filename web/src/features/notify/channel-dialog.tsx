@@ -1,6 +1,7 @@
 import { t } from "i18next"
 import { type FormEvent, type ReactNode, useState } from "react"
 import { toast } from "sonner"
+import { TimeZonePicker } from "@/components/time-zone-picker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { type Channel, type ChannelKind, type MailSettings, useSaveChannel } from "./api"
+import { type Channel, type ChannelKind, type MailSettings, maxEntries, maxPerMinute, useSaveChannel } from "./api"
 import { kinds } from "./meta"
 
 /** Addresses that show what a field takes; they need no translation. */
@@ -27,7 +28,17 @@ const emptyMail: MailSettings = { host: "", port: 587, security: "starttls", use
 
 function formOf(channel?: Channel) {
   const email = channel?.email ?? emptyMail
-  return { name: channel?.name ?? "", kind: channel?.kind ?? ("discord" as ChannelKind), url: "", password: "", ...email, to: email.to.join(", ") }
+  return {
+    name: channel?.name ?? "",
+    kind: channel?.kind ?? ("discord" as ChannelKind),
+    url: "",
+    password: "",
+    messagesPerMinute: channel?.messagesPerMinute ?? 1,
+    entriesPerMessage: channel?.entriesPerMessage ?? 10,
+    timeZone: channel?.timeZone ?? "",
+    ...email,
+    to: email.to.join(", "),
+  }
 }
 
 /** Creates a channel, or changes one; its URL or password only changes if a new one is entered. */
@@ -54,6 +65,9 @@ export function ChannelDialog({ channel, trigger }: { channel?: Channel; trigger
         id: channel?.id,
         name: form.name,
         kind: form.kind,
+        messagesPerMinute: form.messagesPerMinute,
+        entriesPerMessage: form.entriesPerMessage,
+        timeZone: form.timeZone,
         url: email ? undefined : form.url.trim(),
         password: email ? form.password : undefined,
         email: email
@@ -105,7 +119,9 @@ export function ChannelDialog({ channel, trigger }: { channel?: Channel; trigger
               <FieldLegend variant="label">{t("Kind")}</FieldLegend>
               <RadioGroup
                 value={form.kind}
-                onValueChange={(kind) => set({ kind: kind as ChannelKind })}
+                onValueChange={(kind) =>
+                  set({ kind: kind as ChannelKind, entriesPerMessage: Math.min(form.entriesPerMessage, maxEntries(kind as ChannelKind)) })
+                }
                 disabled={!!channel}
                 className="grid grid-cols-2 gap-2 sm:grid-cols-4"
               >
@@ -147,6 +163,44 @@ export function ChannelDialog({ channel, trigger }: { channel?: Channel; trigger
                 <FieldDescription>{t("Only HTTPS, and only to public addresses.")}</FieldDescription>
               </Field>
             )}
+            <FieldSet>
+              <FieldLegend variant="label">{t("Messages")}</FieldLegend>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field>
+                  <FieldLabel htmlFor="channel-per-minute">{t("Per minute")}</FieldLabel>
+                  <Input
+                    id="channel-per-minute"
+                    type="number"
+                    required
+                    min={1}
+                    max={maxPerMinute}
+                    value={form.messagesPerMinute}
+                    onChange={(e) => set({ messagesPerMinute: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="channel-entries">{t("Entries each")}</FieldLabel>
+                  <Input
+                    id="channel-entries"
+                    type="number"
+                    required
+                    min={1}
+                    max={maxEntries(form.kind)}
+                    value={form.entriesPerMessage}
+                    onChange={(e) => set({ entriesPerMessage: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="channel-time-zone">{t("Time zone")}</FieldLabel>
+                  <TimeZonePicker id="channel-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} className="w-full" />
+                </Field>
+              </div>
+              <FieldDescription>
+                {t(
+                  "After 5 messages at once, the channel sends at most this many a minute, each with at most this many entries, and counts the entries it leaves out. Times are in the time zone, but those of webhooks in UTC.",
+                )}
+              </FieldDescription>
+            </FieldSet>
             {save.error && <FieldError>{save.error.message}</FieldError>}
           </FieldGroup>
           <DialogFooter>

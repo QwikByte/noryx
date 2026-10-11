@@ -140,11 +140,16 @@ func TestChatsShowEntriesAsText(t *testing.T) {
 	}
 }
 
-// Messages stay within the limits of Discord and Slack, also with long texts that escaping makes longer.
+// Messages stay within the limits of Discord and Slack, also with long texts that escaping makes
+// longer and the most entries a channel may send at once.
 func TestChatsStayWithinLimits(t *testing.T) {
 	long := entry(slog.LevelError, strings.Repeat("<@*", 1000))
 	long.ServerName, long.Attrs["err"] = strings.Repeat("_", 128), strings.Repeat(">", 2000)
-	m := message{entries: slices.Repeat([]logs.Entry{long}, maxEntries), more: 99}
+	zone, err := time.LoadLocation("Australia/Eucla")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := message{entries: slices.Repeat([]logs.Entry{long}, maxDiscordEntries), more: 99, zone: zone}
 	total := 0
 	for _, e := range discord(m)["embeds"].([]map[string]any) {
 		title, description := e["title"].(string), e["description"].(string)
@@ -156,10 +161,45 @@ func TestChatsStayWithinLimits(t *testing.T) {
 	if total > 6000 {
 		t.Errorf("embeds of %d characters", total)
 	}
-	for _, b := range slack(m, "Noryx")["blocks"].([]map[string]any) {
+	m.entries = slices.Repeat([]logs.Entry{long}, maxPerMessage)
+	blocks := slack(m, "Noryx")["blocks"].([]map[string]any)
+	if len(blocks) > 50 {
+		t.Errorf("%d blocks", len(blocks))
+	}
+	for _, b := range blocks {
 		if text, ok := b["text"].(map[string]any); ok && utf8.RuneCountInString(text["text"].(string)) > 3000 {
 			t.Errorf("block of %d characters", utf8.RuneCountInString(text["text"].(string)))
 		}
+	}
+}
+
+// Mails, Slack and the text of Discord give times in the time zone of the channel, and webhooks
+// in UTC.
+func TestTimesInTimeZone(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := entry(slog.LevelWarn, "A server crashed")
+	e.Time = e.Time.In(berlin)
+	m := message{entries: []logs.Entry{e}, zone: (&Channel{TimeZone: "Europe/Berlin"}).zone()}
+	const local = "2026-10-08 14:00:00 CEST"
+	if got := discord(m)["embeds"].([]map[string]any)[0]["description"].(string); !strings.Contains(got, discordEscape(local)) {
+		t.Errorf("discord = %q", got)
+	}
+	if got := slack(m, "Noryx")["blocks"].([]map[string]any)[0]["text"].(map[string]any)["text"].(string); !strings.Contains(got, local) {
+		t.Errorf("slack = %q", got)
+	}
+	if got := string(mailMessage(&Mail{From: "noryx@example.com", To: []string{"ops@example.com"}}, m, "Noryx")); !strings.Contains(got, "Warning, "+local) {
+		t.Errorf("mail = %q", got)
+	}
+	if data, _ := json.Marshal(webhook(m)); !strings.Contains(string(data), `"time":"2026-10-08T12:00:00Z"`) {
+		t.Errorf("webhook = %s", data)
+	}
+	// Without a time zone, they are UTC.
+	m.zone = (&Channel{}).zone()
+	if got := slack(m, "Noryx")["blocks"].([]map[string]any)[0]["text"].(map[string]any)["text"].(string); !strings.Contains(got, "2026-10-08 12:00:00 UTC") {
+		t.Errorf("slack in UTC = %q", got)
 	}
 }
 
@@ -194,13 +234,13 @@ func TestPostFollowsNoRedirect(t *testing.T) {
 		}
 		http.Redirect(w, r, "/elsewhere", http.StatusFound)
 	}))
-	s := New(nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
+	s := New(nil, nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
 	err := s.post(t.Context(), target+"/hook/secret-token", map[string]string{})
 	if err == nil || !strings.Contains(err.Error(), "302") || strings.Contains(err.Error(), "secret-token") || redirected.Load() {
 		t.Errorf("post = %v, redirected %v", err, redirected.Load())
 	}
 	// A certificate that isn't trusted is refused.
-	s = New(nil, nil, panel("Noryx"), Options{Allow: loopback})
+	s = New(nil, nil, nil, panel("Noryx"), Options{Allow: loopback})
 	if err := s.post(t.Context(), target+"/hook/secret-token", map[string]string{}); err == nil || strings.Contains(err.Error(), "secret-token") {
 		t.Errorf("untrusted: %v", err)
 	}
@@ -299,7 +339,7 @@ func (f *fakeSMTP) serve(conn net.Conn) {
 // Mails go over TLS from the start or after STARTTLS, and never sign in without it.
 func TestMailNeedsTLS(t *testing.T) {
 	cfg, roots := localTLS(t)
-	s := New(nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
+	s := New(nil, nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
 	m := message{entries: []logs.Entry{entry(slog.LevelError, "A server crashed")}}
 	send := func(f *fakeSMTP, security string) error {
 		port, _ := net.LookupPort("tcp", f.port)
@@ -329,7 +369,7 @@ func TestMailNeedsTLS(t *testing.T) {
 		t.Errorf("without STARTTLS: %v, the server got %s", err, f.got())
 	}
 	// A mail server at a private address is refused.
-	s = New(nil, nil, panel("Noryx"), Options{Roots: roots})
+	s = New(nil, nil, nil, panel("Noryx"), Options{Roots: roots})
 	if err := send(startSMTP(t, cfg, true, false), ImplicitTLS); err == nil || !strings.Contains(err.Error(), "public address") {
 		t.Errorf("private: %v", err)
 	}

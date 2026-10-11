@@ -20,21 +20,17 @@ const (
 )
 
 // Update updates the plugins or mods of servers, or only those of the given projects, to the
-// newest release that suits each server, never to a beta or alpha, together with the projects
-// they newly require. Projects a server keeps at their version and turned-off files are left
-// as they are. The result of each server tells the files it wrote, the pinned projects it left
-// out and why projects failed.
+// newest version that suits each server in the channel it takes them in, releases unless
+// chosen otherwise, together with the projects they newly require. Projects a server keeps at
+// their version and turned-off files are left as they are. The result of each server tells
+// the files it wrote, the pinned projects it left out and why projects failed.
 func (s *Service) Update(ctx context.Context, servers []Ref, projects []string) []Result {
-	run := &installation{Service: s, releases: true}
+	run := &installation{Service: s, updates: true}
 	return each(ctx, servers, func(ctx context.Context, res *Result) error { return run.update(ctx, res, projects) })
 }
 
 func (r *installation) update(ctx context.Context, res *Result, projects []string) error {
 	o, err := r.open(ctx, res.Ref, true)
-	var pinned map[string]bool
-	if err == nil {
-		pinned, err = r.pins.of(ctx, res.Ref)
-	}
 	if err != nil {
 		return err
 	}
@@ -42,8 +38,8 @@ func (r *installation) update(ctx context.Context, res *Result, projects []strin
 	for _, f := range o.files {
 		v := o.known[f.GetSha512()]
 		switch {
-		case f.GetDisabled() || !isNewer(o.newer[f.GetSha512()], v) || projects != nil && !slices.Contains(projects, v.ProjectID):
-		case pinned[v.ProjectID]:
+		case f.GetDisabled() || !isNewer(o.newer.of(f.GetSha512(), o.kept.channel(v.ProjectID)), v) || projects != nil && !slices.Contains(projects, v.ProjectID):
+		case o.kept.pinned[v.ProjectID]:
 			res.Pinned = append(res.Pinned, r.title(ctx, v.ProjectID))
 		case !slices.Contains(outdated, v.ProjectID):
 			outdated = append(outdated, v.ProjectID)

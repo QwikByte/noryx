@@ -87,6 +87,18 @@ export function useSetup() {
   })
 }
 
+/** What the settings say about the signed-in user's account; 0 means no limit. */
+export interface AccountLimits {
+  /** How many characters new passwords need. */
+  minPasswordLength: number
+  /** How many days new API tokens may last. */
+  maxTokenDays: number
+  /** After how many hours without use sessions end. */
+  sessionIdleHours: number
+}
+
+export const limitsQuery = queryOptions({ queryKey: ["auth", "limits"], queryFn: () => api<AccountLimits>("/auth/limits") })
+
 /** Changes the signed-in user's password; the user's other sessions end and the API tokens are revoked. */
 export function useChangePassword() {
   const queryClient = useQueryClient()

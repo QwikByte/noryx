@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
-import type { Project } from "@/features/plugins/api"
+import type { Channel, Project } from "@/features/plugins/api"
 import type { RestartPolicy } from "@/features/servers/api"
 import { defaults } from "@/features/servers/server-types"
 import { api } from "@/lib/api"
@@ -23,11 +23,16 @@ export interface TemplateSettings {
   properties: Record<string, string>
 }
 
-/** A project of Modrinth or Hangar; new servers get the version the template keeps, or else the newest release that suits them. */
+/**
+ * A project of Modrinth or Hangar; new servers get the version the template keeps, or else the newest version of its
+ * channel that suits them, and take it in its channel.
+ */
 export interface TemplatePlugin extends Project {
   /** The ID of the version the template keeps. */
   version?: string
   versionNumber?: string
+  /** The channel, if not only releases. */
+  channel?: Exclude<Channel, "release">
 }
 
 export interface Template extends TemplateSettings {
@@ -48,14 +53,20 @@ export interface TemplateInput extends TemplateSettings {
   plugins: string[]
   /** The IDs of the versions the template keeps, by project ID. */
   versions: Record<string, string>
+  /** The channels of the plugins, by project ID; releases if not set. */
+  channels: Record<string, Channel>
 }
 
 /** A template being edited; plugins are kept with their details to show them. */
-export type TemplateDraft = Omit<TemplateInput, "plugins" | "versions"> & { plugins: TemplatePlugin[] }
+export type TemplateDraft = Omit<TemplateInput, "plugins" | "versions" | "channels"> & { plugins: TemplatePlugin[] }
 
 /** The versions that plugins keep, by project ID, as templates are saved and servers created. */
 export const keptVersions = (plugins: TemplatePlugin[]) =>
   Object.fromEntries(plugins.flatMap((p) => (p.version ? [[p.id, p.version]] : [])))
+
+/** The channels of plugins other than releases, by project ID, as templates are saved and servers created. */
+export const keptChannels = (plugins: TemplatePlugin[]): Record<string, Channel> =>
+  Object.fromEntries(plugins.flatMap((p) => (p.channel ? [[p.id, p.channel]] : [])))
 
 export const emptyTemplate: TemplateDraft = {
   name: "",

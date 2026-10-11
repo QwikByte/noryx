@@ -46,6 +46,13 @@ const (
 	maxInviteGroups     = 100
 )
 
+// The master looks for updates every 1 to 24 hours, and updates all agents or none after itself.
+const (
+	maxUpdateCheckHours = 24
+	allAgents           = "all"
+	noAgents            = "none"
+)
+
 var (
 	hostname = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$`)
 	groupID  = regexp.MustCompile(`^[a-z0-9]{1,64}$`)
@@ -102,7 +109,34 @@ type Settings struct {
 	NewServers server.NewServers `json:"newServers"`
 	// Warnings tell how the players are warned before their servers restart or stop.
 	Warnings server.Warnings `json:"warnings"`
+
+	// UpdateCheckHours is how often the master looks for new releases. UpdateAgents are the
+	// agents it updates once it runs a release installed from the panel: all that are older, or
+	// none, so that administrators update them node by node.
+	UpdateCheckHours int    `json:"updateCheckHours"`
+	UpdateAgents     string `json:"updateAgents"`
+
+	// MinPasswordLength is how many characters new passwords need, and SetupLinkHours how long
+	// setup links are valid. MaxTokenDays is how long new API tokens may last, and sessions end
+	// after SessionIdleHours without use; 0 means no limit for both. MinPasswordLength and
+	// SetupLinkHours are public, as the page of setup links shows them.
+	MinPasswordLength int `json:"minPasswordLength"`
+	SetupLinkHours    int `json:"setupLinkHours"`
+	MaxTokenDays      int `json:"maxTokenDays"`
+	SessionIdleHours  int `json:"sessionIdleHours"`
+
+	// Retention tells how long the usage, players seen and finished operations are kept.
+	Retention Retention `json:"retention"`
 }
+
+// Passwords never need fewer characters than they always did, and setup links are valid for a
+// week at most.
+const (
+	minPasswordLength = 12
+	maxPasswordLength = 64
+	maxSetupLinkHours = 7 * 24
+	maxTokenDays      = 10 * 365
+)
 
 // UserDefaults are the language and the look of the panel for users who haven't chosen them,
 // by the keys of their settings (see preference.Settings); empty ones follow the browser.
@@ -142,6 +176,9 @@ func defaults() Settings {
 		InviteGroups: []string{},
 		NewServers:   server.DefaultNewServers(),
 		Warnings:     server.DefaultWarnings(),
+		UpdateAgents: allAgents, UpdateCheckHours: 6,
+		MinPasswordLength: minPasswordLength, SetupLinkHours: 72,
+		Retention: Retention{UsageDays: 30, SeenPlayers: true, OperationHours: 1}, // SeenDays are the log's, see Load
 	}
 }
 
@@ -192,6 +229,8 @@ func Load(ctx context.Context, db *sql.DB, master Master, cert *pki.Holder) (*Se
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
+	// Players seen were kept as long as the log before they had a retention of their own.
+	current.Retention.SeenDays = cmp.Or(current.Retention.SeenDays, current.LogDays)
 	s := &Service{db: db, master: master, cert: cert}
 	s.current.Store(&current)
 	return s, nil
@@ -340,6 +379,14 @@ func (s *Service) LogMaxSize() int64 { return int64(s.Get().LogSizeMB) << 20 }
 // CheckUpdates implements update.Config.
 func (s *Service) CheckUpdates() bool { return s.Get().CheckUpdates }
 
+// UpdateCheckInterval implements update.Config.
+func (s *Service) UpdateCheckInterval() time.Duration {
+	return time.Duration(s.Get().UpdateCheckHours) * time.Hour
+}
+
+// UpdateAgentsAfterMaster implements update.Config.
+func (s *Service) UpdateAgentsAfterMaster() bool { return s.Get().UpdateAgents == allAgents }
+
 // Thresholds implements usage.Config.
 func (s *Service) Thresholds() usage.Defaults { return s.Get().Thresholds }
 
@@ -357,6 +404,24 @@ func (s *Service) PanelName() string { return cmp.Or(s.Get().PanelName, "Noryx")
 
 // InviteGroups implements access.Config.
 func (s *Service) InviteGroups() []string { return s.Get().InviteGroups }
+
+// MinPasswordLength implements auth.Limits.
+func (s *Service) MinPasswordLength() int { return s.Get().MinPasswordLength }
+
+// SetupLinkTTL implements auth.Limits.
+func (s *Service) SetupLinkTTL() time.Duration {
+	return time.Duration(s.Get().SetupLinkHours) * time.Hour
+}
+
+// MaxTokenLifetime implements auth.Limits.
+func (s *Service) MaxTokenLifetime() time.Duration {
+	return time.Duration(s.Get().MaxTokenDays) * 24 * time.Hour
+}
+
+// SessionIdleTimeout implements auth.Limits.
+func (s *Service) SessionIdleTimeout() time.Duration {
+	return time.Duration(s.Get().SessionIdleHours) * time.Hour
+}
 
 // validate checks the settings; panelAddr is where the panel listens with them.
 func validate(s Settings, panelAddr string) error {
@@ -392,8 +457,20 @@ func validate(s Settings, panelAddr string) error {
 		return httpapi.Errorf(http.StatusBadRequest, "Enter a notice of up to %d characters of plain text for the sign-in page, or leave it empty.", maxSignInNotice)
 	case len(s.InviteGroups) > maxInviteGroups || slices.ContainsFunc(s.InviteGroups, func(id string) bool { return !groupID.MatchString(id) }):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that inviting a user preselects.", maxInviteGroups)
+	case s.UpdateCheckHours < 1 || s.UpdateCheckHours > maxUpdateCheckHours:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter how often the master looks for updates, from 1 to %d hours.", maxUpdateCheckHours)
+	case s.UpdateAgents != allAgents && s.UpdateAgents != noAgents:
+		return httpapi.Errorf(http.StatusBadRequest, "Choose whether the master updates all agents or none after itself.")
+	case s.MinPasswordLength < minPasswordLength || s.MinPasswordLength > maxPasswordLength:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter a minimum length of passwords from %d to %d characters.", minPasswordLength, maxPasswordLength)
+	case s.SetupLinkHours < 1 || s.SetupLinkHours > maxSetupLinkHours:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter a validity of setup links from 1 to %d hours.", maxSetupLinkHours)
+	case s.MaxTokenDays < 0 || s.MaxTokenDays > maxTokenDays:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter the longest lifetime of API tokens from 1 to %d days, or no limit.", maxTokenDays)
+	case s.SessionIdleHours < 0 || s.SessionIdleHours > s.SessionHours:
+		return httpapi.Errorf(http.StatusBadRequest, "Enter after how many hours without use sessions end, from 1 to the %d hours they last, or never.", s.SessionHours)
 	}
-	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate())
+	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate(), s.Retention.validate())
 }
 
 // plainText tells whether s has at most n characters and no control characters but, if lines

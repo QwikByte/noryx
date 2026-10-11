@@ -110,7 +110,7 @@ func serve(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	users := auth.NewService(db)
+	users := auth.NewService(db, conf)
 	nodes := node.NewService(db, ca, masterCert, conf)
 	defer nodes.Close()
 	names := logs.NewNames(nodes)
@@ -146,6 +146,7 @@ func serve(ctx context.Context, cfg config) error {
 	moves := server.NewMoves()
 	// Requests whose operation takes longer are answered right away, and the operation goes on.
 	ops := operation.New(time.Second)
+	ops.KeepFor(conf)
 	overlays := overlay.NewService(db, nodes)
 	datastores := datastore.NewStore(db, nodes, overlays)
 	networks := network.NewService(db, nodes, plugins, overlays, datastores)
@@ -161,7 +162,7 @@ func serve(ctx context.Context, cfg config) error {
 	if err := tasks.Start(ctx); err != nil {
 		return err
 	}
-	notifications := notify.New(db, logStore, conf, notify.Options{})
+	notifications := notify.New(db, logStore, tasks, conf, notify.Options{})
 	go notifications.Run(ctx)
 	workflows := workflow.NewService(db, workflow.Deps{
 		Nodes: nodes, Targets: tasks, Networks: networks, Players: player.NewService(nodes, networks, geyser), Usage: usageStore,
@@ -171,7 +172,7 @@ func serve(ctx context.Context, cfg config) error {
 	if err := workflows.Start(ctx); err != nil {
 		return err
 	}
-	updates := update.New(nodes, conf, update.Options{DataDir: cfg.dataDir})
+	updates := update.New(nodes, conf, update.Options{DataDir: cfg.dataDir, Prereleases: cfg.prereleases})
 	go updates.Run(ctx)
 	go usageStore.Run(ctx)
 	go overlays.Run(ctx)
@@ -311,7 +312,7 @@ func Handler(s Services) http.Handler {
 	mux := http.NewServeMux()
 	authHandler.RegisterPublic(mux)
 	workflow.NewHandler(s.Workflows).RegisterPublic(mux)
-	settings.NewHandler(s.Settings, s.Restart).RegisterPublic(mux)
+	settings.NewHandler(s.Settings, s.Users, s.Restart).RegisterPublic(mux)
 	mux.Handle("/api/", authHandler.Require(s.Access.Middleware(api)))
 	mux.Handle("/", web.Handler())
 	// Webhooks are called with a token of their own, not with a session, from anywhere.
@@ -326,7 +327,7 @@ func API(s Services) *http.ServeMux {
 	api := http.NewServeMux()
 	m := access.NewMux(api, s.Moves.Guard, s.Logs.Audit())
 	access.NewHandler(s.Access, s.Users, s.Settings).Register(m)
-	settings.NewHandler(s.Settings, s.Restart).Register(m)
+	settings.NewHandler(s.Settings, s.Users, s.Restart).Register(m)
 	logs.NewHandler(s.Logs).Register(m)
 	notify.NewHandler(s.Notify, s.Tidy).Register(m)
 	terminal.NewHandler(s.Nodes, s.Settings, s.Logs, s.Moves.Check).Register(m)

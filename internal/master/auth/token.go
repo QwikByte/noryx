@@ -29,6 +29,9 @@ const (
 	maxTokens     = 100 // of a user
 	maxTokenName  = 64
 	maxTokenPerms = 100 // permissions of a token
+	// A token may be asked to expire up to tokenLeeway later than the settings allow, as the
+	// clock of the browser may be ahead; it then expires as late as they allow.
+	tokenLeeway = 24 * time.Hour
 )
 
 var (
@@ -65,13 +68,18 @@ type TokenInput struct {
 	Permissions []string `json:"permissions"`
 }
 
-func (in *TokenInput) check() error {
+// check checks a new token, which may last for maxLifetime at most, or for ever if it is 0.
+func (in *TokenInput) check(maxLifetime time.Duration) error {
 	in.Name = strings.TrimSpace(in.Name)
+	now := time.Now()
+	latest := now.Add(maxLifetime)
 	switch {
 	case in.Name == "" || len(in.Name) > maxTokenName || strings.ContainsFunc(in.Name, unicode.IsControl):
 		return httpapi.Errorf(http.StatusBadRequest, "Enter a name with up to %d characters.", maxTokenName)
-	case !in.ExpiresAt.IsZero() && !in.ExpiresAt.After(time.Now()):
+	case !in.ExpiresAt.IsZero() && !in.ExpiresAt.After(now):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose an expiry in the future, or none.")
+	case maxLifetime > 0 && (in.ExpiresAt.IsZero() || in.ExpiresAt.After(latest.Add(tokenLeeway))):
+		return httpapi.Errorf(http.StatusBadRequest, "Choose an expiry within %d days, the longest the settings allow.", int(maxLifetime.Hours()/24))
 	case in.Permissions != nil && (len(in.Permissions) == 0 || len(in.Permissions) > maxTokenPerms):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose at least one permission, or all of yours.")
 	}
@@ -82,13 +90,16 @@ func (in *TokenInput) check() error {
 	}
 	slices.Sort(in.Permissions)
 	in.Permissions = slices.Compact(in.Permissions)
+	if maxLifetime > 0 && in.ExpiresAt.After(latest) {
+		in.ExpiresAt = latest
+	}
 	return nil
 }
 
 // CreateToken creates an API token for a user who confirms it with the password and, with
 // two-factor authentication, a code. It returns the token itself, which is shown only now.
 func (s *Service) CreateToken(ctx context.Context, userID int64, password, code string, in TokenInput) (Token, string, error) {
-	if err := in.check(); err != nil {
+	if err := in.check(s.limits.MaxTokenLifetime()); err != nil {
 		return Token{}, "", err
 	}
 	if err := s.confirmPassword(ctx, userID, password); err != nil {
@@ -140,6 +151,19 @@ func (s *Service) Tokens(ctx context.Context, userID int64) ([]Token, error) {
 		tokens = append(tokens, t)
 	}
 	return tokens, rows.Err()
+}
+
+// TokensOverLimit counts the API tokens of all users that expire later than new ones may, or
+// never; none while the settings allow tokens of any lifetime.
+func (s *Service) TokensOverLimit(ctx context.Context) (int, error) {
+	maxLifetime := s.limits.MaxTokenLifetime()
+	if maxLifetime == 0 {
+		return 0, nil
+	}
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_tokens WHERE expires_at = 0 OR expires_at > ?`,
+		time.Now().Add(maxLifetime).Unix()).Scan(&n)
+	return n, err
 }
 
 // RevokeToken deletes an API token of a user and returns its name. Tokens of other users

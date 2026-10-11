@@ -102,12 +102,16 @@ type Plugin struct {
 	VersionID string `json:"versionId,omitempty"`
 	// Channel is beta or alpha for a version that isn't a release.
 	Channel string `json:"channel,omitempty"`
-	// Update is a newer release of the project for the server, and UpdateID its ID.
-	Update   string `json:"update,omitempty"`
-	UpdateID string `json:"updateId,omitempty"`
+	// Update is a newer version of the project for the server in the channel the server takes
+	// it in, UpdateID its ID and UpdateChannel beta or alpha if it isn't a release.
+	Update        string `json:"update,omitempty"`
+	UpdateID      string `json:"updateId,omitempty"`
+	UpdateChannel string `json:"updateChannel,omitempty"`
 	// Pinned tells that the server keeps the project at its version: updates of all its
 	// plugins leave it out.
 	Pinned bool `json:"pinned,omitempty"`
+	// Tracks is the channel the server takes the project in, beta or alpha, if not only releases.
+	Tracks string `json:"tracks,omitempty"`
 	// Disabled tells that the file is turned off, so that the server doesn't load it.
 	Disabled bool `json:"disabled,omitempty"`
 	// Settings is the folder of the plugin's settings in the server's data, e.g. plugins/LuckPerms.
@@ -134,7 +138,7 @@ func (s *Service) List(ctx context.Context, ref Ref) (Listing, error) {
 	if err != nil {
 		return Listing{}, err
 	}
-	pinned, err := s.pins.of(ctx, ref)
+	k, err := s.pins.of(ctx, ref)
 	if err != nil {
 		return Listing{}, err
 	}
@@ -143,26 +147,27 @@ func (s *Service) List(ctx context.Context, ref Ref) (Listing, error) {
 	if len(res.GetPlugins()) > 0 {
 		t, err := s.target(ctx, srv.GetType(), srv.GetVersion())
 		if err == nil {
-			c, err = s.identify(ctx, t, res.GetPlugins())
+			c, err = s.identify(ctx, t, res.GetPlugins(), inUse(k))
 		}
 		if err != nil {
 			l.CatalogueError = httpapi.Message(err)
 		}
 	}
-	l.Plugins = c.describe(res.GetFolder(), res.GetPlugins(), pinned)
+	l.Plugins = c.describe(res.GetFolder(), res.GetPlugins(), k)
 	return l, nil
 }
 
 // catalogued is what Modrinth and Hangar know of plugin files.
 type catalogued struct {
-	known, newer map[string]modrinth.Version // the version of each file, and a newer release, by SHA-512
-	projects     map[string]Project          // by ID
+	known    map[string]modrinth.Version // the version of each file, by SHA-512
+	newer    updates
+	projects map[string]Project // by ID
 }
 
 // identify looks up plugin files of servers with the same target on Modrinth and Hangar, with
-// their newest releases for the servers, and describes their projects.
-func (s *Service) identify(ctx context.Context, t target, files []*noryxv1.PluginFile) (catalogued, error) {
-	known, newer, err := s.catalogue.identify(ctx, files, t, true)
+// their newest versions for the servers in channels, and describes their projects.
+func (s *Service) identify(ctx context.Context, t target, files []*noryxv1.PluginFile, channels []string) (catalogued, error) {
+	known, newer, err := s.catalogue.identify(ctx, files, t, channels)
 	if err != nil {
 		return catalogued{}, err
 	}
@@ -182,9 +187,8 @@ func (s *Service) identify(ctx context.Context, t target, files []*noryxv1.Plugi
 }
 
 // describe returns the plugins of files in a plugin folder, with the project, version and update
-// of those that are known, whether the server keeps them at their version, and the other projects
-// that require them.
-func (c catalogued) describe(folder string, files []*noryxv1.PluginFile, pinned map[string]bool) []Plugin {
+// of those that are known, what the server keeps of them, and the other projects that require them.
+func (c catalogued) describe(folder string, files []*noryxv1.PluginFile, k kept) []Plugin {
 	// needed are the titles of the turned-on projects that require each project or version.
 	needed := map[string][]string{}
 	for _, f := range files {
@@ -208,9 +212,10 @@ func (c catalogued) describe(folder string, files []*noryxv1.PluginFile, pinned 
 		}
 		v, known := c.known[f.GetSha512()]
 		if project, ok := c.projects[v.ProjectID]; known && ok {
-			p.Project, p.Version, p.VersionID, p.Channel, p.Pinned = &project, v.VersionNumber, v.ID, preRelease(v), pinned[v.ProjectID]
-			if u := c.newer[f.GetSha512()]; isNewer(u, v) {
-				p.Update, p.UpdateID = u.VersionNumber, u.ID
+			p.Project, p.Version, p.VersionID, p.Channel = &project, v.VersionNumber, v.ID, preRelease(v)
+			p.Pinned, p.Tracks = k.pinned[v.ProjectID], k.channels[v.ProjectID]
+			if u := c.newer.of(f.GetSha512(), k.channel(v.ProjectID)); isNewer(u, v) {
+				p.Update, p.UpdateID, p.UpdateChannel = u.VersionNumber, u.ID, preRelease(u)
 			}
 			p.RequiredBy = slices.Compact(slices.Sorted(slices.Values(slices.Concat(needed[v.ProjectID], needed[v.ID]))))
 		}
@@ -274,20 +279,28 @@ func each(ctx context.Context, servers []Ref, fn func(ctx context.Context, res *
 	return results
 }
 
-// Install installs the newest suitable release of each project on the given servers,
-// or the version chosen for it by project ID, together with the projects it requires.
-// Installed projects are updated, but projects that are only required are left as they
-// are. A server it began gets all of them, also if the operation is cancelled.
-func (s *Service) Install(ctx context.Context, projects []string, chosen map[string]string, servers []Ref) []Result {
-	run := &installation{Service: s, chosen: chosen}
+// Install installs on the given servers the newest suitable version of each project in the
+// channel chosen for it by project ID, releases unless chosen, or the version chosen for it,
+// together with the projects it requires. The servers take the projects in these channels
+// from then on. Installed projects are updated, but projects that are only required are left
+// as they are. A server it began gets all of them, also if the operation is cancelled.
+func (s *Service) Install(ctx context.Context, projects []string, chosen, channels map[string]string, servers []Ref) []Result {
+	run := &installation{Service: s, chosen: chosen, channels: map[string]string{}}
+	for _, project := range projects {
+		run.channels[project] = cmp.Or(channels[project], "release")
+	}
 	return each(ctx, servers, func(ctx context.Context, res *Result) error { return run.install(ctx, res, projects) })
 }
 
 // InstallOn installs projects on a server, e.g. those of a template on a new server, each in
-// the version kept for it by project ID, if any. A project whose kept version doesn't run on
-// the server is left out rather than installed in another version, and the error says so.
-func (s *Service) InstallOn(ctx context.Context, projects []string, kept map[string]string, nodeID, serverID string) error {
+// the version kept for it by project ID, if any, and in its channel like Install. A project
+// whose kept version doesn't run on the server is left out rather than installed in another
+// version, and the error says so.
+func (s *Service) InstallOn(ctx context.Context, projects []string, kept, channels map[string]string, nodeID, serverID string) error {
 	if err := checkProjects(projects); err != nil {
+		return err
+	}
+	if err := checkChannels(projects, channels); err != nil {
 		return err
 	}
 	ref, failed := Ref{nodeID, serverID}, []string{}
@@ -305,7 +318,7 @@ func (s *Service) InstallOn(ctx context.Context, projects []string, kept map[str
 			if kept[project] == "" {
 				return false
 			}
-			_, err := run.pick(ctx, project, t, false)
+			_, err := run.pick(ctx, project, t, "release", false)
 			if err != nil {
 				failed = append(failed, httpapi.Message(err))
 			}
@@ -313,7 +326,7 @@ func (s *Service) InstallOn(ctx context.Context, projects []string, kept map[str
 		})
 	}
 	if len(projects) > 0 {
-		if r := s.Install(ctx, projects, kept, []Ref{ref})[0]; r.Error != "" {
+		if r := s.Install(ctx, projects, kept, channels, []Ref{ref})[0]; r.Error != "" {
 			failed = append(failed, r.Error)
 		}
 	}
@@ -327,8 +340,12 @@ func (s *Service) InstallOn(ctx context.Context, projects []string, kept map[str
 type installation struct {
 	*Service
 	chosen map[string]string // version IDs by project ID
-	// releases picks only releases of the projects it installs, never a beta or alpha, as updates do.
-	releases  bool
+	// channels are the channels chosen for the projects it installs, by project ID. Others keep
+	// the channel of the server, and projects new on a server take releases.
+	channels map[string]string
+	// updates picks only versions of the channels of the projects it installs, as updates do,
+	// rather than the newest version of a project without one.
+	updates   bool
 	versions  memo[[]modrinth.Version]
 	downloads memo[[]byte]
 	titles    memo[string]
@@ -340,14 +357,16 @@ type onServer struct {
 	client  noryxv1.PluginServiceClient
 	target  target
 	running bool
+	kept    kept
 	files   []*noryxv1.PluginFile
-	// known and newer are the versions of the files and their newer releases, by SHA-512.
-	known, newer map[string]modrinth.Version
-	present      map[string]installedFile // see present
+	// known and newer are the versions of the files and their newer ones, by SHA-512.
+	known   map[string]modrinth.Version
+	newer   updates
+	present map[string]installedFile // see present
 }
 
 // open lists the plugin files of a server, the turned-off ones too, and identifies them, with
-// their newer releases if updates.
+// their newer versions in the channels of the server if updates.
 func (r *installation) open(ctx context.Context, ref Ref, updates bool) (*onServer, error) {
 	conn, srv, err := r.server(ctx, ref)
 	if err != nil {
@@ -357,20 +376,27 @@ func (r *installation) open(ctx context.Context, ref Ref, updates bool) (*onServ
 	if o.target, err = r.target(ctx, srv.GetType(), srv.GetVersion()); err != nil {
 		return nil, err
 	}
-	o.files, o.known, o.newer, err = r.listed(ctx, o.client, ref.ServerID, o.target, updates)
+	if o.kept, err = r.pins.of(ctx, ref); err != nil {
+		return nil, err
+	}
+	var channels []string
+	if updates {
+		channels = inUse(o.kept)
+	}
+	o.files, o.known, o.newer, err = r.listed(ctx, o.client, ref.ServerID, o.target, channels)
 	return o, err
 }
 
 // listed lists the plugin files of a server and identifies them for a target, with their newer
-// releases if updates.
-func (r *installation) listed(ctx context.Context, c noryxv1.PluginServiceClient, serverID string, t target, updates bool) (
-	files []*noryxv1.PluginFile, known, newer map[string]modrinth.Version, err error,
+// versions in channels.
+func (r *installation) listed(ctx context.Context, c noryxv1.PluginServiceClient, serverID string, t target, channels []string) (
+	files []*noryxv1.PluginFile, known map[string]modrinth.Version, newer updates, err error,
 ) {
 	res, err := c.ListPlugins(ctx, &noryxv1.ListPluginsRequest{ServerId: serverID, IncludeDisabled: true})
 	if err != nil || len(res.GetPlugins()) == 0 {
-		return nil, map[string]modrinth.Version{}, map[string]modrinth.Version{}, err
+		return nil, map[string]modrinth.Version{}, updates{}, err
 	}
-	known, newer, err = r.catalogue.identify(ctx, res.GetPlugins(), t, updates)
+	known, newer, err = r.catalogue.identify(ctx, res.GetPlugins(), t, channels)
 	return res.GetPlugins(), known, newer, err
 }
 
@@ -390,9 +416,11 @@ func (r *installation) install(ctx context.Context, res *Result, projects []stri
 }
 
 // put installs projects on a server with the projects they require, and keeps the files of the
-// server's projects up to date. A project that is turned off stays off.
+// server's projects up to date. A project that is turned off stays off. The server takes each
+// project in the channel chosen for it, a project new on it in releases, whatever an earlier
+// file of it took, and others in theirs.
 func (r *installation) put(ctx context.Context, o *onServer, projects []string) ([]Installed, error) {
-	versions, err := r.resolve(ctx, o.target, projects, o.present)
+	versions, err := r.resolve(ctx, o, projects)
 	if err != nil {
 		return nil, err
 	}
@@ -411,6 +439,11 @@ func (r *installation) put(ctx context.Context, o *onServer, projects []string) 
 				return installed, err
 			}
 			o.present[v.ProjectID] = installedFile{file}
+		}
+		if channel, chosen := r.channels[v.ProjectID]; chosen || old.PluginFile == nil {
+			if err := r.pins.track(ctx, o.ref, v.ProjectID, cmp.Or(channel, "release")); err != nil {
+				return installed, err
+			}
 		}
 		installed = append(installed, Installed{
 			ProjectID: v.ProjectID, FileName: f.Filename, Version: v.VersionNumber, Channel: preRelease(v), written: !old.is(f), disabled: old.GetDisabled(),
@@ -457,13 +490,13 @@ func (i installedFile) is(f modrinth.File) bool {
 	return i.PluginFile != nil && (f.Hashes.SHA512 != "" && i.GetSha512() == f.Hashes.SHA512 || f.Hashes.SHA256 != "" && i.GetSha256() == f.Hashes.SHA256)
 }
 
-// resolve picks the version of each project and of the projects they require.
-func (r *installation) resolve(ctx context.Context, t target, projects []string, present map[string]installedFile) ([]modrinth.Version, error) {
+// resolve picks the version of each project for a server and of the projects they require.
+func (r *installation) resolve(ctx context.Context, o *onServer, projects []string) ([]modrinth.Version, error) {
 	var picked []modrinth.Version
 	queue, seen := slices.Clone(projects), map[string]bool{}
 	for ; len(queue) > 0; queue = queue[1:] {
 		id := queue[0]
-		_, installed := present[id]
+		_, installed := o.present[id]
 		if seen[id] || installed && !slices.Contains(projects, id) {
 			continue
 		}
@@ -471,7 +504,11 @@ func (r *installation) resolve(ctx context.Context, t target, projects []string,
 		if len(seen) > maxProjects {
 			return nil, httpapi.Errorf(http.StatusBadRequest, "Choose fewer projects; they require more than %d projects together.", maxProjects)
 		}
-		v, err := r.pick(ctx, id, t, r.releases && slices.Contains(projects, id))
+		channel, ok := r.channels[id]
+		if !ok && installed {
+			channel = o.kept.channel(id)
+		}
+		v, err := r.pick(ctx, id, o.target, cmp.Or(channel, "release"), r.updates && slices.Contains(projects, id))
 		if err != nil {
 			return nil, err
 		}
@@ -486,14 +523,15 @@ func (r *installation) resolve(ctx context.Context, t target, projects []string,
 }
 
 // pick returns the version chosen for a project if it suits the server, else the newest
-// release of the project for the server, or else, unless releaseOnly, its newest version.
-func (r *installation) pick(ctx context.Context, project string, t target, releaseOnly bool) (modrinth.Version, error) {
+// version of the project in a channel for the server, or else, unless strict, its newest
+// version, e.g. a beta of a project without releases.
+func (r *installation) pick(ctx context.Context, project string, t target, channel string, strict bool) (modrinth.Version, error) {
 	versions, err := r.compatible(ctx, project, t)
 	if err != nil {
 		return modrinth.Version{}, err
 	}
-	i := slices.IndexFunc(versions, func(v modrinth.Version) bool { return v.VersionType == "release" })
-	if i < 0 && !releaseOnly {
+	i := slices.IndexFunc(versions, func(v modrinth.Version) bool { return takes(channel, v) })
+	if i < 0 && !strict {
 		i = 0
 	}
 	chosen := r.chosen[project]
@@ -506,7 +544,9 @@ func (r *installation) pick(ctx context.Context, project string, t target, relea
 	switch title := r.title(ctx, project); {
 	case chosen != "":
 		return modrinth.Version{}, httpapi.Errorf(http.StatusConflict, "The chosen version of %s doesn't run on %s.", title, t)
-	case len(versions) > 0 && releaseOnly:
+	case len(versions) > 0 && strict && channel == "beta":
+		return modrinth.Version{}, httpapi.Errorf(http.StatusConflict, "%s has no release or beta for %s.", title, t)
+	case len(versions) > 0 && strict && channel == "release":
 		return modrinth.Version{}, httpapi.Errorf(http.StatusConflict, "%s has no release for %s.", title, t)
 	default:
 		return modrinth.Version{}, httpapi.Errorf(http.StatusConflict, "%s has no version for %s.", title, t)
@@ -622,15 +662,16 @@ func (r *installation) presentOn(ctx context.Context, ref Ref) (map[string]insta
 	if err != nil {
 		return nil, err
 	}
-	files, known, _, err := r.listed(ctx, noryxv1.NewPluginServiceClient(conn), ref.ServerID, target{}, false) // no loaders, no Hangar
+	files, known, _, err := r.listed(ctx, noryxv1.NewPluginServiceClient(conn), ref.ServerID, target{}, nil) // no loaders, no Hangar
 	if err != nil {
 		return nil, err
 	}
 	return r.present(ctx, files, known, false)
 }
 
-// Provide installs the newest release of projects on a server, also those of GeyserMC,
-// unless it has it, and reports whether it changed a file. A server loads it when it starts.
+// Provide installs the newest version of projects on a server, also those of GeyserMC, in the
+// channel the server takes each in, releases for a new one, unless it has it, and reports
+// whether it changed a file. A server loads it when it starts.
 func (s *Service) Provide(ctx context.Context, ref Ref, projects []string) (bool, error) {
 	res := Result{Ref: ref}
 	err := (&installation{Service: s}).install(ctx, &res, projects)
@@ -696,6 +737,14 @@ func (s *Service) Pin(ctx context.Context, ref Ref, project string, pinned bool)
 		return err
 	}
 	return s.pins.set(ctx, ref, project, pinned)
+}
+
+// Track sets the channel a server takes a project in, which its updates follow.
+func (s *Service) Track(ctx context.Context, ref Ref, project, channel string) error {
+	if _, _, err := s.server(ctx, ref); err != nil {
+		return err
+	}
+	return s.pins.track(ctx, ref, project, channel)
 }
 
 // Upload installs a plugin file of the administrator on a server.

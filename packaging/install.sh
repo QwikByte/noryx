@@ -8,7 +8,8 @@
 #   install.sh all [...]                                         both on this machine, connected to each other
 #   install.sh update [--only master|agent]                      updates what is installed
 #
-# Options: --version <vX.Y.Z> installs that release instead of the one this script belongs to.
+# Options: --version <vX.Y.Z> installs that release instead of the one this script belongs to, --version
+# latest the latest release, also a pre-release where the options in /etc/noryx name --prereleases.
 # --public-host, --panel-addr and --admin only apply when the master is installed for the first time;
 # later, the panel's settings change its addresses.
 # Packages: .deb (apt), .rpm (dnf, yum, zypper) and Arch Linux (pacman), for x86_64 and arm64.
@@ -21,6 +22,8 @@ set -Eeuo pipefail
 # The release workflow replaces "latest" with the version of the release.
 version=latest
 readonly REPO=https://github.com/QwikByte/noryx
+# GitHub's API lists the releases, the newest first, also pre-releases.
+readonly RELEASES_API=https://api.github.com/repos/QwikByte/noryx/releases
 # The release workflow signs checksums.txt with this Ed25519 key, so a release is only installed if it was
 # published by Noryx's release workflow, not just by someone who can change its releases.
 readonly RELEASE_KEY=MCowBQYDK2VwAyEA18ilyBW0qkWpfEqFR+rW5eQeGC3Sif4OiD8RKpEry5s=
@@ -70,6 +73,19 @@ parse_args() {
   done
 }
 
+# prereleases tells whether the latest release may be a pre-release: only if the options of each
+# program in /etc/noryx that this run may install name --prereleases, which only root can change.
+prereleases() {
+  local program found=no
+  for program in master agent; do
+    if [[ -z "$only" || "$only" == "$program" ]] && [ -e "/etc/noryx/$program.env" ]; then
+      grep -qE '^NORYX_[A-Z]+_OPTS=.*--prereleases([ "]|$)' "/etc/noryx/$program.env" || return 1
+      found=yes
+    fi
+  done
+  [ "$found" = yes ]
+}
+
 check_system() {
   [ "$(id -u)" -eq 0 ] || die "Run the installer as root, e.g. with sudo."
   [ -d /run/systemd/system ] || die "Noryx needs a Linux system running systemd."
@@ -85,8 +101,17 @@ check_system() {
   fi
   [[ $(openssl version 2>/dev/null) =~ ^OpenSSL\ [3-9] ]] ||
     die "Releases are verified with OpenSSL 3 or newer, which isn't installed. Current Linux systems are supported, e.g. Debian 12, Ubuntu 22.04 or RHEL 9 and newer."
-  if [ "$version" = latest ]; then
-    # GitHub redirects to the tag of the latest release.
+  if [ "$version" = latest ] && prereleases; then
+    # The highest version among the newest releases, as the master chooses it. sort -V puts a
+    # version with "~" before the same one without, as SemVer does with pre-releases.
+    local releases
+    releases=$(fetch "$RELEASES_API?per_page=10") ||
+      die "GitHub's API doesn't answer, e.g. as it limits the requests of this machine. Try again later."
+    version=$(grep -oE '"tag_name": *"v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?"' <<<"$releases" |
+      cut -d '"' -f 4 | tr - '~' | sort -V | tail -n 1 | tr '~' -) || version=""
+    [ -n "$version" ] || die "No release found, see $REPO/releases"
+  elif [ "$version" = latest ]; then
+    # GitHub redirects to the tag of the latest release, which is no pre-release.
     version=$(curl --proto '=https' --tlsv1.2 -fsS -o /dev/null -w '%{redirect_url}' "$REPO/releases/latest") || die "GitHub is not reachable."
     [[ "$version" == */releases/tag/* ]] || die "No release found, see $REPO/releases"
     version=${version##*/}

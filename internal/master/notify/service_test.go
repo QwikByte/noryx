@@ -16,6 +16,8 @@ import (
 	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/logs"
+	"github.com/QwikByte/noryx/internal/master/schedule"
+	"github.com/QwikByte/noryx/internal/master/tag"
 )
 
 type limits struct{}
@@ -47,8 +49,32 @@ func (h *hook) got() []Payload {
 	return append([]Payload{}, h.payloads...)
 }
 
+// groups are the servers of tags and networks in tests, which they change.
+type groups struct {
+	mu      sync.Mutex
+	servers map[schedule.Target][]tag.Server
+}
+
+func (g *groups) Matcher(_ context.Context, targets []schedule.Target) (func(nodeID, serverID string) bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var servers []tag.Server
+	for _, t := range targets {
+		servers = append(servers, g.servers[t]...)
+	}
+	return func(nodeID, serverID string) bool {
+		return slices.Contains(servers, tag.Server{NodeID: nodeID, ServerID: serverID})
+	}, nil
+}
+
+func (g *groups) set(t schedule.Target, servers ...tag.Server) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.servers[t] = servers
+}
+
 // setup starts the log, a webhook and the service with a channel to it, and returns a logger
-// whose entries reach the log, as do those of the service.
+// whose entries reach the log, as do those of the service. Its targets are groups.
 func setup(t *testing.T, h *hook) (*Service, *slog.Logger, *logs.Store, Channel) {
 	t.Helper()
 	db, err := database.Open(filepath.Join(t.TempDir(), "master.db"))
@@ -62,7 +88,8 @@ func setup(t *testing.T, h *hook) (*Service, *slog.Logger, *logs.Store, Channel)
 	prev := slog.Default()
 	slog.SetDefault(slog.New(store.Handler(slog.LevelInfo)))
 	target, roots := localServer(t, h)
-	s := New(db, store, panel("Noryx"), Options{Allow: loopback, Roots: roots, Wait: 300 * time.Millisecond})
+	targets := &groups{servers: map[schedule.Target][]tag.Server{}}
+	s := New(db, store, targets, panel("Noryx"), Options{Allow: loopback, Roots: roots, Wait: 300 * time.Millisecond})
 	s.retry = 50 * time.Millisecond
 	ch, err := s.CreateChannel(ctx, ChannelInput{Name: "Hook", Kind: Webhook, URL: target + "/hook/secret-token"})
 	if err != nil {
@@ -126,7 +153,7 @@ func TestRulesBatchAndLimit(t *testing.T) {
 	}
 	waitFor(t, "a message", func() bool { return len(h.got()) > 0 })
 	p := h.got()[0]
-	if len(p.Entries) != maxEntries || p.NotSent != 2 || p.Test || p.Entries[0].Message != "A server crashed" || p.Entries[0].ServerName != "Lobby" {
+	if len(p.Entries) != perMessage || p.NotSent != 2 || p.Test || p.Entries[0].Message != "A server crashed" || p.Entries[0].ServerName != "Lobby" {
 		t.Errorf("payload = %+v", p)
 	}
 	log.Error("A server crashed again", logging.Servers)
@@ -185,7 +212,8 @@ func TestSecretsStayHidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mailCh.Email.Port != 587 || len(mailCh.Email.To) != 1 || !mailCh.HasPassword {
+	if mailCh.Email.Port != 587 || len(mailCh.Email.To) != 1 || !mailCh.HasPassword || mailCh.MessagesPerMinute != perMinute ||
+		mailCh.EntriesPerMessage != perMessage || mailCh.TimeZone != "" {
 		t.Errorf("mail channel = %+v", mailCh)
 	}
 	if _, err := s.UpdateChannel(ctx, ch.ID, ChannelInput{Name: "Renamed", Kind: Webhook}); err != nil {
@@ -222,6 +250,12 @@ func TestSecretsStayHidden(t *testing.T) {
 		{Name: "No TLS", Kind: Email, Email: &Mail{Host: "smtp.example.com", Security: "none", From: "a@example.com", To: []string{"b@example.com"}}},
 		{Name: "Private", Kind: Email, Email: &Mail{Host: "10.0.0.1", Security: ImplicitTLS, From: "a@example.com", To: []string{"b@example.com"}}},
 		{Name: "Header", Kind: Email, Email: &Mail{Host: "smtp.example.com", Security: ImplicitTLS, From: "a@example.com", To: []string{"b@example.com\r\nBcc: c@example.com"}}},
+		{Name: "Flood", Kind: Webhook, URL: "https://example.com/hook", MessagesPerMinute: maxPerMinute + 1},
+		{Name: "Long", Kind: Slack, URL: "https://example.com/hook", EntriesPerMessage: maxPerMessage + 1},
+		{Name: "Embeds", Kind: Discord, URL: "https://example.com/hook", EntriesPerMessage: maxDiscordEntries + 1},
+		{Name: "None", Kind: Webhook, URL: "https://example.com/hook", EntriesPerMessage: -1},
+		{Name: "Local", Kind: Webhook, URL: "https://example.com/hook", TimeZone: "Local"},
+		{Name: "Mars", Kind: Webhook, URL: "https://example.com/hook", TimeZone: "Mars/Olympus_Mons"},
 	} {
 		if _, err := s.CreateChannel(ctx, in); err == nil {
 			t.Errorf("%s was created", in.Name)
@@ -237,7 +271,12 @@ func TestSecretsStayHidden(t *testing.T) {
 	if rules, err := s.Rules(ctx); err != nil || len(rules) != 0 {
 		t.Errorf("rules = %+v, %v", rules, err)
 	}
-	for _, in := range []RuleInput{{ChannelID: ch.ID, Level: "debug"}, {ChannelID: "missing", Level: "warn"}, {ChannelID: ch.ID, Level: "warn", ServerID: "s1"}, {ChannelID: ch.ID, Level: "warn", Categories: []string{"Not one"}}} {
+	for _, in := range []RuleInput{
+		{ChannelID: ch.ID, Level: "debug"}, {ChannelID: "missing", Level: "warn"}, {ChannelID: ch.ID, Level: "warn", ServerID: "s1"},
+		{ChannelID: ch.ID, Level: "warn", Categories: []string{"Not one"}}, {ChannelID: ch.ID, Level: "warn", Tag: "no tag!"},
+		{ChannelID: ch.ID, Level: "warn", NodeID: "n1", Tag: "lobby"}, {ChannelID: ch.ID, Level: "warn", Tag: "lobby", NetworkID: "n"},
+		{ChannelID: ch.ID, Level: "warn", NetworkID: "missing"},
+	} {
 		if _, err := s.CreateRule(ctx, in); err == nil {
 			t.Errorf("rule %+v was created", in)
 		}
@@ -245,10 +284,10 @@ func TestSecretsStayHidden(t *testing.T) {
 }
 
 // Rules follow a server that moves, and leave with a server or node that is gone, rather than
-// sending the entries of its node or of all nodes.
+// sending the entries of its node or of all nodes. Rules of tags stay.
 func TestRulesFollowServers(t *testing.T) {
 	s, _, _, ch := setup(t, &hook{})
-	for _, in := range []RuleInput{{NodeID: "n1", ServerID: "s1"}, {NodeID: "n1"}, {}} {
+	for _, in := range []RuleInput{{NodeID: "n1", ServerID: "s1"}, {NodeID: "n1"}, {}, {Tag: "lobby"}} {
 		in.ChannelID, in.Enabled, in.Level = ch.ID, true, "warn"
 		if _, err := s.CreateRule(t.Context(), in); err != nil {
 			t.Fatal(err)
@@ -261,7 +300,7 @@ func TestRulesFollowServers(t *testing.T) {
 		}
 		var got []string
 		for _, r := range rules {
-			got = append(got, r.NodeID+"/"+r.ServerID)
+			got = append(got, r.NodeID+"/"+r.ServerID+r.Tag)
 		}
 		slices.Sort(got)
 		return got
@@ -269,7 +308,7 @@ func TestRulesFollowServers(t *testing.T) {
 	if err := s.Move(t.Context(), "s1", "n1", "n2"); err != nil {
 		t.Fatal(err)
 	}
-	if got := where(); !slices.Equal(got, []string{"/", "n1/", "n2/s1"}) {
+	if got := where(); !slices.Equal(got, []string{"/", "/lobby", "n1/", "n2/s1"}) {
 		t.Fatalf("after the move = %q", got)
 	}
 	if err := s.Forget(t.Context(), "n2", "s1"); err != nil {
@@ -278,7 +317,97 @@ func TestRulesFollowServers(t *testing.T) {
 	if err := s.Prune(t.Context()); err != nil { // n1 doesn't exist
 		t.Fatal(err)
 	}
-	if got := where(); !slices.Equal(got, []string{"/"}) {
+	if got := where(); !slices.Equal(got, []string{"/", "/lobby"}) {
 		t.Fatalf("after deleting the server and node = %q", got)
+	}
+}
+
+// Rules of tags and networks send the entries about the servers that have the tag or are in
+// the network as the entries come, also once servers moved or tags changed, and never those
+// about nodes alone.
+func TestRulesOfTagsAndNetworks(t *testing.T) {
+	h := &hook{}
+	s, log, _, ch := setup(t, h)
+	g, lobby := s.targets.(*groups), schedule.Target{Kind: schedule.KindTag, Value: "lobby"}
+	g.set(lobby, tag.Server{NodeID: "n1", ServerID: "s1"})
+	if r, err := s.CreateRule(t.Context(), RuleInput{ChannelID: ch.ID, Enabled: true, Level: "warn", Tag: " Lobby "}); err != nil || r.Tag != "lobby" {
+		t.Fatal(r, err)
+	}
+	crash := func(nodeID, serverID string) {
+		log.Warn("A server crashed", logging.Servers, logging.KeyNode, nodeID, logging.KeyNodeName, nodeID, logging.KeyServer, serverID,
+			logging.KeyServerName, serverID)
+	}
+	sent := func(p Payload) (got []string) {
+		for _, e := range p.Entries {
+			got = append(got, e.NodeID+"/"+e.ServerID)
+		}
+		return got
+	}
+	log.Warn("A node went offline", logging.Nodes, logging.KeyNode, "n1", logging.KeyNodeName, "n1")
+	crash("n1", "s2")
+	crash("n1", "s1")
+	waitFor(t, "a message", func() bool { return len(h.got()) == 1 })
+	if got := sent(h.got()[0]); !slices.Equal(got, []string{"n1/s1"}) {
+		t.Fatalf("sent %q", got)
+	}
+	// The server moved, another one got the tag, and the rule finds them once its servers are
+	// looked up again.
+	g.set(lobby, tag.Server{NodeID: "n2", ServerID: "s1"}, tag.Server{NodeID: "n1", ServerID: "s2"})
+	s.state.Lock()
+	s.resolved = time.Time{}
+	s.state.Unlock()
+	crash("n1", "s1")
+	crash("n2", "s1")
+	crash("n1", "s2")
+	waitFor(t, "another message", func() bool { return len(h.got()) == 2 })
+	if got := sent(h.got()[1]); !slices.Equal(got, []string{"n2/s1", "n1/s2"}) {
+		t.Fatalf("sent %q", got)
+	}
+
+	// A network has its proxy and game servers; a rule of a network that isn't resolved sends nothing.
+	main := schedule.Target{Kind: schedule.KindNetwork, Value: "main"}
+	groups := map[schedule.Target]func(nodeID, serverID string) bool{main: func(_, serverID string) bool { return serverID == "proxy" }}
+	r := Rule{Enabled: true, level: slog.LevelWarn, NetworkID: "main"}
+	e := logs.Entry{Level: slog.LevelWarn, NodeID: "n1", ServerID: "proxy"}
+	if !r.matches(e, groups) || r.matches(e, nil) || r.matches(logs.Entry{Level: slog.LevelWarn, NodeID: "n1", ServerID: "s1"}, groups) {
+		t.Error("a rule of a network matches other servers")
+	}
+}
+
+// Each channel sends as many messages a minute and entries a message as it chose, and counts
+// the others.
+func TestChannelRates(t *testing.T) {
+	h := &hook{}
+	s, log, _, ch := setup(t, h)
+	s.burst, s.every = 1, 10*time.Second
+	s.state.Lock()
+	delete(s.senders, ch.ID) // started again with the new limits
+	s.state.Unlock()
+	in := ChannelInput{Name: ch.Name, Kind: Webhook, MessagesPerMinute: 10, EntriesPerMessage: 2}
+	if _, err := s.UpdateChannel(t.Context(), ch.ID, in); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateRule(t.Context(), RuleInput{ChannelID: ch.ID, Enabled: true, Level: "warn"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		log.Warn("A server crashed", logging.Servers)
+	}
+	waitFor(t, "a message", func() bool { return len(h.got()) == 1 })
+	if p := h.got()[0]; len(p.Entries) != 2 || p.NotSent != 1 {
+		t.Errorf("payload = %+v", p)
+	}
+	// 10 messages in 10 seconds: the next one goes after a second.
+	log.Warn("A server crashed again", logging.Servers)
+	waitFor(t, "the next message", func() bool { return len(h.got()) == 2 })
+	// One message in 10 seconds: the next one waits.
+	in.MessagesPerMinute = 1
+	if _, err := s.UpdateChannel(t.Context(), ch.ID, in); err != nil {
+		t.Fatal(err)
+	}
+	log.Warn("A server crashed once more", logging.Servers)
+	time.Sleep(2 * time.Second)
+	if n := len(h.got()); n != 2 {
+		t.Errorf("%d messages despite the limit", n)
 	}
 }

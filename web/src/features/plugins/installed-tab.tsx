@@ -18,7 +18,7 @@ import { serverType } from "@/features/servers/server-types"
 import { locale } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { type Everywhere, installedQuery, type Kind } from "./api"
-import { ChannelPill } from "./channel-pill"
+import { ChannelPill, TracksPill } from "./channel-pill"
 import { type EverywhereAction, EverywhereDialog } from "./everywhere-dialog"
 import { PluginIcon } from "./plugin-icon"
 
@@ -176,6 +176,7 @@ function ProjectRow({ entry, servers, onAction }: { entry: Entry; servers: Map<s
                 {server && <span className="text-xs text-muted-foreground">{server.nodeName}</span>}
                 <span className="font-mono text-xs text-muted-foreground">{s.version}</span>
                 <ChannelPill channel={s.channel} />
+                <TracksPill channel={s.tracks} />
                 {s.pinned && (
                   <span title={t("Kept at this version")} className="text-muted-foreground">
                     <PushPinIcon className="size-3.5" weight="fill" aria-hidden />
@@ -184,6 +185,7 @@ function ProjectRow({ entry, servers, onAction }: { entry: Entry; servers: Map<s
                 )}
                 {s.disabled && <Pill tone="neutral">{t("Off")}</Pill>}
                 {s.update && <Pill tone="info">{t("Update to {{version}}", { version: s.update })}</Pill>}
+                {s.update && <ChannelPill channel={s.updateChannel} />}
               </li>
             )
           })}

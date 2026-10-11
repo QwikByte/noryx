@@ -2,16 +2,26 @@ import { CheckIcon, NotepadIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type ReactNode, useState } from "react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate } from "@/lib/format"
-import { type ProjectVersion, versionsQuery } from "./api"
+import { type Channel, channelLabel, channels, newestLabel, type ProjectVersion, versionsQuery } from "./api"
 import { ChangesDialog } from "./changes-dialog"
 import { ChannelPill } from "./channel-pill"
 
 /**
  * A menu of the versions of a project that run on a server type and Minecraft version, the newest first, betas and
- * alphas included, and what changed in them. With onNewest, it offers the newest suitable release first.
+ * alphas included, and what changed in them. With onChannel, it offers the channels to take the project in first, and
+ * with onNewest the newest suitable version of the channel.
  */
 export function VersionMenu({
   project,
@@ -19,6 +29,8 @@ export function VersionMenu({
   type,
   version,
   current,
+  channel = "release",
+  onChannel,
   onNewest,
   onPick,
   children,
@@ -30,6 +42,9 @@ export function VersionMenu({
   version: string
   /** The ID of the installed or chosen version. */
   current?: string
+  /** The channel the project is taken in. */
+  channel?: Channel
+  onChannel?: (channel: Channel) => void
   onNewest?: () => void
   onPick: (version: ProjectVersion) => void
   children: ReactNode
@@ -44,10 +59,23 @@ export function VersionMenu({
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="max-h-80 w-72">
+          {onChannel && (
+            <>
+              <DropdownMenuLabel>{t("Channel")}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={channel} onValueChange={(c) => onChannel(c as Channel)}>
+                {channels.map((c) => (
+                  <DropdownMenuRadioItem key={c} value={c}>
+                    {channelLabel(c)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {onNewest && (
             <>
               <DropdownMenuItem onSelect={onNewest}>
-                <span className="flex-1">{t("Newest suitable release")}</span>
+                <span className="flex-1">{newestLabel(channel)}</span>
                 {mark(!current)}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

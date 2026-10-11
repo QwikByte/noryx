@@ -1,5 +1,6 @@
 // Package usage keeps a history of what nodes, their servers and datastores use, from the
-// measurements of the agents, and serves it to the panel along with the latest one. It warns
+// measurements of the agents: each minute for a week, and the averages of each hour for as long
+// as the settings say. It serves it to the panel along with the latest measurement. It warns
 // when nodes and servers use too much for a while, as thresholds of the settings, or of a node
 // or server itself, tell.
 package usage
@@ -26,8 +27,10 @@ import (
 
 const (
 	sampleInterval = time.Minute
-	retention      = 7 * 24 * time.Hour
-	statsTimeout   = 10 * time.Second
+	// retention is how long the minutes are kept; the hours are kept as long as the settings say.
+	retention    = 7 * 24 * time.Hour
+	hourSeconds  = int64(time.Hour / time.Second)
+	statsTimeout = 10 * time.Second
 	// maxServers is the most servers of a node recorded per sample, far more than a node runs, so
 	// that a compromised agent can't fill the database.
 	maxServers = 500
@@ -36,10 +39,14 @@ const (
 // serverPattern matches the IDs of servers, random base32 in lowercase.
 var serverPattern = regexp.MustCompile(`^[a-z2-7]{26}$`)
 
-// Ranges are the time spans a history covers, with the step its averages are taken over.
+// Ranges are the time spans a history covers, with the step its averages are taken over. Those
+// beyond the week of the minutes come from the hours, as far as the settings keep them.
 var Ranges = map[string]struct{ Span, Step time.Duration }{
-	"day":  {24 * time.Hour, 5 * time.Minute},
-	"week": {retention, 30 * time.Minute},
+	"day":     {24 * time.Hour, 5 * time.Minute},
+	"week":    {retention, 30 * time.Minute},
+	"month":   {30 * 24 * time.Hour, 2 * time.Hour},
+	"quarter": {90 * 24 * time.Hour, 6 * time.Hour},
+	"year":    {365 * 24 * time.Hour, 24 * time.Hour},
 }
 
 // Nodes provides the nodes and connections to their agents.
@@ -53,6 +60,8 @@ type Nodes interface {
 type Config interface {
 	// Thresholds are the default thresholds of nodes and servers.
 	Thresholds() Defaults
+	// UsageRetention is how long the averages of each hour are kept.
+	UsageRetention() time.Duration
 }
 
 // Observer learns of the running servers of every measurement that the store records, e.g. to
@@ -61,14 +70,14 @@ type Observer interface {
 	Record(ctx context.Context, nodeID string, at time.Time, servers []*noryxv1.ServerStats) error
 }
 
-// Store keeps what nodes and servers used during the last week, and the measures that are
-// beyond their thresholds.
+// Store keeps what nodes and servers used, and the measures that are beyond their thresholds.
 type Store struct {
 	db        *sql.DB
 	nodes     Nodes
 	conf      Config
 	observers []Observer
 	watchers  []Watcher
+	averaged  int64 // the end of the hours that sample averaged last, which it does once an hour
 
 	mu        sync.Mutex
 	crossings map[key]*crossing
@@ -145,11 +154,60 @@ func (s *Store) sample(ctx context.Context, now time.Time) {
 	}
 	wg.Wait()
 	s.forget(func(k key) bool { return !enrolled[k.node] })
-	for _, sql := range []string{`DELETE FROM usage_samples WHERE time < ?`, `DELETE FROM datastore_usage WHERE time < ?`} {
-		if _, err := s.db.ExecContext(ctx, sql, now.Add(-retention).Unix()); err != nil {
+	if hour := now.Truncate(time.Hour).Unix(); hour > s.averaged {
+		if err := s.average(ctx, hour); err != nil {
+			slog.Warn("Can't average the usage of the last hours", logging.Nodes, "err", err)
+		} else {
+			s.averaged = hour
+		}
+	}
+	minutes, hours := now.Add(-retention).Unix(), now.Add(-s.conf.UsageRetention()).Unix()
+	for _, old := range []struct {
+		sql    string
+		before int64
+	}{
+		{`DELETE FROM usage_samples WHERE time < ?`, minutes}, {`DELETE FROM datastore_usage WHERE time < ?`, minutes},
+		{`DELETE FROM usage_hours WHERE time < ?`, hours}, {`DELETE FROM datastore_usage_hours WHERE time < ?`, hours},
+	} {
+		if _, err := s.db.ExecContext(ctx, old.sql, old.before); err != nil {
 			slog.Warn("Can't delete old usage", logging.Nodes, "err", err)
 		}
 	}
+}
+
+// hourly are the tables of the minutes and of their hours, and how an hour is averaged: like a
+// step of the charts, with the most players and connections and the largest size of the data.
+var hourly = []struct{ minutes, hours, average string }{
+	{"usage_samples", "usage_hours", `
+		INSERT OR REPLACE INTO usage_hours (time, node_id, server_id, samples, cpu_millis, memory_bytes, net_received, net_sent, disk_bytes, players, tps)
+		SELECT ?1, node_id, server_id, COUNT(*), AVG(cpu_millis), AVG(memory_bytes), AVG(net_received), AVG(net_sent), MAX(disk_bytes), MAX(players), AVG(tps)
+		FROM usage_samples WHERE time >= ?1 AND time < ?1 + ?2 GROUP BY node_id, server_id`},
+	{"datastore_usage", "datastore_usage_hours", `
+		INSERT OR REPLACE INTO datastore_usage_hours (time, datastore_id, samples, cpu_millis, memory_bytes, connections, disk_bytes)
+		SELECT ?1, datastore_id, COUNT(*), AVG(cpu_millis), AVG(memory_bytes), MAX(connections), MAX(disk_bytes)
+		FROM datastore_usage WHERE time >= ?1 AND time < ?1 + ?2 GROUP BY datastore_id`},
+}
+
+// average averages each hour that ended by end, from the one after the last hour averaged, or
+// else the first hour of the minutes, so that a restart of the master neither loses nor
+// doubles an hour. It averages one hour at a time, so that others don't wait long to write.
+func (s *Store) average(ctx context.Context, end int64) error {
+	for _, h := range hourly {
+		var last, first sql.NullInt64
+		if err := s.db.QueryRowContext(ctx, `SELECT (SELECT MAX(time) FROM `+h.hours+`), (SELECT MIN(time) FROM `+h.minutes+`)`).Scan(&last, &first); err != nil {
+			return err
+		}
+		next := first.Int64 / hourSeconds * hourSeconds
+		if last.Valid {
+			next = max(next, last.Int64+hourSeconds)
+		}
+		for ; first.Valid && next < end; next += hourSeconds {
+			if _, err := s.db.ExecContext(ctx, h.average, next, hourSeconds); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Latest asks the agent of a node for its latest measurement.
@@ -250,13 +308,29 @@ type Point struct {
 	TPS     *float64 `json:"tps"`
 }
 
+// keeps tells whether the usage is kept for span.
+func (s *Store) keeps(span time.Duration) bool {
+	return span <= max(retention, s.conf.UsageRetention())
+}
+
+// source is where a history over span comes from: the minutes, which are kept for a week, or
+// else the hours. Each row weighs as much as the minutes it averages.
+func source(minutes, hours string, span time.Duration) string {
+	if span <= retention {
+		return `(SELECT *, 1 AS samples FROM ` + minutes + `)`
+	}
+	return hours
+}
+
 // History returns the usage of a node, or of one of its servers, since span ago, with the
 // averages of each step. Steps in which it didn't run are missing.
 func (s *Store) History(ctx context.Context, nodeID, serverID string, span, step time.Duration) ([]Point, error) {
+	//nolint:gosec // source names one of two tables
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT time / ?1 * ?1 AS start, AVG(cpu_millis), AVG(memory_bytes), AVG(net_received), AVG(net_sent),
-			MAX(disk_bytes), MAX(players), AVG(tps)
-		FROM usage_samples WHERE node_id = ?2 AND server_id = ?3 AND time >= ?4
+		SELECT time / ?1 * ?1 AS start, TOTAL(cpu_millis * samples) / SUM(samples), TOTAL(memory_bytes * samples) / SUM(samples),
+			TOTAL(net_received * samples) / SUM(samples), TOTAL(net_sent * samples) / SUM(samples), MAX(disk_bytes), MAX(players),
+			TOTAL(tps * samples) / SUM(samples) FILTER (WHERE tps IS NOT NULL)
+		FROM `+source("usage_samples", "usage_hours", span)+` WHERE node_id = ?2 AND server_id = ?3 AND time >= ?4
 		GROUP BY start ORDER BY start`,
 		int64(step.Seconds()), nodeID, serverID, time.Now().Add(-span).Unix())
 	if err != nil {
@@ -304,9 +378,11 @@ func (s *Store) DatastoreHistory(ctx context.Context, id string, span, step time
 	} else if err != nil {
 		return nil, err
 	}
+	//nolint:gosec // source names one of two tables
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT time / ?1 * ?1 AS start, AVG(cpu_millis), AVG(memory_bytes), MAX(connections), MAX(disk_bytes)
-		FROM datastore_usage WHERE datastore_id = ?2 AND time >= ?3
+		SELECT time / ?1 * ?1 AS start, TOTAL(cpu_millis * samples) / SUM(samples), TOTAL(memory_bytes * samples) / SUM(samples),
+			MAX(connections), MAX(disk_bytes)
+		FROM `+source("datastore_usage", "datastore_usage_hours", span)+` WHERE datastore_id = ?2 AND time >= ?3
 		GROUP BY start ORDER BY start`,
 		int64(step.Seconds()), id, time.Now().Add(-span).Unix())
 	if err != nil {
@@ -330,23 +406,31 @@ func (s *Store) DatastoreHistory(ctx context.Context, id string, span, step time
 	return points, rows.Err()
 }
 
+// ofServers are the tables that keep something of a server: its minutes, its hours and its
+// thresholds.
+var ofServers = []string{"usage_samples", "usage_hours", "usage_thresholds"}
+
 // Forget deletes the history and the thresholds of a deleted server, and its warnings.
 func (s *Store) Forget(ctx context.Context, nodeID, serverID string) error {
 	s.forget(func(k key) bool { return k.node == nodeID && k.server == serverID })
-	_, err := s.db.ExecContext(ctx, `DELETE FROM usage_samples WHERE node_id = ? AND server_id = ?`, nodeID, serverID)
-	if err == nil {
-		_, err = s.db.ExecContext(ctx, `DELETE FROM usage_thresholds WHERE node_id = ? AND server_id = ?`, nodeID, serverID)
+	for _, table := range ofServers {
+		//nolint:gosec // one of the tables of ofServers
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM `+table+` WHERE node_id = ? AND server_id = ?`, nodeID, serverID); err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 // Move keeps the history and the thresholds of a server that moved to another node. Its
 // warnings start over there.
 func (s *Store) Move(ctx context.Context, serverID, from, to string) error {
 	s.forget(func(k key) bool { return k.node == from && k.server == serverID })
-	_, err := s.db.ExecContext(ctx, `UPDATE usage_samples SET node_id = ? WHERE node_id = ? AND server_id = ?`, to, from, serverID)
-	if err == nil {
-		_, err = s.db.ExecContext(ctx, `UPDATE OR REPLACE usage_thresholds SET node_id = ? WHERE node_id = ? AND server_id = ?`, to, from, serverID)
+	for _, table := range ofServers {
+		//nolint:gosec // one of the tables of ofServers
+		if _, err := s.db.ExecContext(ctx, `UPDATE OR REPLACE `+table+` SET node_id = ? WHERE node_id = ? AND server_id = ?`, to, from, serverID); err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }

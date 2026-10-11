@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -14,11 +15,19 @@ import (
 
 func notRequired(context.Context, int64) (bool, error) { return false, nil }
 
-// config is that of the tests: sessions of an hour, and the panel's default name.
-type config struct{}
+// config is that of the tests: sessions of an hour, the panel's default name, and the limits
+// of sign-ins that the settings have by default, unless a test sets others.
+type config struct {
+	minPassword               int
+	setupLink, maxToken, idle time.Duration
+}
 
-func (config) SessionTTL() time.Duration { return time.Hour }
-func (config) PanelName() string         { return "Noryx" }
+func (config) SessionTTL() time.Duration           { return time.Hour }
+func (config) PanelName() string                   { return "Noryx" }
+func (c config) MinPasswordLength() int            { return cmp.Or(c.minPassword, 12) }
+func (c config) SetupLinkTTL() time.Duration       { return cmp.Or(c.setupLink, 72*time.Hour) }
+func (c config) MaxTokenLifetime() time.Duration   { return c.maxToken }
+func (c config) SessionIdleTimeout() time.Duration { return c.idle }
 
 // Users see and end only their own sessions.
 func TestSessions(t *testing.T) {
@@ -27,7 +36,7 @@ func TestSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	const password = "a-long-enough-password"
 	login := func(username string, client Client) (User, string) {
 		t.Helper()
@@ -99,7 +108,7 @@ func TestSessionLastUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	svc, ctx := NewService(db), t.Context()
+	svc, ctx := NewService(db, config{}), t.Context()
 	user, err := svc.CreateUser(ctx, "alice", "a-long-enough-password")
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +142,68 @@ func TestSessionLastUsed(t *testing.T) {
 	usedAt(2 * time.Minute)
 	if s := use(); time.Since(s.LastUsedAt) > 5*time.Second || s.IP != "192.0.2.9" || s.Browser != "Chrome" {
 		t.Fatalf("not noted after a minute: %+v", s)
+	}
+}
+
+// A session unused for longer than the settings allow ends for good, an API token doesn't.
+func TestIdleSessions(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc, ctx := NewService(db, config{idle: time.Hour}), t.Context()
+	const password = "a-long-enough-password"
+	user, err := svc.CreateUser(ctx, "alice", password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	login := func() string {
+		t.Helper()
+		_, token, err := svc.Login(ctx, "alice", password, "", 3*time.Hour, Client{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token
+	}
+	usedAt := func(table string, hash []byte, ago time.Duration) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, `UPDATE `+table+` SET last_used_at = ? WHERE token_hash = ?`, time.Now().Add(-ago).Unix(), hash); err != nil {
+			t.Fatal(err)
+		}
+	}
+	active, idle := login(), login()
+	usedAt("sessions", hashToken(active), 59*time.Minute)
+	usedAt("sessions", hashToken(idle), 61*time.Minute)
+	if sessions, err := svc.Sessions(ctx, user.ID, active); err != nil || len(sessions) != 1 || !sessions[0].Current {
+		t.Fatalf("sessions = %+v, %v", sessions, err)
+	}
+	if _, err := svc.Authenticate(ctx, active, Client{}); err != nil {
+		t.Fatalf("session used within the hour: %v", err)
+	}
+	if _, err := svc.Authenticate(ctx, idle, Client{}); !errors.Is(err, ErrNoSession) {
+		t.Fatalf("unused session accepted: %v", err)
+	}
+	if _, err := NewService(db, config{}).Authenticate(ctx, idle, Client{}); !errors.Is(err, ErrNoSession) {
+		t.Fatalf("unused session came back without the limit: %v", err)
+	}
+
+	// Signing in deletes the sessions unused for too long, like those that expired.
+	forgotten := login()
+	usedAt("sessions", hashToken(forgotten), 2*time.Hour)
+	login()
+	var left int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE token_hash = ?`, hashToken(forgotten)).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("%d unused sessions left: %v", left, err)
+	}
+
+	_, secret, err := svc.CreateToken(ctx, user.ID, password, "", TokenInput{Name: "script"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	usedAt("api_tokens", hashToken(secret), 2*time.Hour)
+	if _, err := svc.AuthenticateToken(ctx, secret, "192.0.2.1"); err != nil {
+		t.Fatalf("unused token: %v", err)
 	}
 }
 

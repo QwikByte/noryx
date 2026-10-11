@@ -72,7 +72,7 @@ func cut(s string, n int) string { return s[:min(len(s), n)] }
 
 func (s *Service) startSession(ctx context.Context, userID int64, ttl time.Duration, client Client) (string, error) {
 	now := time.Now()
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, now.Unix()); err != nil {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ? OR last_used_at <= ?`, now.Unix(), s.unusedSince(now)); err != nil {
 		return "", err
 	}
 	token := rand.Text()
@@ -85,10 +85,11 @@ func (s *Service) startSession(ctx context.Context, userID int64, ttl time.Durat
 // Sessions returns the valid sessions of a user, the one identified by current first, then
 // the ones used last.
 func (s *Service) Sessions(ctx context.Context, userID int64, current string) ([]Session, error) {
+	now := time.Now()
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, created_at, last_used_at, expires_at, ip, browser, os, token_hash = ? AS current FROM sessions
-		WHERE user_id = ? AND expires_at > ? ORDER BY current DESC, last_used_at DESC, created_at DESC`,
-		hashToken(current), userID, time.Now().Unix())
+		WHERE user_id = ? AND expires_at > ? AND last_used_at > ? ORDER BY current DESC, last_used_at DESC, created_at DESC`,
+		hashToken(current), userID, now.Unix(), s.unusedSince(now))
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +132,15 @@ func (s *Service) EndOtherSessions(ctx context.Context, userID int64, keep strin
 
 // endOtherSessions deletes the sessions of a user but the one with a token hash.
 const endOtherSessions = `DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`
+
+// unusedSince is the time, in seconds since 1970, up to which a session's last use means that it
+// has been unused for longer than the settings allow; without such a limit, it is before all.
+func (s *Service) unusedSince(now time.Time) int64 {
+	if idle := s.limits.SessionIdleTimeout(); idle > 0 {
+		return now.Add(-idle).Unix()
+	}
+	return -1
+}
 
 // touch notes that a session was used now from client, if it wasn't within touchEvery.
 func (s *Service) touch(ctx context.Context, hash []byte, lastUsed int64, client Client) error {

@@ -34,6 +34,7 @@ import { LimitsFields } from "@/features/nodes/limits-fields"
 import { NewServerFields } from "@/features/servers/new-server-fields"
 import { WarningFields } from "@/features/servers/warning-fields"
 import { UpdateCheck } from "@/features/updates/update-check"
+import { UpdateFields } from "@/features/updates/update-fields"
 import { ThresholdFields, ThresholdsHelp } from "@/features/usage/thresholds"
 import { formatDate, formatDateTime, formatDuration } from "@/lib/format"
 import { msg } from "@/lib/i18n"
@@ -52,6 +53,8 @@ import {
 import { InviteGroupsField, UserDefaultsFields } from "./defaults-fields"
 import { NameFields } from "./name-fields"
 import { RestartButton } from "./restart-button"
+import { RetentionFields } from "./retention-fields"
+import { SignInFields } from "./sign-in-fields"
 
 /** The General tab: the running master and its settings. */
 export function GeneralSettingsPage() {
@@ -202,6 +205,7 @@ function formOf(s: MasterSettings) {
     joinTokenMinutes,
     logDays,
     logSizeMb,
+    retention: s.retention,
     checkUpdates,
     requireMfa,
     thresholds: s.thresholds,
@@ -212,6 +216,12 @@ function formOf(s: MasterSettings) {
     inviteGroups: s.inviteGroups,
     newServers: s.newServers,
     warnings: s.warnings,
+    updateCheckHours: s.updateCheckHours,
+    updateAgents: s.updateAgents,
+    minPasswordLength: s.minPasswordLength,
+    setupLinkHours: s.setupLinkHours,
+    maxTokenDays: s.maxTokenDays,
+    sessionIdleHours: s.sessionIdleHours,
   }
 }
 
@@ -314,6 +324,7 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             />
             <FieldDescription>{t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}</FieldDescription>
           </Field>
+          <SignInFields value={form} onChange={set} />
           <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} />
         </FormSection>
 
@@ -353,6 +364,10 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
           </Field>
         </FormSection>
 
+        <FormSection title={t("Retention")}>
+          <RetentionFields value={form.retention} onChange={(retention) => set({ retention })} />
+        </FormSection>
+
         <FormSection title={t("Usage warnings")}>
           <ThresholdsHelp />
           <p className="text-sm text-muted-foreground">{t("Servers and nodes can have their own thresholds in their settings.")}</p>
@@ -382,12 +397,11 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             <FieldContent>
               <FieldLabel htmlFor="settings-check-updates">{t("Check for updates")}</FieldLabel>
               <FieldDescription>
-                {t(
-                  "The master asks GitHub for the latest release every 6 hours. Administrators then see a notice and install it with a click.",
-                )}
+                {t("The master asks GitHub for the latest release. Administrators then see a notice and install it with a click.")}
               </FieldDescription>
             </FieldContent>
           </Field>
+          <UpdateFields value={form} onChange={set} />
           {access.admin && <UpdateCheck />}
         </FormSection>
 

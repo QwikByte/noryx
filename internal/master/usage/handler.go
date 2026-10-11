@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/QwikByte/noryx/internal/master/access"
@@ -17,8 +18,10 @@ func NewHandler(store *Store) *Handler { return &Handler{store: store} }
 // Register adds the routes. The latest measurement and the warnings only contain what the user
 // may see, datastores for those who may see datastores. Changing the thresholds of a node needs
 // the permission to change the node, and of a server the permission to change its settings.
+// The ranges of the histories that the settings keep are no secret.
 func (h *Handler) Register(m access.Mux) {
 	m.Handle("GET /api/nodes/{node}/usage", access.SignedIn, h.latest)
+	m.Handle("GET /api/usage/ranges", access.SignedIn, h.ranges)
 	m.Handle("GET /api/nodes/{node}/usage/history", access.OnNode(access.NodesView, "node"), h.history)
 	m.Handle("GET /api/nodes/{node}/servers/{id}/usage/history", access.OnServer(access.ServersView), h.history)
 	m.Handle("GET /api/datastores/{id}/usage/history", access.Everywhere(access.DatastoresView), h.datastoreHistory)
@@ -112,25 +115,41 @@ func (h *Handler) latest(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, view)
 }
 
+// ranges returns the names of the ranges whose usage the settings keep, the shortest first.
+func (h *Handler) ranges(w http.ResponseWriter, _ *http.Request) {
+	kept := []string{}
+	for name, rng := range Ranges {
+		if h.store.keeps(rng.Span) {
+			kept = append(kept, name)
+		}
+	}
+	slices.SortFunc(kept, func(a, b string) int { return cmp.Compare(Ranges[a].Span, Ranges[b].Span) })
+	httpapi.WriteJSON(w, http.StatusOK, kept)
+}
+
 // history returns the usage of a node, or of a server if the path names one.
 func (h *Handler) history(w http.ResponseWriter, r *http.Request) {
-	writeHistory(w, r, func(span, step time.Duration) ([]Point, error) {
+	writeHistory(w, r, h.store, func(span, step time.Duration) ([]Point, error) {
 		return h.store.History(r.Context(), r.PathValue("node"), r.PathValue("id"), span, step)
 	})
 }
 
 // datastoreHistory returns the usage of a datastore.
 func (h *Handler) datastoreHistory(w http.ResponseWriter, r *http.Request) {
-	writeHistory(w, r, func(span, step time.Duration) ([]DatastorePoint, error) {
+	writeHistory(w, r, h.store, func(span, step time.Duration) ([]DatastorePoint, error) {
 		return h.store.DatastoreHistory(r.Context(), r.PathValue("id"), span, step)
 	})
 }
 
-// writeHistory answers with the history over the range "day" (the default) or "week".
-func writeHistory[P any](w http.ResponseWriter, r *http.Request, history func(span, step time.Duration) ([]P, error)) {
+// writeHistory answers with the history over a range that the settings keep, by default "day".
+func writeHistory[P any](w http.ResponseWriter, r *http.Request, s *Store, history func(span, step time.Duration) ([]P, error)) {
 	rng, ok := Ranges[cmp.Or(r.URL.Query().Get("range"), "day")]
 	if !ok {
-		httpapi.WriteError(w, r, httpapi.Errorf(http.StatusBadRequest, "Choose the range day or week."))
+		httpapi.WriteError(w, r, httpapi.Errorf(http.StatusBadRequest, "Choose the range day, week, month, quarter or year."))
+		return
+	}
+	if !s.keeps(rng.Span) {
+		httpapi.WriteError(w, r, httpapi.Errorf(http.StatusBadRequest, "The usage is kept for %.0f days: choose a shorter range.", s.conf.UsageRetention().Hours()/24))
 		return
 	}
 	points, err := history(rng.Span, rng.Step)

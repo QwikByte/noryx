@@ -49,6 +49,14 @@ line breaks of the notice, and public, as the sign-in page reads them without a 
 or images for them, so the Content Security Policy stays as strict. The defaults of users' language and look are public
 too, and only values that users can choose themselves.
 
+Passwords need 12 characters, or as many as the settings say, up to 64, counted as characters rather than bytes; a
+longer minimum applies to the passwords set from then on, also by `noryx-master user add`. Setup links are valid for
+3 days unless the settings say otherwise, from an hour to a week. Both are public, as the page of setup links shows them
+before anyone signs in. Sessions last as long as the settings say, and if they say so, also end after a number of hours
+without use, precise to the minute in which a session last noted its use: the master refuses such a session like an
+expired one and deletes it. Changing these limits needs the permission to change the master's settings and is logged;
+none of them lets passwords be shorter than 12 characters.
+
 ## Two-factor authentication
 
 Codes of the app (RFC 6238) work only once, and from the fifth wrong code in a row on, codes aren't checked for a minute
@@ -85,7 +93,11 @@ use a token in a browser: the master allows no cross-origin requests, so browser
 cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
 a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
 tokens without the permission they need. The log names the token besides the user in the entries of what it did, and a
-token notes the address and time of its last use at most once a minute.
+token notes the address and time of its last use at most once a minute. The settings can limit how long new tokens last,
+up to 10 years: the master then refuses tokens that don't expire or expire later; one asked to expire up to a day
+later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their expiry, and the
+settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for being unused
+like sessions, as they have a lifetime of their own.
 
 ## Networks
 
@@ -187,7 +199,9 @@ Extracting and copying need the permission to change files, searching the one to
 The master downloads only from Modrinth's CDN, up to 256 MB, and only uses a file whose SHA-512 hash matches the one
 Modrinth's API lists; from Hangar, only from its CDN and with the SHA-256 hash its API lists, and versions that only
 link elsewhere can't be installed. Floodgate only comes from GeyserMC's download server, with the SHA-256 hash its API
-lists. A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
+lists. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
+alpha, which the master checks) or where a project has nothing else for it, are checked like releases.
+A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
 elsewhere than on Modrinth's CDN or with paths that leave the server's folder are refused before a server is created or
 moves to another version of its pack, and the agent confines the files like those of the file manager. To tell which
 files of a pack changed on a server, the agent hashes them only if they are regular files without secrets, not through
@@ -455,8 +469,12 @@ servers are stored in the master's database like the forwarding secret; the API 
 them, also not in errors, and an empty field keeps them, so that nobody who may manage notifications learns them. A mail
 channel keeps its password only while its server, port and user stay the same, so that it can't be sent to another
 server. Messages carry the texts of entries, never secrets, which aren't logged; entries can hold IP addresses and the
-names of players, which the panel says where channels are set up. A rule of a server that is deleted, or of a node that
-is removed, is deleted with it rather than left to send the entries of its node or of all nodes.
+names of players, which the panel says where channels are set up. A rule of a server that is deleted, of a node that is
+removed or of a network that is deleted, is deleted with it rather than left to send the entries of its node or of all
+nodes. Rules of tags and networks find their servers in what the master stores, never by asking agents, and an agent's
+entries are only about servers of its own node, so it can't add them to the rule of a server elsewhere. Whoever may
+change the settings of a server, which include its tags, can put it under a rule of a tag or take it out of one, as
+with backup jobs.
 
 Channels connect to public addresses only, so that the master can't be used to reach its own network: the address of
 every connection is checked right before it is made, after DNS answered, so that a name can't resolve to another address
@@ -471,8 +489,8 @@ Discord, which also gets no mentions allowed, and as Slack's plain text with `&`
 the panel in its notifications. The subjects of mails, and the name of the panel in them and as their sender, are a
 single line without control characters and encoded, so that neither an entry nor the name can add headers. A compromised agent
 can only add warnings about its own node and servers, at the limited rate of the log, and each channel sends 5 messages
-at once, then one a minute at most, which counts what it leaves out. **Send test** works three times at once, then once
-every 20 seconds per channel.
+at once, then as many a minute as it is set to, 10 at most, with up to 25 entries each, and counts what it leaves out.
+**Send test** works three times at once, then once every 20 seconds per channel.
 
 ## Workflows
 
@@ -515,18 +533,21 @@ a new URL makes the old one useless.
 
 Agents report what their node and its servers use, so a compromised agent can make up or hide the usage and the warnings
 of its own node and servers, but of no others. The master records at most 500 servers of a node, with valid IDs only,
-and checks at most 32 storage locations with valid names, so that an agent can't fill its database or memory. Changing
-the thresholds of a server needs the permission to change its settings, of a node the permission to change the node,
-and warnings only show to those who may see the server or node.
+and checks at most 32 storage locations with valid names, so that an agent can't fill its database or memory; the
+averages of each hour, kept for up to a year, come from these minutes, a row per server and hour. Changing the
+thresholds of a server needs the permission to change its settings, of a node the permission to change the node, and
+warnings only show to those who may see the server or node.
 
 ## Players
 
 The master notes where players played from the names of the players online that the agents measure: the name, the
-server, the day and the minutes, never IP addresses or anything else about them, kept as long as the log and deleted
-with their server or node. A compromised agent can make up players of its own game servers, but the master records only
-names of players (16 letters, digits and `_`, or Floodgate's dot before), at most 1000 of a server per measurement and
-10,000 players and servers of a node per day, so that it can't fill the database. Users only see where players played
-on the servers they may see.
+server, the day and the minutes, never IP addresses or anything else about them, kept for as long as the settings say
+(1 day to a year) and deleted with their server or node. The settings can stop noting them, e.g. for privacy, which
+keeps what was noted until its time is up; deleting all of it at once needs the permission to change the master's
+settings, which can already stop noting players and keep them for a day. A compromised agent can make up players of its
+own game servers, but the master records only names of players (16 letters, digits and `_`, or Floodgate's dot
+before), at most 1000 of a server per measurement and 10,000 players and servers of a node per day, so that it can't
+fill the database. Users only see where players played on the servers they may see.
 
 The faces of players send their names to Mojang, and those of Bedrock players to GeyserMC; the master asks for them,
 only over HTTPS and from fixed hosts, and fetches skins only from Minecraft's textures server by the ID of a texture,
@@ -627,3 +648,11 @@ The master can't install anything itself. To update, it only creates a file that
 installer of the installed package, checking the signature and the checksums. Agents only install releases newer than
 themselves, so even a compromised master can't downgrade a node to a vulnerable version, and the version must have the
 form of a release. `systemctl mask noryx-master-update.path` forbids updates from the panel.
+
+Pre-releases are only installed on machines whose administrator allows them with `--prereleases` in
+`/etc/noryx/master.env` or `/etc/noryx/agent.env`. These files belong to root, so neither the master nor the panel can
+change them; the panel only shows the master's option. `noryx-master-update` reads it from `master.env` itself and then
+installs the highest version among the newest releases, pre-releases included, with the same checks of the signature and
+the checksums. Agents refuse pre-releases without the option, so a compromised master can't put one on a node; agents
+of earlier versions still accept any newer pre-release. Whether the master updates the agents after itself and how
+often it looks for releases are settings, which only decide when it asks, not what is installed.

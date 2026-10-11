@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/database"
+	"github.com/QwikByte/noryx/internal/master/node"
 )
 
 const (
@@ -70,6 +72,91 @@ func TestHistory(t *testing.T) {
 	}
 	if points, _ := s.History(ctx, "n2", lobby, time.Hour, step); len(points) != 0 {
 		t.Fatalf("forgotten history = %+v", points)
+	}
+}
+
+type noNodes struct{ Nodes }
+
+func (noNodes) List(context.Context) ([]node.Node, error) { return nil, nil }
+
+// The hours that ended are averaged once, also after a restart, weighing as many minutes as
+// they have, and kept beyond the minutes for as long as the settings say.
+func TestHours(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, id := range []string{"n1", "n2"} {
+		if _, err := db.Exec(`INSERT INTO nodes (id, name, address, created_at) VALUES (?, ?, 'host:7443', 0)`, id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, ctx := NewStore(db, noNodes{}, config{DefaultThresholds()}), t.Context()
+	start := time.Now().Truncate(2 * time.Hour).Add(-2 * time.Hour)
+	for _, m := range []struct {
+		at           time.Duration
+		cpu, players uint32
+		disk         uint64
+		tps          float64
+	}{{0, 1000, 3, 100, 20}, {30 * time.Minute, 2000, 5, 200, 18}, {time.Hour, 4000, 1, 150, 16}} {
+		stats := &noryxv1.GetStatsResponse{Node: &noryxv1.NodeStats{}, Servers: []*noryxv1.ServerStats{
+			{Id: lobby, Running: true, CpuMillis: m.cpu, DiskBytes: m.disk, Tps: m.tps, Players: &noryxv1.Players{Online: m.players}},
+		}}
+		if err := s.add(ctx, "n1", start.Add(m.at), stats); err != nil {
+			t.Fatal(err)
+		}
+	}
+	end := time.Now().Truncate(time.Hour).Unix()
+	for range 2 { // as after a restart
+		if err := NewStore(db, nil, nil).average(ctx, end); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var hours int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM usage_hours WHERE server_id = ?`, lobby).Scan(&hours); err != nil || hours != 2 {
+		t.Fatalf("%d hours of the lobby, %v", hours, err)
+	}
+
+	// Beyond a week, the history comes from the hours, also once the minutes are gone.
+	if _, err := db.Exec(`DELETE FROM usage_samples`); err != nil {
+		t.Fatal(err)
+	}
+	month := Ranges["month"]
+	points, err := s.History(ctx, "n1", lobby, month.Span, month.Step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(points) != 1 || points[0].CPUMillis != 7000.0/3 || *points[0].Players != 5 || points[0].DiskBytes != 200 || *points[0].TPS != 18 || !points[0].Time.Equal(start) {
+		t.Fatalf("points = %+v", points)
+	}
+
+	// The hours move with the server and go away with it.
+	if err := s.Move(ctx, lobby, "n1", "n2"); err != nil {
+		t.Fatal(err)
+	}
+	if points, _ := s.History(ctx, "n2", lobby, month.Span, month.Step); len(points) != 1 {
+		t.Fatalf("moved hours = %+v", points)
+	}
+	if err := s.Forget(ctx, "n2", lobby); err != nil {
+		t.Fatal(err)
+	}
+	if points, _ := s.History(ctx, "n2", lobby, month.Span, month.Step); len(points) != 0 {
+		t.Fatalf("forgotten hours = %+v", points)
+	}
+
+	// Hours older than the settings keep them go.
+	old := time.Now().Add(-31 * 24 * time.Hour).Truncate(time.Hour).Unix()
+	if _, err := db.Exec(`INSERT INTO usage_hours (time, node_id, server_id, samples, cpu_millis, memory_bytes, net_received, net_sent, disk_bytes)
+		VALUES (?, 'n1', '', 60, 0, 0, 0, 0, 0)`, old); err != nil {
+		t.Fatal(err)
+	}
+	s.sample(ctx, time.Now())
+	if err := db.QueryRow(`SELECT COUNT(*) FROM usage_hours WHERE time <= ?`, old).Scan(&hours); err != nil || hours != 0 {
+		t.Fatalf("%d old hours left, %v", hours, err)
+	}
+	if !s.keeps(month.Span) || s.keeps(Ranges["quarter"].Span) {
+		t.Error("the ranges kept don't follow the settings")
 	}
 }
 

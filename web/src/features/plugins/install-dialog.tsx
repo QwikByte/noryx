@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { FieldError } from "@/components/ui/field"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAccess } from "@/features/access/use-access"
 import { networksQuery, type ServerRef } from "@/features/networks/api"
 import { ServerPicker } from "@/features/networks/server-picker"
@@ -26,7 +27,20 @@ import { OperationStatus } from "@/features/operations/operation-status"
 import { mergeResults } from "@/features/operations/retry"
 import { RetryButton } from "@/features/operations/retry-button"
 import { guard, useOperation } from "@/features/operations/use-operation"
-import { fallback, type InstallResult, installedQuery, maxServers, type ProjectVersion, type SearchHit, supports, useInstallPlugins } from "./api"
+import {
+  type Channel,
+  channelLabel,
+  channels,
+  fallback,
+  type InstallResult,
+  installedQuery,
+  maxServers,
+  newestLabel,
+  type ProjectVersion,
+  type SearchHit,
+  supports,
+  useInstallPlugins,
+} from "./api"
 import { ChannelPill } from "./channel-pill"
 import { PluginIcon } from "./plugin-icon"
 import { RestartOption, RestartPill } from "./restart-option"
@@ -41,6 +55,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [pinned, setPinned] = useState<ProjectVersion>()
+  const [channel, setChannel] = useState<Channel>("release")
   // The batch that runs, of how many, e.g. 1 of 2 for 150 servers.
   const [[part, parts], setPart] = useState([0, 0])
   const { can } = useAccess()
@@ -76,6 +91,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
   const title = t("Install {{name}}", { name: hit.title })
 
   const versions = pinned && { [hit.id]: pinned.id }
+  const chosenChannels = { [hit.id]: channel }
   // The results of a retry take the place of those of the servers it tried again.
   const [earlier, setEarlier] = useState<InstallResult[]>()
   const results = install.data && mergeResults(earlier, install.data)
@@ -87,6 +103,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
           projects: [hit.id],
           servers,
           versions,
+          channels: chosenChannels,
           ...restart.request,
           onStart: (op, batch) => {
             setPart([batch + 1, Math.ceil(servers.length / maxServers)])
@@ -97,7 +114,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
         title,
         done: (results) => {
           const ok = results.filter((r) => !r.error).length
-          const preReleases = results.some((r) => r.installed.some((f) => fallback(f, versions)))
+          const preReleases = results.some((r) => r.installed.some((f) => fallback(f, versions, chosenChannels)))
           return {
             message:
               ok === results.length
@@ -122,6 +139,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
       operation.reset()
       setSelected([])
       setPinned(undefined)
+      setChannel("release")
       setEarlier(undefined)
     }
   }
@@ -155,11 +173,11 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
               <PluginIcon src={hit.icon} />
               <div className="min-w-0 space-y-1 text-left">
                 <DialogTitle>{t("Install {{name}}", { name: hit.title })}</DialogTitle>
-                <DialogDescription>{t("The newest release that suits each server is installed, with what it requires.")}</DialogDescription>
+                <DialogDescription>{t("The newest version of the channel that suits each server is installed, with what it requires.")}</DialogDescription>
               </div>
             </DialogHeader>
             {results ? (
-              <Results results={results} servers={servers} versions={versions} />
+              <Results results={results} servers={servers} versions={versions} channels={chosenChannels} />
             ) : suitable.length === 0 ? (
               <p className="py-4 text-sm text-muted-foreground">{t("None of your servers can run {{name}}.", { name: hit.title })}</p>
             ) : (
@@ -210,28 +228,51 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
               </div>
             )}
             {!install.data && chosen.length > 0 && (
-              <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-                <span className="font-medium">{t("Version")}</span>
-                {same ? (
-                  <VersionMenu
-                    project={hit.id}
-                    title={hit.title}
-                    type={chosen[0].type}
-                    version={chosen[0].version}
-                    current={pinned?.id}
-                    onNewest={() => setPinned(undefined)}
-                    onPick={setPinned}
-                  >
-                    <Button size="sm" variant="outline">
-                      {pinned ? <span className="font-mono">{pinned.number}</span> : t("Newest suitable release")}
-                      <CaretDownIcon />
-                    </Button>
-                  </VersionMenu>
-                ) : (
-                  <span className="text-right text-xs text-muted-foreground">
-                    {t("The newest suitable release, as the servers run different software or Minecraft versions.")}
-                  </span>
+              <div className="grid gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{t("Channel")}</span>
+                  <Select value={channel} onValueChange={(c) => setChannel(c as Channel)}>
+                    <SelectTrigger size="sm" aria-label={t("Channel")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {channels.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {channelLabel(c)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {channel !== "release" && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("The servers keep the channel, so updates of {{name}} take these versions too.", { name: hit.title })}
+                  </p>
                 )}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{t("Version")}</span>
+                  {same ? (
+                    <VersionMenu
+                      project={hit.id}
+                      title={hit.title}
+                      type={chosen[0].type}
+                      version={chosen[0].version}
+                      current={pinned?.id}
+                      channel={channel}
+                      onNewest={() => setPinned(undefined)}
+                      onPick={setPinned}
+                    >
+                      <Button size="sm" variant="outline">
+                        {pinned ? <span className="font-mono">{pinned.number}</span> : newestLabel(channel)}
+                        <CaretDownIcon />
+                      </Button>
+                    </VersionMenu>
+                  ) : (
+                    <span className="text-right text-xs text-muted-foreground">
+                      {t("The newest suitable version of the channel, as the servers run different software or Minecraft versions.")}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             {!install.data && <RestartOption restart={restart} />}
@@ -305,8 +346,18 @@ function Row({
 }
 
 /** What was installed on each server, with the pre-releases installed where no release suits it. Servers load new plugins when they restart. */
-function Results({ results, servers, versions }: { results: InstallResult[]; servers: NodeServer[]; versions?: Record<string, string> }) {
-  const preReleases = results.some((r) => r.installed.some((f) => fallback(f, versions)))
+function Results({
+  results,
+  servers,
+  versions,
+  channels,
+}: {
+  results: InstallResult[]
+  servers: NodeServer[]
+  versions?: Record<string, string>
+  channels: Record<string, Channel>
+}) {
+  const preReleases = results.some((r) => r.installed.some((f) => fallback(f, versions, channels)))
   return (
     <div className="grid gap-3">
       <ul className="grid gap-2">

@@ -90,7 +90,10 @@ export interface PlayerHistory extends SeenPlayer {
   days: { day: string; minutes: number }[]
 }
 
-/** The players seen on the servers the user may see, of a network, of one server or all, those seen last first. */
+/**
+ * The players seen on the servers the user may see, of a network, of one server or all, those seen last first, and
+ * whether the master records them, which the settings can turn off.
+ */
 export function seenPlayersQuery({ q = "", network, server, limit }: { q?: string; network?: string; server?: ServerRef; limit?: number } = {}) {
   const search = new URLSearchParams({
     q,
@@ -100,7 +103,7 @@ export function seenPlayersQuery({ q = "", network, server, limit }: { q?: strin
   })
   return queryOptions({
     queryKey: ["players", "seen", search.toString()],
-    queryFn: () => api<{ players: SeenPlayer[]; total: number }>(`/players/seen?${search}`),
+    queryFn: () => api<{ players: SeenPlayer[]; total: number; recording: boolean }>(`/players/seen?${search}`),
     placeholderData: keepPreviousData,
     refetchInterval: 60_000, // the master notes the players online every minute
   })
@@ -112,6 +115,15 @@ export const playerHistoryQuery = (name: string) =>
     queryFn: () => api<PlayerHistory>(`/players/seen/${encodeURIComponent(name)}`),
     refetchInterval: 60_000,
   })
+
+/** Deletes where and when all players were seen, e.g. once the settings no longer record it. */
+export function useDeleteSeenPlayers() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api("/players/seen", { method: "DELETE" }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["players", "seen"] }),
+  })
+}
 
 /** Whether a name is that of a player that the master and the agents take: of Java players, or of Bedrock players with Floodgate's dot. */
 export const validPlayerName = (name: string) => /^\.?[A-Za-z0-9_]{1,16}$/.test(name)

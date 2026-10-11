@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -13,13 +14,19 @@ import (
 
 type Handler struct {
 	svc     *Service
+	tokens  Tokens
 	restart func() error
+}
+
+// Tokens counts the API tokens that expire later than the settings allow new ones to, or never.
+type Tokens interface {
+	TokensOverLimit(ctx context.Context) (int, error)
 }
 
 // NewHandler returns the handler of the settings. restart restarts the master; it is nil if
 // the master can't restart itself.
-func NewHandler(svc *Service, restart func() error) *Handler {
-	return &Handler{svc: svc, restart: restart}
+func NewHandler(svc *Service, tokens Tokens, restart func() error) *Handler {
+	return &Handler{svc: svc, tokens: tokens, restart: restart}
 }
 
 // Register adds the routes. Only administrators may change the panel's address and HTTPS,
@@ -44,20 +51,38 @@ type public struct {
 	Name     string       `json:"name"`
 	Notice   string       `json:"notice"`
 	Defaults UserDefaults `json:"defaults"`
+
+	// The page of setup links tells how many characters passwords need, and how long the links
+	// are valid.
+	MinPasswordLength int `json:"minPasswordLength"`
+	SetupLinkHours    int `json:"setupLinkHours"`
 }
 
 func (h *Handler) public(w http.ResponseWriter, _ *http.Request) {
 	s := h.svc.Get()
-	httpapi.WriteJSON(w, http.StatusOK, public{h.svc.PanelName(), s.SignInNotice, s.UserDefaults})
+	httpapi.WriteJSON(w, http.StatusOK, public{h.svc.PanelName(), s.SignInNotice, s.UserDefaults, s.MinPasswordLength, s.SetupLinkHours})
 }
 
 type view struct {
 	Settings Settings `json:"settings"`
 	Master   Master   `json:"master"`
+	// TokensOverLimit is how many API tokens of all users expire later than new ones may, or never.
+	TokensOverLimit int `json:"tokensOverLimit"`
 }
 
-func (h *Handler) get(w http.ResponseWriter, _ *http.Request) {
-	httpapi.WriteJSON(w, http.StatusOK, view{h.svc.Get(), h.svc.Master()})
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	h.reply(w, r, h.svc.Get())
+}
+
+// reply writes the settings s with the description of the master, and how many API tokens
+// last longer than new ones may.
+func (h *Handler) reply(w http.ResponseWriter, r *http.Request, s Settings) {
+	n, err := h.tokens.TokensOverLimit(r.Context())
+	if err != nil {
+		httpapi.WriteError(w, r, err)
+		return
+	}
+	httpapi.WriteJSON(w, http.StatusOK, view{s, h.svc.Master(), n})
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +113,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	if texts {
 		logging.Note(r.Context(), slog.String("warning_restart", updated.Warnings.Restart), slog.String("warning_stop", updated.Warnings.Stop))
 	}
-	httpapi.WriteJSON(w, http.StatusOK, view{updated, h.svc.Master()})
+	if u := updated; u.MinPasswordLength != cur.MinPasswordLength || u.SetupLinkHours != cur.SetupLinkHours || u.MaxTokenDays != cur.MaxTokenDays || u.SessionIdleHours != cur.SessionIdleHours {
+		logging.Note(r.Context(), slog.Int("min_password_length", u.MinPasswordLength), slog.Int("setup_link_hours", u.SetupLinkHours),
+			slog.Int("max_token_days", u.MaxTokenDays), slog.Int("session_idle_hours", u.SessionIdleHours))
+	}
+	h.reply(w, r, updated)
 }
 
 // restartMaster restarts the master once the response is sent.

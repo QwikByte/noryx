@@ -27,11 +27,11 @@ import { accessQuery, catalogQuery } from "@/features/access/api"
 import type { Permission } from "@/features/access/permissions"
 import { PermissionsField } from "@/features/access/permissions-field"
 import { accessOf } from "@/features/access/use-access"
-import { formatAgo, formatDate } from "@/lib/format"
+import { formatAgo, formatDate, formatHours } from "@/lib/format"
 import { msg } from "@/lib/i18n"
 import { useNow } from "@/lib/use-now"
 import { AccountRow } from "./account-row"
-import { type ApiToken, tokensQuery, type User, useCreateToken, useRevokeToken } from "./api"
+import { type ApiToken, limitsQuery, tokensQuery, type User, useCreateToken, useRevokeToken } from "./api"
 
 /** How long new tokens are valid, in days; 0 for no expiry. */
 const expiries = [
@@ -40,6 +40,15 @@ const expiries = [
   { days: "365", label: msg("1 year") },
   { days: "0", label: msg("No expiry") },
 ]
+
+/** The expiries within the longest lifetime the settings allow, which is one of them, or all of them without a limit. */
+function allowedExpiries(maxDays: number) {
+  const allowed = expiries
+    .filter((e) => !maxDays || (e.days !== "0" && Number(e.days) <= maxDays))
+    .map((e) => ({ days: e.days, label: t(e.label) }))
+  if (maxDays && !allowed.some((e) => Number(e.days) === maxDays)) allowed.push({ days: String(maxDays), label: formatHours(maxDays * 24) })
+  return allowed
+}
 
 const linkClass = "font-medium text-primary underline-offset-4 hover:underline"
 
@@ -122,6 +131,9 @@ function CreateTokenDialog({ user }: { user: User }) {
   const { data: catalog } = useQuery(catalogQuery)
   const { data: grants } = useQuery(accessQuery)
   const set = (change: Partial<typeof emptyForm>) => setForm({ ...form, ...change })
+  // An expiry the settings don't allow, e.g. the default of 90 days, gives way to the longest they do.
+  const allowed = allowedExpiries(useQuery(limitsQuery).data?.maxTokenDays ?? 0)
+  const days = allowed.some((e) => e.days === form.days) ? form.days : allowed[allowed.length - 1].days
   // Only the permissions the user has somewhere are offered; a token never gets more anyway.
   const access = accessOf(grants)
   const own = catalog
@@ -136,11 +148,10 @@ function CreateTokenDialog({ user }: { user: User }) {
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const days = Number(form.days)
     create.mutate(
       {
         name: form.name,
-        expiresAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : undefined,
+        expiresAt: Number(days) ? new Date(Date.now() + Number(days) * 86_400_000).toISOString() : undefined,
         permissions: form.all ? undefined : form.permissions,
         password: form.password,
         code: user.mfa ? form.code : undefined,
@@ -185,14 +196,14 @@ function CreateTokenDialog({ user }: { user: User }) {
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="token-expiry">{t("Expires after")}</FieldLabel>
-                  <Select value={form.days} onValueChange={(days) => set({ days })}>
+                  <Select value={days} onValueChange={(days) => set({ days })}>
                     <SelectTrigger id="token-expiry" className="w-full sm:w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {expiries.map((e) => (
+                      {allowed.map((e) => (
                         <SelectItem key={e.days} value={e.days}>
-                          {t(e.label)}
+                          {e.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

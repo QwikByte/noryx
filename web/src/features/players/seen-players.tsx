@@ -61,7 +61,13 @@ export function SeenPlayers({
       <EmptyState
         icon={ClockCounterClockwiseIcon}
         title={q ? t("Nobody found") : t("Nobody was seen yet")}
-        description={q ? undefined : t("The master notes every minute who plays on the game servers.")}
+        description={
+          q
+            ? undefined
+            : data.recording
+              ? t("The master notes every minute who plays on the game servers.")
+              : t("The master no longer notes who plays, as its settings say.")
+        }
       />
     )
   }
@@ -75,6 +81,7 @@ export function SeenPlayers({
           {data.total > data.players.length
             ? t("The {{shown}} players seen last of {{count}}. Search to find the others.", { shown: data.players.length, count: data.total })
             : t("{{count}} players seen", { count: data.total, defaultValue_one: "{{count}} player seen" })}
+          {!data.recording && ` ${t("The master no longer notes who plays, as its settings say.")}`}
         </p>
         <CsvButton
           name="players-seen"

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/plugin"
 	"github.com/QwikByte/noryx/internal/master/template"
 )
 
@@ -23,7 +24,7 @@ func TestTemplates(t *testing.T) {
 			"java": "21", "restartPolicy": "on_crash", "aikarFlags": true, "jvmOptions": []string{"-Dfile.encoding=UTF-8"}, "cpuLimit": 2,
 			"stopTimeout": 300, "timeZone": "Europe/Berlin",
 			"properties": map[string]string{"difficulty": "hard", "motd": "§aWelcome"}, "plugins": []string{"luckperms", "vault"},
-			"versions": map[string]string{"luckperms": "luckperms10"}, "tags": []string{"Survival"},
+			"versions": map[string]string{"luckperms": "luckperms10"}, "channels": map[string]string{"vault": "beta"}, "tags": []string{"Survival"},
 		}
 		change(in)
 		return in
@@ -32,7 +33,7 @@ func TestTemplates(t *testing.T) {
 	var tmpl template.Template
 	api.do("POST", "/api/templates", input(func(map[string]any) {}), http.StatusCreated, &tmpl)
 	if tmpl.Version != "LATEST" || len(tmpl.Plugins) != 2 || tmpl.Plugins[0].Title != "LuckPerms" || tmpl.Plugins[0].Icon != "/api/plugins/icons/luckperms/icon.png" ||
-		tmpl.Plugins[0].VersionNumber != "1.0" || tmpl.Plugins[1].Version != "" || !slices.Equal(tmpl.Tags, []string{"survival"}) {
+		tmpl.Plugins[0].VersionNumber != "1.0" || tmpl.Plugins[1].Version != "" || tmpl.Plugins[1].Channel != "beta" || !slices.Equal(tmpl.Tags, []string{"survival"}) {
 		t.Fatalf("template = %+v", tmpl)
 	}
 	api.do("GET", "/api/templates/"+tmpl.ID, nil, http.StatusOK, &tmpl)
@@ -76,17 +77,19 @@ func TestTemplates(t *testing.T) {
 		t.Fatalf("imported %+v, want %+v", imported, tmpl)
 	}
 	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"motd"`, `"server-port": "1", "motd"`, 1)), http.StatusBadRequest, nil)
-	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"version": 1`, `"version": 2`, 1)), http.StatusBadRequest, nil)
+	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"version": 2`, `"version": 3`, 1)), http.StatusBadRequest, nil)
 	api.do("DELETE", "/api/templates/"+imported.ID, nil, http.StatusNoContent, nil)
 
 	// A server created with a template's settings gets its server.properties before it starts.
 	path := "/api/nodes/" + a.node.ID + "/servers"
-	// It gets the template's tags and plugins, in the versions the template keeps.
+	// It gets the template's tags and plugins, in the versions the template keeps, and takes them
+	// in their channels.
 	server := map[string]any{
 		"name": "Survival", "type": tmpl.Type, "version": tmpl.Version, "memoryMb": tmpl.MemoryMB, "port": 25565, "acceptEula": true,
 		"java": tmpl.Java, "restartPolicy": tmpl.RestartPolicy, "aikarFlags": tmpl.AikarFlags, "jvmOptions": tmpl.JVMOptions,
 		"cpuLimit": tmpl.CPULimit, "stopTimeout": tmpl.StopTimeout, "timeZone": tmpl.TimeZone, "properties": tmpl.Properties,
 		"tags": tmpl.Tags, "plugins": []string{"luckperms", "vault"}, "versions": map[string]string{"luckperms": "luckperms10"},
+		"channels": map[string]string{"vault": "beta"},
 	}
 	var created struct {
 		ID          string
@@ -103,6 +106,11 @@ func TestTemplates(t *testing.T) {
 	check(t, err)
 	if len(plugins) != 2 || plugins[0].Name() != "luckperms-1.0.jar" || plugins[1].Name() != "vault-1.7.jar" {
 		t.Fatalf("plugins = %v", plugins)
+	}
+	var listing plugin.Listing
+	api.do("GET", path+"/"+created.ID+"/plugins", nil, http.StatusOK, &listing)
+	if p := listing.Plugins; len(p) != 2 || p[0].Tracks != "" || p[1].Tracks != "beta" {
+		t.Fatalf("listing = %+v", listing)
 	}
 	var servers []struct {
 		ID   string

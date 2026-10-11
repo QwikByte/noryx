@@ -268,10 +268,11 @@ func (c *Client) VersionsByHash(ctx context.Context, hashes []string) (map[strin
 	return versions, c.call(ctx, http.MethodPost, "/version_files", map[string]any{"hashes": hashes, "algorithm": "sha512"}, &versions)
 }
 
-// Updates returns the newest release for the given loaders and, unless empty, Minecraft
-// version of the projects that the files with the given hashes belong to.
-func (c *Client) Updates(ctx context.Context, hashes, loaderNames []string, gameVersion string) (map[string]Version, error) {
-	body := map[string]any{"hashes": hashes, "algorithm": "sha512", "loaders": loaderNames, "version_types": []string{"release"}}
+// Updates returns the newest version of the given types, e.g. release and beta, for the given
+// loaders and, unless empty, Minecraft version of the projects that the files with the given
+// hashes belong to.
+func (c *Client) Updates(ctx context.Context, hashes, loaderNames []string, gameVersion string, versionTypes []string) (map[string]Version, error) {
+	body := map[string]any{"hashes": hashes, "algorithm": "sha512", "loaders": loaderNames, "version_types": versionTypes}
 	if gameVersion != "" {
 		body["game_versions"] = []string{gameVersion}
 	}
