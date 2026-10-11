@@ -650,6 +650,17 @@ its servers and the datastores.
 Only the node's administrator decides where server data may be stored (`noryx-agent storage add`). The panel can only
 choose among these locations, so a compromised master can't mount other host directories into containers.
 
+## Settings of nodes
+
+The settings that the agent of a node applies itself have bounds that it checks itself too, so that not even a
+compromised master can set them beyond: uploads, backups, copies of backups, dumps and the data of moving servers leave
+1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the node's disk; the
+runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless changed, so that a
+server that writes without end can't fill it either, unless the settings leave it to the runtime's own configuration;
+and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root can read, and
+applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them needs the
+permission to change the node.
+
 ## Installation
 
 The installer only runs once it is downloaded completely, downloads only over HTTPS from the releases and installs a

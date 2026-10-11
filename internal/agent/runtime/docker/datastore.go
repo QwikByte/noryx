@@ -254,6 +254,7 @@ func (d *Docker) createDatastoreContainer(ctx context.Context, spec runtime.Data
 			return err
 		}
 	}
+	opts.HostConfig.LogConfig = d.logConfig()
 	d.adapt(&opts)
 	_, err = d.cli.ContainerCreate(ctx, opts)
 	return err

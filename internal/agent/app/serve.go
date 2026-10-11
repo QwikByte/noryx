@@ -71,7 +71,7 @@ func serve(ctx context.Context, cfg config) error {
 	defer rt.Close()
 
 	// The master connects via mutual TLS, the local CLI via the Unix socket.
-	svc := newServices(rt, identity, locations, overlay.NewService(cfg.dataDir, overlay.Linux{}), buf, slog.Default())
+	svc := newServices(rt, identity, cfg.dataDir, locations, overlay.NewService(cfg.dataDir, overlay.Linux{}), buf, slog.Default())
 	svc.node.Prereleases = cfg.prereleases
 	remote := svc.grpcServer(agentlogs.FromMaster, grpc.Creds(credentials.NewTLS(pki.AgentServerTLS(identity.Holder, identity.CA))))
 	localSrv := svc.grpcServer(agentlogs.FromLocal, grpc.Creds(local.NewCredentials()))
@@ -138,12 +138,14 @@ type services struct {
 	calls      *slog.Logger
 }
 
-// newServices returns the services, which log the calls they receive to calls.
-func newServices(rt runtime.Runtime, identity *node.Identity, locations *storage.Locations, ov *overlay.Service, buf *agentlogs.Buffer, calls *slog.Logger) *services {
+// newServices returns the services, which log the calls they receive to calls, and applies the
+// settings of the node kept in dataDir.
+func newServices(rt runtime.Runtime, identity *node.Identity, dataDir string, locations *storage.Locations, ov *overlay.Service, buf *agentlogs.Buffer, calls *slog.Logger) *services {
 	backups := backup.NewService(rt, locations)
+	measures := stats.NewService(rt)
 	return &services{
 		rt:         rt,
-		node:       node.NewService(rt, identity, locations),
+		node:       node.NewService(rt, identity, locations, node.LoadSettings(dataDir, rt, measures)),
 		server:     server.NewService(rt, backups, ov),
 		files:      files.NewService(rt),
 		filesets:   fileset.NewService(rt),
@@ -154,7 +156,7 @@ func newServices(rt runtime.Runtime, identity *node.Identity, locations *storage
 		backup:     backups,
 		datastore:  datastore.NewService(rt, locations, ov),
 		overlay:    ov,
-		stats:      stats.NewService(rt),
+		stats:      measures,
 		log:        agentlogs.NewService(buf),
 		progress:   progress.NewRegistry(),
 		calls:      calls,
@@ -185,7 +187,7 @@ func (s *services) grpcServer(origin string, opts ...grpc.ServerOption) *grpc.Se
 
 // NewGRPCServer registers all agent services on a new gRPC server for the master. The calls
 // are logged to buf, which the log service reads.
-func NewGRPCServer(rt runtime.Runtime, identity *node.Identity, locations *storage.Locations, ov *overlay.Service, buf *agentlogs.Buffer, opts ...grpc.ServerOption) *grpc.Server {
+func NewGRPCServer(rt runtime.Runtime, identity *node.Identity, dataDir string, locations *storage.Locations, ov *overlay.Service, buf *agentlogs.Buffer, opts ...grpc.ServerOption) *grpc.Server {
 	calls := slog.New(buf.Handler(slog.LevelDebug))
-	return newServices(rt, identity, locations, ov, buf, calls).grpcServer(agentlogs.FromMaster, opts...)
+	return newServices(rt, identity, dataDir, locations, ov, buf, calls).grpcServer(agentlogs.FromMaster, opts...)
 }

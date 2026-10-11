@@ -21,13 +21,14 @@ type Service struct {
 	rt       runtime.Runtime
 	identity *Identity
 	storage  *storage.Locations
+	settings *Settings
 	// Prereleases lets the master update the node to pre-releases too, which the node's
 	// administrator allows with --prereleases.
 	Prereleases bool
 }
 
-func NewService(rt runtime.Runtime, identity *Identity, locations *storage.Locations) *Service {
-	return &Service{rt: rt, identity: identity, storage: locations}
+func NewService(rt runtime.Runtime, identity *Identity, locations *storage.Locations, settings *Settings) *Service {
+	return &Service{rt: rt, identity: identity, storage: locations, settings: settings}
 }
 
 // GetInfo succeeds even if the runtime is down, so the panel can tell an
@@ -36,7 +37,7 @@ func (s *Service) GetInfo(ctx context.Context, _ *noryxv1.GetInfoRequest) (*nory
 	hostname, _ := os.Hostname()
 	res := &noryxv1.GetInfoResponse{
 		AgentVersion: buildinfo.Version, Hostname: hostname, Runtime: noryxv1.RuntimeUnavailable, RuntimeName: s.rt.Name(),
-		CertificateNotAfterUnix: s.identity.Get().Leaf.NotAfter.Unix(),
+		CertificateNotAfterUnix: s.identity.Get().Leaf.NotAfter.Unix(), Settings: s.settings.Get(),
 	}
 	if info, err := s.rt.Info(ctx); err == nil {
 		res.Os, res.CpuCount, res.MemoryBytes, res.RuntimeVersion = info.OS, info.CPUs, info.MemoryBytes, info.Version

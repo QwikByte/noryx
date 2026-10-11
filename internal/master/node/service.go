@@ -56,6 +56,7 @@ type Settings struct {
 	// DefaultStorage is the storage location preselected for new servers.
 	DefaultStorage string `json:"defaultStorage"`
 	Limits
+	Agent
 }
 
 // Limits restrict the servers of a node. New nodes get the defaults of the master's settings.
@@ -80,6 +81,28 @@ func (l Limits) Validate() error {
 	return nil
 }
 
+// Agent holds the settings of a node that its agent applies itself, within the bounds of
+// noryxv1.NodeSettings. The master sends them whenever the agent reports others, e.g. as it was
+// offline when they changed.
+type Agent struct {
+	// LogFileMB and LogFiles limit how much output the runtime keeps of each container created
+	// from now on; 0 for both leaves it to the runtime's configuration.
+	LogFileMB uint32 `json:"logFileMb"`
+	LogFiles  uint32 `json:"logFiles"`
+	// KeepFreeGB is the space that uploads and backups leave free on the node.
+	KeepFreeGB uint32 `json:"keepFreeGb"`
+	// StatsIntervalSeconds is the time between two measurements of what the node uses.
+	StatsIntervalSeconds uint32 `json:"statsIntervalSeconds"`
+}
+
+func agentOf(s *noryxv1.NodeSettings) Agent {
+	return Agent{s.GetLogFileMb(), s.GetLogFiles(), s.GetKeepFreeGb(), s.GetStatsIntervalSeconds()}
+}
+
+func (a Agent) proto() *noryxv1.NodeSettings {
+	return &noryxv1.NodeSettings{LogFileMb: a.LogFileMB, LogFiles: a.LogFiles, KeepFreeGb: a.KeepFreeGB, StatsIntervalSeconds: a.StatsIntervalSeconds}
+}
+
 // Config holds the settings of the master that concern nodes. They can change at any time.
 type Config interface {
 	// EnrollAddr is the host:port join tokens tell agents to enroll at.
@@ -88,7 +111,8 @@ type Config interface {
 	NodeDefaults() Limits
 }
 
-const nodeColumns = `id, name, address, enrolled_at, created_at, certificate_expires_at, default_storage, port_min, port_max, memory_reserve_mb`
+const nodeColumns = `id, name, address, enrolled_at, created_at, certificate_expires_at, default_storage, port_min, port_max, memory_reserve_mb,
+	log_file_mb, log_files, keep_free_gb, stats_interval_seconds`
 
 // StorageName matches the names of storage locations, which agents allow.
 var StorageName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -140,15 +164,17 @@ func (t JoinToken) InstallCommand() string {
 func (s *Service) Create(ctx context.Context, name, address string) (Node, JoinToken, error) {
 	n := Node{
 		ID: strings.ToLower(rand.Text()), Name: strings.TrimSpace(name), Address: strings.TrimSpace(address), CreatedAt: time.Now(),
-		Settings: Settings{DefaultStorage: "default", Limits: s.config.NodeDefaults()},
+		Settings: Settings{DefaultStorage: "default", Limits: s.config.NodeDefaults(), Agent: agentOf(noryxv1.DefaultNodeSettings())},
 	}
 	if err := validate(n); err != nil {
 		return n, JoinToken{}, err
 	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO nodes (id, name, address, created_at, default_storage, port_min, port_max, memory_reserve_mb)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		n.ID, n.Name, n.Address, n.CreatedAt.Unix(), n.DefaultStorage, n.PortMin, n.PortMax, n.MemoryReserveMB)
+		INSERT INTO nodes (id, name, address, created_at, default_storage, port_min, port_max, memory_reserve_mb,
+			log_file_mb, log_files, keep_free_gb, stats_interval_seconds)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		n.ID, n.Name, n.Address, n.CreatedAt.Unix(), n.DefaultStorage, n.PortMin, n.PortMax, n.MemoryReserveMB,
+		n.LogFileMB, n.LogFiles, n.KeepFreeGB, n.StatsIntervalSeconds)
 	if err != nil {
 		return n, JoinToken{}, uniqueName(err, n.Name)
 	}
@@ -164,8 +190,10 @@ func (s *Service) Update(ctx context.Context, n Node) (Node, error) {
 		return n, err
 	}
 	res, err := s.db.ExecContext(ctx, `
-		UPDATE nodes SET name = ?, address = ?, default_storage = ?, port_min = ?, port_max = ?, memory_reserve_mb = ?
-		WHERE id = ?`, n.Name, n.Address, n.DefaultStorage, n.PortMin, n.PortMax, n.MemoryReserveMB, n.ID)
+		UPDATE nodes SET name = ?, address = ?, default_storage = ?, port_min = ?, port_max = ?, memory_reserve_mb = ?,
+			log_file_mb = ?, log_files = ?, keep_free_gb = ?, stats_interval_seconds = ?
+		WHERE id = ?`, n.Name, n.Address, n.DefaultStorage, n.PortMin, n.PortMax, n.MemoryReserveMB,
+		n.LogFileMB, n.LogFiles, n.KeepFreeGB, n.StatsIntervalSeconds, n.ID)
 	if err == nil && rowsAffected(res) == 0 {
 		err = errNotFound
 	}
@@ -190,6 +218,8 @@ func validate(n Node) error {
 		return httpapi.Errorf(http.StatusBadRequest, "Enter the agent address as host:port, for example 203.0.113.10:7443.")
 	case n.DefaultStorage != "" && !StorageName.MatchString(n.DefaultStorage):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose a storage location of the node.")
+	case n.Agent.proto().Problem() != "":
+		return httpapi.Errorf(http.StatusBadRequest, "%s", n.Agent.proto().Problem())
 	}
 	return n.Validate()
 }
@@ -376,7 +406,8 @@ func scanNode(row scanner) (Node, error) {
 	var enrolledAt, certExpiresAt sql.NullInt64
 	var createdAt int64
 	var portMin, portMax, reserve sql.Null[uint32]
-	if err := row.Scan(&n.ID, &n.Name, &n.Address, &enrolledAt, &createdAt, &certExpiresAt, &n.DefaultStorage, &portMin, &portMax, &reserve); err != nil {
+	if err := row.Scan(&n.ID, &n.Name, &n.Address, &enrolledAt, &createdAt, &certExpiresAt, &n.DefaultStorage, &portMin, &portMax, &reserve,
+		&n.LogFileMB, &n.LogFiles, &n.KeepFreeGB, &n.StatsIntervalSeconds); err != nil {
 		return n, err
 	}
 	n.CreatedAt = time.Unix(createdAt, 0)

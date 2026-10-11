@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -208,11 +209,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		Address string `json:"address"`
 		Settings
 	}
-	if err := httpapi.ReadJSON(w, r, &req); err != nil {
-		httpapi.WriteError(w, r, err)
-		return
-	}
 	old, err := h.svc.Get(r.Context(), r.PathValue("id"))
+	req.Agent = old.Agent // unless the request changes them; clients that don't know them leave them out
+	if err == nil {
+		err = httpapi.ReadJSON(w, r, &req)
+	}
 	var n Node
 	if err == nil {
 		n, err = h.svc.Update(r.Context(), Node{ID: old.ID, Name: req.Name, Address: req.Address, Settings: req.Settings})
@@ -228,6 +229,14 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		go h.overlay.Reconcile(context.WithoutCancel(r.Context()))
 		if err := h.networks.ReapplyNode(r.Context(), n.ID); err != nil {
 			v.Warning = err.Error()
+		}
+	}
+	// An agent that doesn't get them now gets them once it is online again.
+	if n.EnrolledAt != nil && n.Agent != old.Agent {
+		ctx, cancel := context.WithTimeout(r.Context(), probeTimeout)
+		defer cancel()
+		if err := h.svc.Configure(ctx, n); err != nil {
+			v.Warning = strings.TrimSpace(v.Warning + " " + configureWarning(err))
 		}
 	}
 	httpapi.WriteJSON(w, http.StatusOK, v)

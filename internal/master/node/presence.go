@@ -18,7 +18,8 @@ const (
 )
 
 // WatchPresence checks the connections to the agents of the enrolled nodes at the given
-// interval until ctx is done, and logs when a node goes offline and when it is back.
+// interval until ctx is done, and logs when a node goes offline and when it is back. Agents
+// that report other settings than their node's get them again.
 func (s *Service) WatchPresence(ctx context.Context, interval time.Duration) {
 	failed := map[string]int{} // checks failed in a row by node ID
 	for {
@@ -44,8 +45,11 @@ func (s *Service) checkPresence(ctx context.Context, failed map[string]int) {
 			wg.Go(func() {
 				ctx, cancel := context.WithTimeout(ctx, presenceTimeout)
 				defer cancel()
-				_, _, err := s.Status(ctx, n.ID)
+				info, _, err := s.Status(ctx, n.ID)
 				online[i] = err == nil
+				if err == nil {
+					s.configured(ctx, n, info)
+				}
 			})
 		}
 	}

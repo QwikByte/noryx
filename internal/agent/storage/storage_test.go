@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -40,5 +41,24 @@ func TestLocations(t *testing.T) {
 	}
 	if _, err := l.Path("ssd"); !errors.Is(err, ErrUnknown) {
 		t.Fatalf("Path of removed location: %v", err)
+	}
+}
+
+// The node's settings choose the space kept free, but never less than MinFree.
+func TestKeepFree(t *testing.T) {
+	t.Cleanup(func() { KeepFree(MinFree) })
+	KeepFree(0)
+	if kept() != MinFree {
+		t.Fatalf("kept %d bytes free, want %d", kept(), MinFree)
+	}
+	f, err := os.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	KeepFree(1 << 60) // more than any disk has
+	var full FullError
+	if err := Fits(f, 0); !errors.As(err, &full) || full.Kept != 1<<60 {
+		t.Fatalf("Fits with 1 EiB kept free: %v", err)
 	}
 }

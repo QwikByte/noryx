@@ -15,8 +15,11 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
+
+	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 )
 
 // Default is the location inside the agent's data directory, which always exists.
@@ -64,25 +67,36 @@ func (l *Locations) List() ([]Location, error) {
 	return locations, nil
 }
 
-// MinFree is the space that uploads and backups leave free on a file system, so that the
-// servers can keep saving their worlds.
-const MinFree = 1 << 30
+// MinFree is the least space that uploads and backups leave free on a file system, so that
+// the servers can keep saving their worlds. The settings of the node can keep more free.
+const MinFree = noryxv1.MinKeepFreeGB << 30
 
-// FullError refuses what would leave less than MinFree free.
-type FullError struct{ Free, Need uint64 }
+// keepFree is the space that uploads and backups leave free, which KeepFree sets; less than
+// MinFree, e.g. before it is set, keeps MinFree.
+var keepFree atomic.Uint64
+
+// KeepFree sets the space that uploads and backups leave free on every file system of the
+// node, at least MinFree.
+func KeepFree(bytes uint64) { keepFree.Store(bytes) }
+
+func kept() uint64 { return max(keepFree.Load(), MinFree) }
+
+// FullError refuses what would leave less than the space kept free.
+type FullError struct{ Free, Need, Kept uint64 }
 
 func (e FullError) Error() string {
-	return fmt.Sprintf("The node has %.1f GB free, but this needs %.1f GB, as 1 GB stays free for the servers.",
-		float64(e.Free)/(1<<30), float64(e.Need)/(1<<30))
+	return fmt.Sprintf("The node has %.1f GB free, but this needs %.1f GB, as %d GB stays free for the servers.",
+		float64(e.Free)/(1<<30), float64(e.Need)/(1<<30), e.Kept>>30)
 }
 
-// Fits returns a FullError unless size more bytes leave MinFree free on the file system of
-// the open file or folder f. A file system whose free space is unknown passes.
+// Fits returns a FullError unless size more bytes leave the space kept free on the file system
+// of the open file or folder f. A file system whose free space is unknown passes.
 func Fits(f *os.File, size int64) error {
 	var st unix.Statfs_t
-	need := uint64(max(size, 0)) + MinFree
+	kept := kept()
+	need := uint64(max(size, 0)) + kept
 	if unix.Fstatfs(int(f.Fd()), &st) == nil && need > free(st) { //nolint:gosec // a file descriptor fits an int
-		return FullError{free(st), need}
+		return FullError{free(st), need, kept}
 	}
 	return nil
 }
@@ -94,8 +108,8 @@ func free(st unix.Statfs_t) uint64 { return st.Bavail * uint64(st.Bsize) }
 const checkEvery = 64 << 20
 
 // Guard returns a writer to w that stops writing before the free space of the file system of
-// the open file or folder f falls below MinFree, which it checks every 64 MiB, e.g. while an
-// upload of unknown size is written.
+// the open file or folder f falls below the space kept free, which it checks every 64 MiB,
+// e.g. while an upload of unknown size is written.
 func Guard(w io.Writer, f *os.File) io.Writer { return &guard{w: w, f: f} }
 
 type guard struct {

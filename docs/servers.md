@@ -289,3 +289,24 @@ the first free port in it) and a memory limit, so that servers together can't ge
 reserve for the system (1 GB unless changed). A server counts with the limit of its container, which gives Java about a
 quarter more than the server's memory and 256 MB for what it needs besides the heap, e.g. 1.5 GB for 1 GB. Name and
 agent address can be changed too.
+
+The node's agent applies three more settings itself. It keeps them across restarts, and gets them again whenever it
+reports others, e.g. as it was offline when they changed:
+
+- **Output of containers:** how much of their output servers and datastores keep, 3 files of 10 MB unless changed, from
+  1 to 10 files of 1 to 100 MB. That is far more than the last 1000 lines that the [console](#console) loads; older
+  output is in the server's log files. A container gets the limit when it is created again, e.g. as the settings of its
+  server are saved or its image is updated, and keeps the one it was created with until then. Docker keeps the files
+  and drops the oldest, while Podman keeps a single file of the size of all of them, which starts empty once it is full.
+  Without a limit, the configuration of the runtime decides, e.g. `log-driver` and `log-opts` in Docker's
+  `/etc/docker/daemon.json` or `log_driver` and `log_size_max` in Podman's `containers.conf`, for one to keep the output
+  in journald.
+- **Space kept free:** uploads, backups, copies of backups from other nodes, dumps of databases and the data of servers
+  that move to the node stop before they leave less free on its disk, from 1 to 50 GiB, 1 GiB unless changed, e.g. more
+  on a node with large worlds, which need room to be saved. Where these pages say that 1 GB stays free, it's this space.
+- **Interval of measurements:** how often the agent measures what the node, its servers and datastores use (see
+  [Usage](monitoring.md#current-values)), from every 5 to every 60 seconds, every 5 unless changed. Longer intervals ask
+  the servers less often for their players and ticks per second, while the panel shows changes later.
+
+Agents of older versions don't take these settings, which the panel says as they are saved; they get them once they
+are updated.

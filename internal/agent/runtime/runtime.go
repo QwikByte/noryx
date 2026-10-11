@@ -266,6 +266,10 @@ type Runtime interface {
 	// the same storage location. The copy is standalone: whatever ties the original to a
 	// network, such as the forwarding secret, is reset or left out.
 	Duplicate(ctx context.Context, from string, spec Spec) error
+	// LimitLogs limits the output that the runtime keeps of each container of a server or
+	// datastore created from now on to files files of up to fileMB MB each; 0 leaves it to
+	// the runtime's configuration.
+	LimitLogs(fileMB, files uint32)
 }
 
 // Find returns the server with the given ID, or ErrNotFound.

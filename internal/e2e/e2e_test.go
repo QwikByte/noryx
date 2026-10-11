@@ -332,7 +332,7 @@ func (m *master) startAgent(t *testing.T, name string, opts ...grpc.ServerOption
 	check(t, err)
 	creds := credentials.NewTLS(pki.AgentServerTLS(a.identity.Holder, a.identity.CA))
 	opts = append(opts, grpc.Creds(creds))
-	serve(t, app.NewGRPCServer(a.runtime, a.identity, storage.New(a.dir), agentoverlay.NewService(a.dir, a.kernel), a.log, opts...), ln)
+	serve(t, app.NewGRPCServer(a.runtime, a.identity, a.dir, storage.New(a.dir), agentoverlay.NewService(a.dir, a.kernel), a.log, opts...), ln)
 	return a
 }
 
@@ -437,6 +437,8 @@ type fakeRuntime struct {
 	down bool
 	// podman makes it tell that it is Podman.
 	podman bool
+	// logLimit is the limit of the output of new containers: MB of a file and files.
+	logLimit [2]uint32
 }
 
 var errDown = errors.New("failed to connect to the docker API")

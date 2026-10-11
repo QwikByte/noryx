@@ -41,8 +41,19 @@ export interface NodeLimits {
   memoryReserveMb: number | null
 }
 
+/** Settings that the agent of a node applies itself; agents of older versions don't take them. */
+export interface AgentSettings {
+  /** The runtime keeps logFiles files of up to logFileMb MB of the output of each container; 0 for both leaves it to the runtime. */
+  logFileMb: number
+  logFiles: number
+  /** GiB that uploads and backups leave free on the node. */
+  keepFreeGb: number
+  /** Seconds between two measurements of what the node uses. */
+  statsIntervalSeconds: number
+}
+
 /** Settings that apply to the servers of a node. */
-export interface NodeSettings extends NodeLimits {
+export interface NodeSettings extends NodeLimits, AgentSettings {
   /** Storage location preselected for new servers. */
   defaultStorage: string
 }

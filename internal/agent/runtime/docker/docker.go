@@ -104,6 +104,7 @@ type Docker struct {
 	podman   *podman  // nil for Docker
 	// refused tells why the agent refuses the runtime that answered last; see check.
 	refused atomic.Pointer[error]
+	output  atomic.Pointer[outputLimit] // see LimitLogs
 }
 
 // Options choose the runtime.
@@ -286,6 +287,7 @@ func (d *Docker) createContainer(ctx context.Context, spec runtime.Spec, netName
 	for _, name := range also {
 		opts.NetworkingConfig.EndpointsConfig[name] = &network.EndpointSettings{}
 	}
+	opts.HostConfig.LogConfig = d.logConfig()
 	d.adapt(&opts)
 	_, err = d.cli.ContainerCreate(ctx, opts)
 	return err

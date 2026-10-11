@@ -111,6 +111,23 @@ Where Podman behaves differently:
   [Settings and images](servers.md#settings-and-images)).
 - Podman before 5.8 tells the time of console lines in whole seconds, so a console that reconnects may show a line
   again.
+- Podman keeps the output of a container in a single file, which starts empty once it reaches the limit of the
+  [node's settings](servers.md#node-settings), so **Load earlier output** finds fewer lines right after.
+
+The images of servers and datastores come from Docker Hub. To pull them through a mirror, e.g. a cache in your own
+network, the agent needs no setting: set `"registry-mirrors": ["https://mirror.example.com"]` in Docker's
+`/etc/docker/daemon.json`, or a mirror of `docker.io` in Podman's `/etc/containers/registries.conf`:
+
+```toml
+[[registry]]
+location = "docker.io"
+
+[[registry.mirror]]
+location = "mirror.example.com"
+```
+
+How much output the runtime keeps of each container is a [setting of the node](servers.md#node-settings), which takes
+the place of what `daemon.json` or `containers.conf` say about it, unless it leaves it to them.
 
 ## Everything on one machine
 
