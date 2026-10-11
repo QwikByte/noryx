@@ -238,10 +238,15 @@ func (d *Docker) podmanEvent(ctx context.Context, msg events.Message, w watched)
 	case events.ActionStart:
 		if !l.restarting {
 			delete(w.inRow, id) // started by the agent, which starts a new row
+			delete(w.carried, id)
 		}
 		l.started, l.died, l.restarting = at, nil, false
 	case events.ActionDie:
 		delete(w.unhealthy, id)
+		delete(w.checks, id)
+		// The agent restarts it as it stayed unhealthy, which keeps the row like its restart policy.
+		l.restarting = w.restarting[id]
+		delete(w.restarting, id)
 		if spec, ok := specOf(msg.Actor.Attributes); ok {
 			d.consoles.Close(spec.ID)
 		}
@@ -258,7 +263,7 @@ func (d *Docker) podmanEvent(ctx context.Context, msg events.Message, w watched)
 		died := *l.died
 		l.died, l.restarting = nil, true
 		if spec, ok := specOf(died.Attributes); ok {
-			d.count(ctx, died, spec.ID, math.MaxInt, w.inRow)
+			d.count(ctx, died, spec, math.MaxInt, w.inRow)
 		}
 	case events.ActionHealthStatus:
 		res, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})

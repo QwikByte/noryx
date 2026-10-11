@@ -87,6 +87,13 @@ type Settings struct {
 	// HealthStart is how many minutes game servers get to start before their failed health
 	// checks count; 0 means the default.
 	HealthStart uint32 `json:"healthStart"`
+	// CrashLimit is after how many crashes in a row the agent stops a server, each within
+	// StableAfter minutes of its start; 0 means the default of each.
+	CrashLimit  uint32 `json:"crashLimit"`
+	StableAfter uint32 `json:"stableAfter"`
+	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
+	// unhealthy, which counts as a crash; 0 means never.
+	UnhealthyRestart uint32 `json:"unhealthyRestart"`
 }
 
 // Input is a new or changed template.
@@ -200,7 +207,7 @@ func (s *Service) build(ctx context.Context, in Input) (Template, error) {
 	}
 	t.RestartPolicy = noryxv1.ParseRestartPolicy(t.RestartPolicy).Slug()
 	t.StopTimeout = stopSeconds(t.StopTimeout)
-	t.HealthStart = healthStart(t.HealthStart, typ)
+	t.advancedDefaults()
 	t.JVMOptions = append([]string{}, t.JVMOptions...)
 	if t.Properties == nil {
 		t.Properties = map[string]string{}
@@ -279,6 +286,12 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Choose a time zone such as Europe/Berlin, or none for UTC."
 	case !noryxv1.ValidHealthStart(t.HealthStart):
 		return "Give the servers 2 to 30 minutes to start."
+	case !noryxv1.ValidCrashLimit(t.CrashLimit):
+		return "Stop the servers after 1 to 20 crashes in a row."
+	case !noryxv1.ValidStableAfter(t.StableAfter):
+		return "Count a run as stable after 1 to 120 minutes."
+	case !noryxv1.ValidUnhealthyRestart(t.UnhealthyRestart):
+		return "Restart unhealthy servers after 1 to 60 minutes, or never."
 	case len(t.JVMOptions) > maxJVMOptions:
 		return "Use at most 32 JVM options."
 	case typ.Proxy() && len(t.Properties) > 0:
@@ -346,7 +359,7 @@ func scan(row scanner) (Template, error) {
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
 	t.StopTimeout = stopSeconds(t.StopTimeout) // templates saved before they had one
-	t.HealthStart = healthStart(t.HealthStart, noryxv1.ParseServerType(t.Type))
+	t.advancedDefaults()
 	return t, nil
 }
 
@@ -355,13 +368,15 @@ func stopSeconds(seconds uint32) uint32 {
 	return cmp.Or(seconds, uint32(noryxv1.DefaultStopTimeout/time.Second))
 }
 
-// healthStart is the start period of the health check of servers of a type in minutes; 0 means
-// the default, which proxies keep.
-func healthStart(minutes uint32, typ noryxv1.ServerType) uint32 {
-	if typ.Proxy() {
-		minutes = 0
+// advancedDefaults gives the advanced settings their defaults where they have none, e.g. as the
+// template was saved before it had them. Proxies keep the start period of their image.
+func (s *Settings) advancedDefaults() {
+	if noryxv1.ParseServerType(s.Type).Proxy() {
+		s.HealthStart = 0
 	}
-	return cmp.Or(minutes, uint32(noryxv1.DefaultHealthStart/time.Minute))
+	s.HealthStart = cmp.Or(s.HealthStart, uint32(noryxv1.DefaultHealthStart/time.Minute))
+	s.CrashLimit = cmp.Or(s.CrashLimit, noryxv1.DefaultCrashLimit)
+	s.StableAfter = cmp.Or(s.StableAfter, uint32(noryxv1.DefaultStableAfter/time.Minute))
 }
 
 func uniqueName(err error, name string) error {

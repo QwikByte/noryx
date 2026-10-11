@@ -260,6 +260,7 @@ func newServer(req *noryxv1.CreateServerRequest) (runtime.Spec, error) {
 		TimeZone:      req.GetTimeZone(),
 		HealthStart:   req.GetHealthStartMinutes(),
 	}
+	spec.CrashLimit, spec.StableAfter, spec.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
 	switch {
 	case !req.GetAcceptEula() && !req.GetType().Proxy():
 		return spec, status.Error(codes.InvalidArgument, "Accept the Minecraft EULA to create a game server.")
@@ -342,7 +343,8 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 		Storage: h.GetStorage(), Java: h.GetJava(), RestartPolicy: h.GetRestartPolicy(), AikarFlags: h.GetAikarFlags(),
 		JVMOptions: h.GetJvmOptions(), CPUMillis: h.GetCpuMillis(), LoaderVersion: h.GetLoaderVersion(),
 		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(),
-		HealthStart: h.GetHealthStartMinutes(),
+		HealthStart: h.GetHealthStartMinutes(), CrashLimit: h.GetCrashLimit(), StableAfter: h.GetStableAfterMinutes(),
+		UnhealthyRestart: h.GetUnhealthyRestartMinutes(),
 	}
 	_, knownType := noryxv1.ServerType_name[int32(spec.Type)]
 	switch {
@@ -421,6 +423,7 @@ func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerReq
 	srv.JVMOptions, srv.CPUMillis, srv.LoaderVersion = req.GetJvmOptions(), req.GetCpuMillis(), req.GetLoaderVersion()
 	srv.StopTimeout, srv.TimeZone = req.GetStopTimeoutSeconds(), req.GetTimeZone()
 	srv.HealthStart = req.GetHealthStartMinutes()
+	srv.CrashLimit, srv.StableAfter, srv.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
 	release, err := s.check(ctx, srv.Spec)
 	if err != nil {
 		return nil, err
@@ -836,7 +839,7 @@ func toProto(s runtime.Server) *noryxv1.Server {
 		JvmOptions: s.JVMOptions, CpuMillis: s.CPUMillis, Crashes: uint32(s.Crashes), ExitCode: int32(s.ExitCode), //nolint:gosec // small numbers
 		LoaderVersion: s.LoaderVersion, BedrockPort: s.BedrockPort, RefusedJvmOptions: refusedOptions(s.JVMOptions),
 		Overlay: s.Overlay != "", Unhealthy: s.Unhealthy, StopTimeoutSeconds: s.StopTimeout, TimeZone: s.TimeZone,
-		HealthStartMinutes: s.HealthStart,
+		HealthStartMinutes: s.HealthStart, CrashLimit: s.CrashLimit, StableAfterMinutes: s.StableAfter, UnhealthyRestartMinutes: s.UnhealthyRestart,
 	}
 }
 

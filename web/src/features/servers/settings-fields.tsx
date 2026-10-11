@@ -30,8 +30,8 @@ const javaVersions: [value: string, label: string][] = [
 ]
 
 const restartPolicies: [RestartPolicy, string, string][] = [
-  ["always", msg("Always running"), msg("Starts with the node and after a crash, unless you stopped it or it crashed 5 times in a row.")],
-  ["on_crash", msg("After a crash"), msg("Starts again when it crashes, up to 5 times in a row.")],
+  ["always", msg("Always running"), msg("Starts with the node and after a crash, unless you stopped it or it keeps crashing.")],
+  ["on_crash", msg("After a crash"), msg("Starts again when it crashes, unless it keeps crashing.")],
   ["never", msg("Only manually"), msg("Starts only when you start it.")],
 ]
 
@@ -256,43 +256,6 @@ export function StopTimeoutField({
       </Select>
       <FieldDescription>
         {t("How long the server may take to save its worlds when it stops or restarts before it is killed. Large modded worlds may need longer.")}
-      </FieldDescription>
-    </Field>
-  )
-}
-
-const healthStarts = [2, 5, 10, 15, 20, 30]
-
-/** How long a game server may take to start before its failed health checks count, from 2 to 30 minutes. */
-export function HealthStartField({
-  id = "settings-health-start",
-  value,
-  onChange,
-}: {
-  id?: string
-  value: number
-  onChange: (minutes: number) => void
-}) {
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{t("Start period")}</FieldLabel>
-      <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-        <SelectTrigger id={id} className="w-full sm:w-64">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {[...new Set([...healthStarts, value])]
-            .sort((a, b) => a - b)
-            .map((minutes) => (
-              <SelectItem key={minutes} value={String(minutes)}>
-                {formatSeconds(minutes * 60)}
-                {minutes === 2 && <span className="text-muted-foreground">{t("Default")}</span>}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
-      <FieldDescription>
-        {t("How long the server may take to start before a failing health check makes it unhealthy. Large modpacks may need 10 minutes or more.")}
       </FieldDescription>
     </Field>
   )

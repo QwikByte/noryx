@@ -23,6 +23,14 @@ func TestCheckAdvanced(t *testing.T) {
 		{"start period that overflows", func(s *runtime.Spec) { s.HealthStart = 307445737 }, false},
 		{"default start period of a proxy", func(s *runtime.Spec) { s.Type, s.HealthStart = noryxv1.ServerType_SERVER_TYPE_VELOCITY, 2 }, true},
 		{"start period of a proxy", func(s *runtime.Spec) { s.Type, s.HealthStart = noryxv1.ServerType_SERVER_TYPE_VELOCITY, 10 }, false},
+		{"crash settings", func(s *runtime.Spec) { s.CrashLimit, s.StableAfter, s.UnhealthyRestart = 1, 120, 60 }, true},
+		{"crash settings of a proxy", func(s *runtime.Spec) {
+			s.Type, s.CrashLimit, s.StableAfter, s.UnhealthyRestart = noryxv1.ServerType_SERVER_TYPE_VELOCITY, 20, 1, 1
+		}, true},
+		{"too high a crash limit", func(s *runtime.Spec) { s.CrashLimit = 21 }, false},
+		{"too long until a run is stable", func(s *runtime.Spec) { s.StableAfter = 121 }, false},
+		{"too long until an unhealthy server restarts", func(s *runtime.Spec) { s.UnhealthyRestart = 61 }, false},
+		{"restart of an unhealthy server that overflows", func(s *runtime.Spec) { s.UnhealthyRestart = 307445737 }, false},
 	} {
 		spec := valid
 		tt.change(&spec)

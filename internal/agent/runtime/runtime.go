@@ -96,6 +96,13 @@ type Spec struct {
 	// HealthStart is how many minutes a game server gets to start before its failed health
 	// checks count; 0 means the default.
 	HealthStart uint32 `json:"healthStart,omitempty"`
+	// CrashLimit is after how many crashes in a row the agent stops the server, each within
+	// StableAfter minutes of its start; 0 means the default of each.
+	CrashLimit  uint32 `json:"crashLimit,omitempty"`
+	StableAfter uint32 `json:"stableAfter,omitempty"`
+	// UnhealthyRestart is after how many minutes the agent restarts a running server that stays
+	// unhealthy, which counts as a crash; 0 means never.
+	UnhealthyRestart uint32 `json:"unhealthyRestart,omitempty"`
 }
 
 // Uses reports whether a server uses a port of the node: its own, or the UDP port at which

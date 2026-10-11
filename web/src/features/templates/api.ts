@@ -21,6 +21,11 @@ export interface TemplateSettings {
   timeZone: string
   /** Minutes game servers get to start before their failed health checks count. */
   healthStart: number
+  /** Crashes in a row, each within stableAfter minutes of its start, after which the agent stops a server. */
+  crashLimit: number
+  stableAfter: number
+  /** Minutes after which the agent restarts a running server that stays unhealthy; 0 for never. */
+  unhealthyRestart: number
   /** Written to server.properties before the first start. */
   properties: Record<string, string>
 }
@@ -84,6 +89,9 @@ export const emptyTemplate: TemplateDraft = {
   stopTimeout: 60,
   timeZone: "",
   healthStart: 2,
+  crashLimit: 5,
+  stableAfter: 10,
+  unhealthyRestart: 0,
   properties: {},
   tags: [],
   plugins: [],
@@ -92,7 +100,8 @@ export const emptyTemplate: TemplateDraft = {
 export function draftOf(t: Template): TemplateDraft {
   const { name, description, type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, tags, plugins } = t
   const settings = { type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties }
-  return { name, description, ...settings, stopTimeout: t.stopTimeout, timeZone: t.timeZone, healthStart: t.healthStart, tags, plugins }
+  const { stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart } = t
+  return { name, description, ...settings, stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart, tags, plugins }
 }
 
 export const templatesQuery = queryOptions({

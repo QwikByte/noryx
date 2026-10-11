@@ -138,6 +138,14 @@ message Server {
   // Minutes a game server gets to start before its failed health checks count, e.g. as a large
   // modpack loads; 0 for the default of 2, as older agents report it.
   uint32 health_start_minutes = 24;
+  // Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
+  // agents report it.
+  uint32 crash_limit = 25;
+  // Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
+  uint32 stable_after_minutes = 26;
+  // Minutes after which the agent restarts a running server that stays unhealthy, which counts as
+  // a crash; 0 for never.
+  uint32 unhealthy_restart_minutes = 27;
 }
 
 message ListServersRequest {}
@@ -169,6 +177,9 @@ message CreateServerRequest {
   uint32 stop_timeout_seconds = 15;
   string time_zone = 16;
   uint32 health_start_minutes = 18;
+  uint32 crash_limit = 19;
+  uint32 stable_after_minutes = 20;
+  uint32 unhealthy_restart_minutes = 21;
 }
 
 message CreateServerResponse {
@@ -214,6 +225,16 @@ message UpdateServerRequest {
   // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
   // as older masters send it, means 2. Proxies keep the start period of their image.
   uint32 health_start_minutes = 15;
+  // Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
+  // the server, from 1 to 20; 0, as older masters send it, means 5.
+  uint32 crash_limit = 16;
+  // Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
+  // means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+  uint32 stable_after_minutes = 17;
+  // Minutes, from 1 to 60, after which the agent restarts a running server whose health check
+  // keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
+  // of them. 0, as older masters send it, for never.
+  uint32 unhealthy_restart_minutes = 18;
 }
 
 message UpdateServerResponse {

@@ -15,11 +15,11 @@ import { nodeQuery } from "@/features/nodes/api"
 import { useOperation } from "@/features/operations/use-operation"
 import { UsageWarnings } from "@/features/usage/thresholds"
 import { cn } from "@/lib/utils"
+import { CrashFields, HealthStartField } from "./advanced-fields"
 import { freeMemoryMb, type Server, type ServerSettings, serversQuery, useServer, useUpdateImage, useUpdateServer } from "./api"
 import { isModded, serverType, splitOptions } from "./server-types"
 import {
   CpuLimitField,
-  HealthStartField,
   JavaFields,
   JvmOptionsField,
   MemoryField,
@@ -93,7 +93,8 @@ function UpdateImage({ nodeId, server }: { nodeId: string; server: Server }) {
 function settingsOf(s: Server): ServerSettings {
   const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone } = s
   const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone }
-  return { ...settings, healthStart: s.healthStart }
+  const { healthStart, crashLimit, stableAfter, unhealthyRestart } = s
+  return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart }
 }
 
 function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
@@ -179,6 +180,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
         <RestartPolicyField value={form.restartPolicy} onChange={(restartPolicy) => set({ restartPolicy })} />
         <StopTimeoutField value={form.stopTimeout} onChange={(stopTimeout) => set({ stopTimeout })} />
         {game && <HealthStartField value={form.healthStart} onChange={(healthStart) => set({ healthStart })} />}
+        <CrashFields id="settings-crashes" value={form} onChange={set} />
       </FormSection>
 
       <FormSection title={t("Java")}>

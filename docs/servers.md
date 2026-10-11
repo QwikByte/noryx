@@ -122,13 +122,13 @@ needs the permission to change files.
 
 The settings of a server can be changed after it was created: name, Minecraft version, the version of the mod loader of
 Fabric, Quilt, Forge and NeoForge servers (the newest unless set), memory, port, Java version (8, 11, 17, 21, 25 or the
-newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout, the time zone and the
-start period of a game server's health check. The agent creates the container again with the same data; the old
-container is only removed once the new one exists. A server keeps the image it was created with; **Update image** in its
-settings pulls the newest one and, if it changed, creates the container again the same way. The old image is removed
-once no server uses it. New servers get the newest image too: creating one pulls it, which downloads its changes if it
-was updated since. Deleting servers keeps their images. Servers created from a modpack show it in their settings, where
-they move to [another version of it](library.md#modpacks).
+newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout, the time zone, the start
+period of a game server's health check and how the agent treats [crashes and hangs](#crashes-and-health). The agent
+creates the container again with the same data; the old container is only removed once the new one exists. A server
+keeps the image it was created with; **Update image** in its settings pulls the newest one and, if it changed, creates
+the container again the same way. The old image is removed once no server uses it. New servers get the newest image too:
+creating one pulls it, which downloads its changes if it was updated since. Deleting servers keeps their images. Servers
+created from a modpack show it in their settings, where they move to [another version of it](library.md#modpacks).
 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
@@ -178,13 +178,22 @@ its `TimeoutStopSec` the same way, in `/etc/systemd/system/podman-restart.servic
 
 A server that crashed and starts again shows as **crashing**, with how often it crashed and its exit code. After 5
 crashes in a row, each within 10 minutes of its start, the agent stops it, as Docker or Podman would start it again
-forever. Each crash is a warning in the log, which the bell counts, and the notice on the server's page links to its
-crash reports.
+forever. **Crashes** under **Starting and stopping** in its settings changes both: from 1 to 20 crashes in a row, and a
+stable run from 1 minute to 2 hours, after which a crash starts a new row, e.g. longer for a large modpack that crashes
+after 15 minutes, or fewer crashes for a small server. Each crash is a warning in the log, which the bell counts, and
+the notice on the server's page links to its crash reports.
 
 The images check the health of their server every 30 seconds, a game server with `mc-health`. A server that runs but
 fails its health check twice in a row after its [start period](#settings-and-images), e.g. as it hangs, shows as
 **unhealthy** on its card and page and under what needs attention on the overview; the log tells when it becomes
 unhealthy and healthy again. It still counts as running: its console, restarts, stops and schedules work as usual.
+
+**Restart when unhealthy**, also under **Crashes** and off unless chosen, has the agent restart a running server whose
+health check has failed for 1 to 60 minutes, so never during its start period. The restart is a warning in the log and
+counts as a crash, so a server that keeps hanging is stopped after its crashes in a row; a restart after the server was
+healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds. Agents of earlier versions
+keep 5 crashes in a row, 10 minutes and no restarts, which saving the settings, creating a server and moving one to their
+node tell.
 
 ## Copies
 

@@ -269,7 +269,7 @@ func (h *Handler) runMove(ctx context.Context, mv Move, src *noryxv1.Server, req
 		if w := olderAgentWarning(src.GetStopTimeoutSeconds(), src.GetTimeZone(), imported); w != "" {
 			warnings = append(warnings, w)
 		}
-		if w := olderAgentAdvanced(toView(src).settings, imported); w != "" {
+		if w := olderAgentAdvanced(advancedOf(src), imported); w != "" {
 			warnings = append(warnings, w)
 		}
 	}
@@ -339,7 +339,8 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		Port: req.Port, Storage: req.Storage, Java: src.GetJava(), RestartPolicy: src.GetRestartPolicy(),
 		AikarFlags: src.GetAikarFlags(), JvmOptions: src.GetJvmOptions(), CpuMillis: src.GetCpuMillis(), LoaderVersion: src.GetLoaderVersion(),
 		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(),
-		HealthStartMinutes: src.GetHealthStartMinutes(),
+		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
+		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(),
 	}
 	var res *noryxv1.ImportServerResponse
 	res, err = node.Relay(ctx,

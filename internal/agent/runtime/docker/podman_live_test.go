@@ -125,7 +125,8 @@ func TestPodmanLive(t *testing.T) {
 		}()
 		time.Sleep(time.Second)
 		liveContainer(t, d, id, &container.Config{Cmd: []string{"sh", "-c", "sleep 2; exit 3"}}, &container.HostConfig{RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyAlways}})
-		// Each run takes 2 seconds; the agent stops the server after maxCrashes.
+		// Each run takes 2 seconds; the agent stops the server after its crash limit.
+		maxCrashes := noryxv1.DefaultCrashLimit
 		time.Sleep(time.Duration(maxCrashes)*3*time.Second + 10*time.Second)
 		cancel()
 		<-watching

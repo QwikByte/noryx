@@ -323,8 +323,16 @@ type Server struct {
 	// Minutes a game server gets to start before its failed health checks count, e.g. as a large
 	// modpack loads; 0 for the default of 2, as older agents report it.
 	HealthStartMinutes uint32 `protobuf:"varint,24,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
+	// agents report it.
+	CrashLimit uint32 `protobuf:"varint,25,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	// Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
+	StableAfterMinutes uint32 `protobuf:"varint,26,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	// Minutes after which the agent restarts a running server that stays unhealthy, which counts as
+	// a crash; 0 for never.
+	UnhealthyRestartMinutes uint32 `protobuf:"varint,27,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -518,6 +526,27 @@ func (x *Server) GetHealthStartMinutes() uint32 {
 	return 0
 }
 
+func (x *Server) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *Server) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *Server) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
+	}
+	return 0
+}
+
 type ListServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -617,13 +646,16 @@ type CreateServerRequest struct {
 	JvmOptions    []string      `protobuf:"bytes,11,rep,name=jvm_options,json=jvmOptions,proto3" json:"jvm_options,omitempty"`
 	CpuMillis     uint32        `protobuf:"varint,12,opt,name=cpu_millis,json=cpuMillis,proto3" json:"cpu_millis,omitempty"`
 	// Properties of server.properties for a game server, written before its first start.
-	Properties         map[string]string `protobuf:"bytes,13,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	LoaderVersion      string            `protobuf:"bytes,14,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
-	StopTimeoutSeconds uint32            `protobuf:"varint,15,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
-	TimeZone           string            `protobuf:"bytes,16,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	HealthStartMinutes uint32            `protobuf:"varint,18,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	Properties              map[string]string `protobuf:"bytes,13,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	LoaderVersion           string            `protobuf:"bytes,14,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
+	StopTimeoutSeconds      uint32            `protobuf:"varint,15,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
+	TimeZone                string            `protobuf:"bytes,16,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	HealthStartMinutes      uint32            `protobuf:"varint,18,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	CrashLimit              uint32            `protobuf:"varint,19,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	StableAfterMinutes      uint32            `protobuf:"varint,20,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	UnhealthyRestartMinutes uint32            `protobuf:"varint,21,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *CreateServerRequest) Reset() {
@@ -771,6 +803,27 @@ func (x *CreateServerRequest) GetTimeZone() string {
 func (x *CreateServerRequest) GetHealthStartMinutes() uint32 {
 	if x != nil {
 		return x.HealthStartMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
 	}
 	return 0
 }
@@ -1081,8 +1134,18 @@ type UpdateServerRequest struct {
 	// Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
 	// as older masters send it, means 2. Proxies keep the start period of their image.
 	HealthStartMinutes uint32 `protobuf:"varint,15,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
+	// the server, from 1 to 20; 0, as older masters send it, means 5.
+	CrashLimit uint32 `protobuf:"varint,16,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
+	// Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
+	// means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+	StableAfterMinutes uint32 `protobuf:"varint,17,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
+	// Minutes, from 1 to 60, after which the agent restarts a running server whose health check
+	// keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
+	// of them. 0, as older masters send it, for never.
+	UnhealthyRestartMinutes uint32 `protobuf:"varint,18,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *UpdateServerRequest) Reset() {
@@ -1209,6 +1272,27 @@ func (x *UpdateServerRequest) GetTimeZone() string {
 func (x *UpdateServerRequest) GetHealthStartMinutes() uint32 {
 	if x != nil {
 		return x.HealthStartMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetCrashLimit() uint32 {
+	if x != nil {
+		return x.CrashLimit
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetStableAfterMinutes() uint32 {
+	if x != nil {
+		return x.StableAfterMinutes
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetUnhealthyRestartMinutes() uint32 {
+	if x != nil {
+		return x.UnhealthyRestartMinutes
 	}
 	return 0
 }
@@ -2462,7 +2546,7 @@ var File_noryx_v1_server_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x87\x06\n" +
+	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x96\a\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2490,10 +2574,14 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\tunhealthy\x18\x14 \x01(\bR\tunhealthy\x120\n" +
 	"\x14stop_timeout_seconds\x18\x15 \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
 	"\ttime_zone\x18\x16 \x01(\tR\btimeZone\x120\n" +
-	"\x14health_start_minutes\x18\x18 \x01(\rR\x12healthStartMinutes\"\x14\n" +
+	"\x14health_start_minutes\x18\x18 \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x19 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x1a \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x1b \x01(\rR\x17unhealthyRestartMinutes\"\x14\n" +
 	"\x12ListServersRequest\"A\n" +
 	"\x13ListServersResponse\x12*\n" +
-	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xc4\x05\n" +
+	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xd3\x06\n" +
 	"\x13CreateServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x14.noryx.v1.ServerTypeR\x04type\x12\x18\n" +
@@ -2518,7 +2606,11 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x0eloader_version\x18\x0e \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\x0f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
 	"\ttime_zone\x18\x10 \x01(\tR\btimeZone\x120\n" +
-	"\x14health_start_minutes\x18\x12 \x01(\rR\x12healthStartMinutes\x1a=\n" +
+	"\x14health_start_minutes\x18\x12 \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x13 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x14 \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x15 \x01(\rR\x17unhealthyRestartMinutes\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
@@ -2532,7 +2624,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x12StopServerResponse\"&\n" +
 	"\x14RestartServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15RestartServerResponse\"\xe1\x03\n" +
+	"\x15RestartServerResponse\"\xf0\x04\n" +
 	"\x13UpdateServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2551,7 +2643,11 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x0eloader_version\x18\v \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
 	"\ttime_zone\x18\r \x01(\tR\btimeZone\x120\n" +
-	"\x14health_start_minutes\x18\x0f \x01(\rR\x12healthStartMinutes\"@\n" +
+	"\x14health_start_minutes\x18\x0f \x01(\rR\x12healthStartMinutes\x12\x1f\n" +
+	"\vcrash_limit\x18\x10 \x01(\rR\n" +
+	"crashLimit\x120\n" +
+	"\x14stable_after_minutes\x18\x11 \x01(\rR\x12stableAfterMinutes\x12:\n" +
+	"\x19unhealthy_restart_minutes\x18\x12 \x01(\rR\x17unhealthyRestartMinutes\"@\n" +
 	"\x14UpdateServerResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\"$\n" +
 	"\x12UpdateImageRequest\x12\x0e\n" +

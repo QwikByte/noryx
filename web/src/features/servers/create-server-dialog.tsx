@@ -216,6 +216,9 @@ export function CreateServerDialog({
         cpuLimit,
         properties,
         healthStart: template.healthStart,
+        crashLimit: template.crashLimit,
+        stableAfter: template.stableAfter,
+        unhealthyRestart: template.unhealthyRestart,
         versions: keptVersions(template.plugins),
         channels: keptChannels(template.plugins),
       })

@@ -233,6 +233,7 @@ func TestPodmanEvents(t *testing.T) {
 			mu.Unlock()
 		},
 	})
+	maxCrashes, stableAfter := noryxv1.DefaultCrashLimit, noryxv1.DefaultStableAfter // as the server keeps the defaults
 	logged := captureLog(t)
 	w := watched{inRow: map[string]int{}, unhealthy: map[string]bool{}, lives: map[string]*life{}}
 	labels := map[string]string{labelSpec: `{"id":"s1"}`, "exitCode": "1"}

@@ -46,6 +46,11 @@ export interface Server {
   timeZone: string
   /** Minutes a game server gets to start before its failed health checks count, e.g. as a large modpack loads. */
   healthStart: number
+  /** Crashes in a row, each within stableAfter minutes of its start, after which the agent stops the server. */
+  crashLimit: number
+  stableAfter: number
+  /** Minutes after which the agent restarts a running server that stays unhealthy, which counts as a crash; 0 for never. */
+  unhealthyRestart: number
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -70,7 +75,13 @@ export type ServerSettings = Pick<
   | "stopTimeout"
   | "timeZone"
   | "healthStart"
+  | "crashLimit"
+  | "stableAfter"
+  | "unhealthyRestart"
 >
+
+/** When the agent stops a server that keeps crashing, and restarts one that stays unhealthy. */
+export type CrashSettings = Pick<Server, "crashLimit" | "stableAfter" | "unhealthyRestart">
 
 /** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
 export interface NewServerSettings {
@@ -134,6 +145,9 @@ export interface NewServer
   properties?: Record<string, string>
   /** Minutes the server gets to start, e.g. those of its template; 10 for a modpack unless given. */
   healthStart?: number
+  crashLimit?: number
+  stableAfter?: number
+  unhealthyRestart?: number
   /** A modpack decides the type and the versions of the server. */
   modpack?: ModpackChoice
   /** Given to the new server, e.g. those of its template. */

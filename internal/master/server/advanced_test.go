@@ -23,21 +23,24 @@ func TestWarnsOfOlderAgentsAdvanced(t *testing.T) {
 		{http.MethodPut, "/api/nodes/n1/servers/s1", ""},
 	} {
 		for settings, warns := range map[string]bool{
-			``:                    false,
-			`, "healthStart": 2`:  false,
-			`, "healthStart": 10`: true,
+			``: false,
+			`, "healthStart": 2, "crashLimit": 5, "stableAfter": 10, "unhealthyRestart": 0`: false,
+			`, "healthStart": 10`:     true,
+			`, "crashLimit": 2`:       true,
+			`, "stableAfter": 30`:     true,
+			`, "unhealthyRestart": 5`: true,
 		} {
 			body := `{` + req.body + `"name": "Lobby", "memoryMb": 1024, "port": 25565` + settings + `}`
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest(req.method, req.path, strings.NewReader(body)))
 			var res struct {
-				HealthStart uint32
-				Warning     string
+				advanced
+				Warning string
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code >= 300 {
 				t.Fatalf("%s %s: status %d: %s", req.method, body, rec.Code, rec.Body)
 			}
-			if res.HealthStart != 2 || (res.Warning != "") != warns {
+			if res.advanced != (advanced{2, 5, 10, 0}) || (res.Warning != "") != warns {
 				t.Errorf("%s %s: %+v", req.method, body, res)
 			}
 		}

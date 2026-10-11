@@ -16,10 +16,10 @@ import { TracksPill } from "@/features/plugins/channel-pill"
 import { PluginIcon } from "@/features/plugins/plugin-icon"
 import { PluginSearch } from "@/features/plugins/plugin-search"
 import { VersionMenu } from "@/features/plugins/version-menu"
+import { CrashFields, HealthStartField } from "@/features/servers/advanced-fields"
 import { defaults, serverType, splitOptions } from "@/features/servers/server-types"
 import {
   CpuLimitField,
-  HealthStartField,
   JavaFields,
   JvmOptionsField,
   MemoryField,
@@ -149,6 +149,7 @@ export function TemplateForm({
         {!type.proxy && (
           <HealthStartField id="template-health-start" value={form.healthStart} onChange={(healthStart) => set({ healthStart })} />
         )}
+        <CrashFields id="template-crashes" value={form} onChange={set} />
       </FormSection>
 
       <FormSection title={t("Java")}>
