@@ -3,7 +3,7 @@ import { Fold } from "@/components/fold"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatMegabytes, formatSeconds } from "@/lib/format"
-import type { CrashSettings, ResourceSettings } from "./api"
+import { type CrashSettings, initialHeap, type ResourceSettings } from "./api"
 import { memoryOptionsMb } from "./server-types"
 
 // Advanced settings shared by the settings of a server and the templates for new servers.
@@ -67,10 +67,6 @@ export function HealthStartField({
     </Field>
   )
 }
-
-/** The initial heap a server gets: none below its memory with Aikar's flags, which start Java with all of it. */
-export const initialHeap = ({ initMemoryMb, memoryMb, aikarFlags }: { initMemoryMb: number; memoryMb: number; aikarFlags: boolean }) =>
-  aikarFlags || initMemoryMb >= memoryMb ? 0 : initMemoryMb
 
 /** How many processes a server may run, and the heap Java starts with, folded away. */
 export function ResourceFields({

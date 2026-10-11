@@ -103,6 +103,10 @@ export type CrashSettings = Pick<Server, "crashLimit" | "stableAfter" | "unhealt
 /** How many processes a server may run, and the heap Java starts with. */
 export type ResourceSettings = Pick<Server, "processLimit" | "initMemoryMb">
 
+/** The initial heap a server gets: none below its memory with Aikar's flags, which start Java with all of it. */
+export const initialHeap = ({ initMemoryMb, memoryMb, aikarFlags }: { initMemoryMb: number; memoryMb: number; aikarFlags: boolean }) =>
+  aikarFlags || initMemoryMb >= memoryMb ? 0 : initMemoryMb
+
 /** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
 export interface NewServerSettings {
   type: string
