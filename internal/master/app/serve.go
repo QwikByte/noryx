@@ -161,7 +161,7 @@ func serve(ctx context.Context, cfg config) error {
 	if err := tasks.Start(ctx); err != nil {
 		return err
 	}
-	notifications := notify.New(db, logStore, conf, notify.Options{})
+	notifications := notify.New(db, logStore, tasks, conf, notify.Options{})
 	go notifications.Run(ctx)
 	workflows := workflow.NewService(db, workflow.Deps{
 		Nodes: nodes, Targets: tasks, Networks: networks, Players: player.NewService(nodes, networks, geyser), Usage: usageStore,

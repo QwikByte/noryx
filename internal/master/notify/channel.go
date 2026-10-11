@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	_ "time/tzdata" // channels give times in IANA time zones, which minimal systems don't have
 	"unicode"
 
 	"github.com/QwikByte/noryx/internal/master/httpapi"
@@ -43,6 +44,16 @@ const (
 	maxPassword   = 1024
 )
 
+// A channel sends up to perMinute messages a minute once the first few went, see burst, with up
+// to perMessage entries each, and counts the others, unless it chooses others within the bounds,
+// which keep a server in a crash loop from flooding it. Discord takes at most 10 embeds, one per
+// entry, in a message.
+const (
+	perMinute, maxPerMinute   = 1, 10
+	perMessage, maxPerMessage = 10, 25
+	maxDiscordEntries         = 10
+)
+
 var (
 	errChannelNotFound = httpapi.Errorf(http.StatusNotFound, "Notification channel not found.")
 	hostname           = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$`)
@@ -58,6 +69,13 @@ type Channel struct {
 	Host      string    `json:"host"`
 	Email     *Mail     `json:"email,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+	// MessagesPerMinute is how many messages it sends a minute at most once the first few went,
+	// and EntriesPerMessage how many entries each has at most.
+	MessagesPerMinute int `json:"messagesPerMinute"`
+	EntriesPerMessage int `json:"entriesPerMessage"`
+	// TimeZone is the IANA time zone of the times in its texts; empty is UTC. Webhooks get the
+	// times in UTC whatever it is.
+	TimeZone string `json:"timeZone"`
 	// HasPassword tells whether a mail channel signs in with a password.
 	HasPassword bool `json:"hasPassword,omitempty"`
 	// SentAt is when the channel last sent a notification, and Problem why the last one failed,
@@ -89,16 +107,33 @@ type ChannelInput struct {
 	// Password of the mail server; empty keeps the one stored, which a channel only keeps while
 	// its server and user stay the same, so that it can't be sent to another server.
 	Password string `json:"password"`
+	// Zero numbers are 1 message a minute and 10 entries a message, and an empty time zone is UTC.
+	MessagesPerMinute int    `json:"messagesPerMinute"`
+	EntriesPerMessage int    `json:"entriesPerMessage"`
+	TimeZone          string `json:"timeZone"`
 }
 
 // build validates a channel; old is the stored one when it changes.
 func (in ChannelInput) build(old *Channel) (Channel, error) {
-	ch := Channel{Name: strings.TrimSpace(in.Name), Kind: in.Kind}
+	ch := Channel{
+		Name: strings.TrimSpace(in.Name), Kind: in.Kind, TimeZone: in.TimeZone,
+		MessagesPerMinute: cmp.Or(in.MessagesPerMinute, perMinute), EntriesPerMessage: cmp.Or(in.EntriesPerMessage, perMessage),
+	}
+	entries := maxPerMessage
+	if ch.Kind == Discord {
+		entries = maxDiscordEntries
+	}
 	switch {
 	case ch.Name == "" || len(ch.Name) > maxName || strings.ContainsFunc(ch.Name, unicode.IsControl):
 		return ch, httpapi.Errorf(http.StatusBadRequest, "Enter a name of up to %d characters.", maxName)
 	case old != nil && old.Kind != ch.Kind:
 		return ch, httpapi.Errorf(http.StatusBadRequest, "A channel keeps its kind. Create another channel instead.")
+	case ch.MessagesPerMinute < 1 || ch.MessagesPerMinute > maxPerMinute:
+		return ch, httpapi.Errorf(http.StatusBadRequest, "Choose 1 to %d messages a minute.", maxPerMinute)
+	case ch.EntriesPerMessage < 1 || ch.EntriesPerMessage > entries:
+		return ch, httpapi.Errorf(http.StatusBadRequest, "Choose 1 to %d entries a message.", entries)
+	case !zoneName(ch.TimeZone):
+		return ch, httpapi.Errorf(http.StatusBadRequest, "Choose an IANA time zone, e.g. Europe/Berlin, or none for UTC.")
 	}
 	switch ch.Kind {
 	case Discord, Slack, Webhook:
@@ -135,6 +170,24 @@ func (in ChannelInput) build(old *Channel) (Channel, error) {
 		return ch, httpapi.Errorf(http.StatusBadRequest, "Choose the kind discord, slack, webhook or email.")
 	}
 	return ch, nil
+}
+
+// zoneName tells whether a time zone is empty, which is UTC, or an IANA time zone. Local, the
+// master's own, isn't one, and IANA names are short, so longer ones aren't looked up at all.
+func zoneName(name string) bool {
+	if len(name) > 64 || name == "Local" {
+		return false
+	}
+	_, err := time.LoadLocation(name)
+	return err == nil
+}
+
+// zone is the time zone of the times in the channel's texts, which zoneName checked.
+func (ch *Channel) zone() *time.Location {
+	if loc, err := time.LoadLocation(ch.TimeZone); err == nil {
+		return loc
+	}
+	return time.UTC
 }
 
 // checkURL checks the URL of a webhook: HTTPS, and not at an address that isn't public, which
@@ -204,7 +257,7 @@ func address(s string) (string, error) {
 	return a.Address, nil
 }
 
-const channelColumns = `id, name, kind, email, secret, created_at`
+const channelColumns = `id, name, kind, email, secret, created_at, messages_per_minute, entries_per_message, time_zone`
 
 func scanChannel(row interface{ Scan(...any) error }) (Channel, error) {
 	var (
@@ -212,7 +265,7 @@ func scanChannel(row interface{ Scan(...any) error }) (Channel, error) {
 		email string
 		at    int64
 	)
-	if err := row.Scan(&ch.ID, &ch.Name, &ch.Kind, &email, &ch.secret, &at); err != nil {
+	if err := row.Scan(&ch.ID, &ch.Name, &ch.Kind, &email, &ch.secret, &at, &ch.MessagesPerMinute, &ch.EntriesPerMessage, &ch.TimeZone); err != nil {
 		return ch, err
 	}
 	ch.CreatedAt = time.Unix(at, 0)
@@ -272,8 +325,8 @@ func (s *Service) CreateChannel(ctx context.Context, in ChannelInput) (Channel, 
 	ch.ID, ch.CreatedAt = strings.ToLower(rand.Text()), time.Now()
 	email, err := ch.emailJSON()
 	if err == nil {
-		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_channels (`+channelColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,
-			ch.ID, ch.Name, ch.Kind, email, ch.secret, ch.CreatedAt.Unix())
+		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_channels (`+channelColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ch.ID, ch.Name, ch.Kind, email, ch.secret, ch.CreatedAt.Unix(), ch.MessagesPerMinute, ch.EntriesPerMessage, ch.TimeZone)
 	}
 	if err != nil {
 		return ch, uniqueName(err)
@@ -295,7 +348,8 @@ func (s *Service) UpdateChannel(ctx context.Context, id string, in ChannelInput)
 	}
 	email, err := ch.emailJSON()
 	if err == nil {
-		_, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET name = ?, email = ?, secret = ? WHERE id = ?`, ch.Name, email, ch.secret, id)
+		_, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET name = ?, email = ?, secret = ?, messages_per_minute = ?, entries_per_message = ?,
+			time_zone = ? WHERE id = ?`, ch.Name, email, ch.secret, ch.MessagesPerMinute, ch.EntriesPerMessage, ch.TimeZone, id)
 	}
 	if err != nil {
 		return ch, uniqueName(err)

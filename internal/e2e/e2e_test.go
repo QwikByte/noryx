@@ -284,7 +284,7 @@ func (m *master) services(t *testing.T) masterapp.Services {
 	}, moves.Busy)
 	check(t, tasks.Start(t.Context()))
 	fileSets := fileset.NewService(m.db, nodes, networks, tags, datastores, moves)
-	notifications := notify.New(m.db, m.logs, m.settings, notify.Options{})
+	notifications := notify.New(m.db, m.logs, tasks, m.settings, notify.Options{})
 	workflows := workflow.NewService(m.db, workflow.Deps{
 		Nodes: nodes, Targets: tasks, Networks: networks, Players: player.NewService(nodes, networks, geyser), Usage: usageStore,
 		Backups: jobs, Plugins: plugins, Notify: notifications, Logs: m.logs, Names: logs.NewNames(nodes), Access: accessService, Config: m.settings,

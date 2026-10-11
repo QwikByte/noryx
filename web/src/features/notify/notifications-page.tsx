@@ -10,7 +10,9 @@ import { Section } from "@/components/section"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import { useAccess } from "@/features/access/use-access"
 import { AccountRow } from "@/features/auth/account-row"
+import { networksQuery } from "@/features/networks/api"
 import { nodesQuery } from "@/features/nodes/api"
 import { allServersQuery } from "@/features/servers/api"
 import { formatAgo } from "@/lib/format"
@@ -175,10 +177,21 @@ function RuleRow({ rule, channels }: { rule: Rule; channels: Channel[] }) {
   const remove = useDeleteRule()
   const { data: nodes } = useQuery(nodesQuery)
   const { data: servers } = useQuery({ ...allServersQuery, enabled: !!rule.serverId })
+  const access = useAccess()
+  const { data: networks } = useQuery({ ...networksQuery, enabled: !!rule.networkId && access.can("networks.view") })
   const channel = channels.find((c) => c.id === rule.channelId)
   const node = rule.nodeId && (nodes?.find((n) => n.id === rule.nodeId)?.name ?? rule.nodeId)
   const server = rule.serverId && (servers?.find((s) => s.nodeId === rule.nodeId && s.id === rule.serverId)?.name ?? rule.serverId)
-  const where = server ? t("{{server}} on {{node}}", { server, node }) : node ? t("Node {{node}}", { node }) : t("All nodes and servers")
+  const network = rule.networkId && (networks?.find((n) => n.id === rule.networkId)?.name ?? t("A network"))
+  const where = server
+    ? t("{{server}} on {{node}}", { server, node })
+    : node
+      ? t("Node {{node}}", { node })
+      : rule.tag
+        ? t("Servers with the tag {{tag}}", { tag: rule.tag })
+        : network
+          ? t("Servers of {{network}}", { network })
+          : t("All nodes and servers")
   const kind = channel ? kinds[channel.kind] : kinds.webhook
   return (
     <AccountRow
@@ -194,8 +207,8 @@ function RuleRow({ rule, channels }: { rule: Rule; channels: Channel[] }) {
             checked={rule.enabled}
             disabled={save.isPending}
             onCheckedChange={(enabled) => {
-              const { id, channelId, level, categories, nodeId, serverId } = rule
-              save.mutate({ id, channelId, enabled, level, categories, nodeId, serverId }, { onError: (e) => toast.error(e.message) })
+              const { id, channelId, level, categories, nodeId, serverId, tag, networkId } = rule
+              save.mutate({ id, channelId, enabled, level, categories, nodeId, serverId, tag, networkId }, { onError: (e) => toast.error(e.message) })
             }}
           />
           <RuleDialog

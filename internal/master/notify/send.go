@@ -2,6 +2,7 @@ package notify
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -28,18 +29,21 @@ import (
 	"github.com/QwikByte/noryx/internal/master/logs"
 )
 
-const (
-	sendTimeout = 30 * time.Second
-	// maxEntries are sent in a message at most; the message counts the others.
-	maxEntries = 10
-)
+const sendTimeout = 30 * time.Second
 
 // message is what a channel sends at once: entries of the log, and how many others it
-// couldn't send, as there were too many or sending failed. A test has neither.
+// couldn't send, as there were too many or sending failed. A test has neither. Its texts give
+// times in zone, UTC if it has none.
 type message struct {
 	entries []logs.Entry
 	more    int
 	test    bool
+	zone    *time.Location
+}
+
+// at is the time of an entry in the time zone of the message, e.g. 2026-10-08 14:00:00 CEST.
+func (m message) at(e logs.Entry) string {
+	return e.Time.In(cmp.Or(m.zone, time.UTC)).Format(time.DateTime + " MST")
 }
 
 const testText = "This is a test of Noryx. The entries of the log that the rules choose for this channel arrive here."
@@ -55,6 +59,7 @@ func (m message) summary() string {
 func (s *Service) send(ctx context.Context, ch *Channel, m message) error {
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
+	m.zone = ch.zone()
 	switch ch.Kind {
 	case Discord:
 		return s.post(ctx, ch.secret, discord(m))
@@ -157,16 +162,17 @@ func discordEscape(s string) string {
 
 var discordColours = map[string]int{"info": 0x3b82f6, "warn": 0xf59e0b, "error": 0xef4444}
 
-// discord is the payload of a Discord webhook: an embed per entry. allowed_mentions turns
-// mentions off besides. Texts are cut before they are escaped, which at most doubles them, so
-// that a message stays within Discord's limits of 256 characters for a title and 6000 for all
-// embeds.
+// discord is the payload of a Discord webhook: an embed per entry, whose text gives its time
+// in the channel's time zone and whose timestamp Discord shows in each reader's. allowed_mentions
+// turns mentions off besides. Texts are cut before they are escaped, which at most doubles them,
+// so that a message of up to 10 entries stays within Discord's limits of 256 characters for a
+// title and 6000 for all embeds.
 func discord(m message) map[string]any {
 	embeds := []map[string]any{}
 	for _, e := range m.entries {
 		embeds = append(embeds, map[string]any{
 			"title":       discordEscape(plain(levelName(e)+": "+e.Message, 100)),
-			"description": discordEscape(plain(details(e), 160)),
+			"description": discordEscape(plain(details(e), 160) + " · " + m.at(e)),
 			"color":       discordColours[logging.LevelName(e.Level)],
 			"timestamp":   e.Time.UTC().Format(time.RFC3339),
 		})
@@ -193,7 +199,7 @@ func slackText(s string) map[string]any {
 func slack(m message, panel string) map[string]any {
 	blocks := []map[string]any{}
 	for _, e := range m.entries {
-		text := plain(levelName(e)+": "+e.Message, 350) + "\n" + plain(details(e)+" · "+e.Time.UTC().Format(time.DateTime)+" UTC", 350)
+		text := plain(levelName(e)+": "+e.Message, 350) + "\n" + plain(details(e)+" · "+m.at(e), 350)
 		blocks = append(blocks, map[string]any{"type": "section", "text": slackText(text)})
 	}
 	fallback := slackEscape(panel) + ": new entries of the log"
@@ -208,7 +214,8 @@ func slack(m message, panel string) map[string]any {
 }
 
 // Payload is what a generic webhook gets, as JSON: the entries of the log, oldest first, in
-// the form the API returns them, and how many others weren't sent. A test has no entries.
+// the form the API returns them with times in UTC, and how many others weren't sent. A test has
+// no entries.
 type Payload struct {
 	Test    bool         `json:"test"`
 	Entries []logs.Entry `json:"entries"`
@@ -216,7 +223,11 @@ type Payload struct {
 }
 
 func webhook(m message) Payload {
-	return Payload{Test: m.test, Entries: append([]logs.Entry{}, m.entries...), NotSent: m.more}
+	p := Payload{Test: m.test, Entries: append([]logs.Entry{}, m.entries...), NotSent: m.more}
+	for i := range p.Entries {
+		p.Entries[i].Time = p.Entries[i].Time.UTC()
+	}
+	return p
 }
 
 // mail sends a message by mail, over TLS from the start or after STARTTLS, never in plain text.
@@ -332,7 +343,7 @@ func mailMessage(cfg *Mail, m message, panel string) []byte {
 		}
 		var b strings.Builder
 		for _, e := range m.entries {
-			fmt.Fprintf(&b, "%s, %s UTC\n%s\n%s\n\n", levelName(e), e.Time.UTC().Format(time.DateTime), plain(e.Message, 2000), plain(details(e), 2000))
+			fmt.Fprintf(&b, "%s, %s\n%s\n%s\n\n", levelName(e), m.at(e), plain(e.Message, 2000), plain(details(e), 2000))
 		}
 		if summary := m.summary(); summary != "" {
 			b.WriteString(summary + "\n")

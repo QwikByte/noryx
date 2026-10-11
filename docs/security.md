@@ -455,8 +455,12 @@ servers are stored in the master's database like the forwarding secret; the API 
 them, also not in errors, and an empty field keeps them, so that nobody who may manage notifications learns them. A mail
 channel keeps its password only while its server, port and user stay the same, so that it can't be sent to another
 server. Messages carry the texts of entries, never secrets, which aren't logged; entries can hold IP addresses and the
-names of players, which the panel says where channels are set up. A rule of a server that is deleted, or of a node that
-is removed, is deleted with it rather than left to send the entries of its node or of all nodes.
+names of players, which the panel says where channels are set up. A rule of a server that is deleted, of a node that is
+removed or of a network that is deleted, is deleted with it rather than left to send the entries of its node or of all
+nodes. Rules of tags and networks find their servers in what the master stores, never by asking agents, and an agent's
+entries are only about servers of its own node, so it can't add them to the rule of a server elsewhere. Whoever may
+change the settings of a server, which include its tags, can put it under a rule of a tag or take it out of one, as
+with backup jobs.
 
 Channels connect to public addresses only, so that the master can't be used to reach its own network: the address of
 every connection is checked right before it is made, after DNS answered, so that a name can't resolve to another address
@@ -471,8 +475,8 @@ Discord, which also gets no mentions allowed, and as Slack's plain text with `&`
 the panel in its notifications. The subjects of mails, and the name of the panel in them and as their sender, are a
 single line without control characters and encoded, so that neither an entry nor the name can add headers. A compromised agent
 can only add warnings about its own node and servers, at the limited rate of the log, and each channel sends 5 messages
-at once, then one a minute at most, which counts what it leaves out. **Send test** works three times at once, then once
-every 20 seconds per channel.
+at once, then as many a minute as it is set to, 10 at most, with up to 25 entries each, and counts what it leaves out.
+**Send test** works three times at once, then once every 20 seconds per channel.
 
 ## Workflows
 

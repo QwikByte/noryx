@@ -1,9 +1,9 @@
 // Package notify sends new entries of the log elsewhere: to Discord, Slack, a webhook or by
-// mail. Rules choose the entries by their level, category, node and server, and send them to
-// a channel. Entries that come at once are sent together, and each channel sends a few messages
-// at once and then one a minute at most, which count what they leave out. Channels only
-// connect to public addresses over TLS, and their secrets, the URLs of webhooks and the
-// passwords of mail servers, never leave the master but to their target.
+// mail. Rules choose the entries by their level, category, node and server, or tag or network,
+// and send them to a channel. Entries that come at once are sent together, and each channel
+// sends a few messages at once and then as many a minute as it may, which count what they leave
+// out. Channels only connect to public addresses over TLS, and their secrets, the URLs of
+// webhooks and the passwords of mail servers, never leave the master but to their target.
 package notify
 
 import (
@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,14 +26,17 @@ import (
 	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/logs"
 	"github.com/QwikByte/noryx/internal/master/ratelimit"
+	"github.com/QwikByte/noryx/internal/master/schedule"
 )
 
 const (
 	// pageSize entries of the log are read at once.
 	pageSize = 500
-	// A channel sends burst messages at once, then one every interval.
+	// A channel sends burst messages at once, then as many every interval as it may.
 	burst    = 5
 	interval = time.Minute
+	// groupsTTL is how long the servers of tags and networks are kept, as they change.
+	groupsTTL = 30 * time.Second
 	// retryAfter is when a message that failed is sent once more.
 	retryAfter = 30 * time.Second
 	// readRetry is when the log is read again after reading it failed.
@@ -42,6 +46,11 @@ const (
 // Config tells the name of the panel, which messages name as where they come from: in the
 // subjects and as the sender of mails, and in the notifications of Slack.
 type Config interface{ PanelName() string }
+
+// Targets tell which servers have a tag or are in a network now, see schedule.Service.
+type Targets interface {
+	Matcher(ctx context.Context, targets []schedule.Target) (func(nodeID, serverID string) bool, error)
+}
 
 // Options are for tests: production uses none.
 type Options struct {
@@ -56,15 +65,17 @@ type Options struct {
 
 // Service follows the log and sends what the rules choose through their channels.
 type Service struct {
-	db     *sql.DB
-	logs   *logs.Store
-	conf   Config
-	dialer *net.Dialer
-	client *http.Client
-	roots  *x509.CertPool
-	tests  *ratelimit.Limiter
+	db      *sql.DB
+	logs    *logs.Store
+	targets Targets
+	conf    Config
+	dialer  *net.Dialer
+	client  *http.Client
+	roots   *x509.CertPool
+	tests   *ratelimit.Limiter
 	// wait is how long entries wait for others, and retry how long a message that failed waits
-	// to be sent again; a channel sends burst messages at once, then one every interval.
+	// to be sent again; a channel sends burst messages at once, then as many every interval as
+	// it may.
 	wait, retry, every time.Duration
 	burst              int
 
@@ -74,10 +85,14 @@ type Service struct {
 	ctx     context.Context
 	rules   []Rule
 	senders map[string]*sender // by channel ID
+	// groups tell which servers have the tags and are in the networks of the rules, as of
+	// resolved.
+	groups   map[schedule.Target]func(nodeID, serverID string) bool
+	resolved time.Time
 }
 
 // New returns the service of notifications, which Run starts.
-func New(db *sql.DB, store *logs.Store, conf Config, o Options) *Service {
+func New(db *sql.DB, store *logs.Store, targets Targets, conf Config, o Options) *Service {
 	dialer := newDialer(o.Allow)
 	transport := &http.Transport{
 		Proxy:                 nil, // a proxy would connect elsewhere than to the checked address
@@ -94,7 +109,7 @@ func New(db *sql.DB, store *logs.Store, conf Config, o Options) *Service {
 		wait = 5 * time.Second
 	}
 	return &Service{
-		db: db, logs: store, conf: conf, dialer: dialer, roots: o.Roots, tests: ratelimit.New(3, 20*time.Second),
+		db: db, logs: store, targets: targets, conf: conf, dialer: dialer, roots: o.Roots, tests: ratelimit.New(3, 20*time.Second),
 		wait: wait, retry: retryAfter, every: interval, burst: burst,
 		client: &http.Client{Transport: transport, Timeout: sendTimeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -144,6 +159,7 @@ func (s *Service) Run(ctx context.Context) {
 			continue
 		}
 		failing = false
+		s.resolve(ctx)
 		for _, e := range entries {
 			after = e.ID
 			s.dispatch(e)
@@ -180,12 +196,49 @@ func (s *Service) dispatch(e logs.Entry) {
 	given := map[string]bool{}
 	for _, r := range s.rules {
 		q := s.senders[r.ChannelID]
-		if q == nil || given[r.ChannelID] || !r.matches(e) || e.Category == logging.Notifications.Value.String() && e.Attrs["channel_id"] == r.ChannelID {
+		if q == nil || given[r.ChannelID] || !r.matches(e, s.groups) ||
+			e.Category == logging.Notifications.Value.String() && e.Attrs["channel_id"] == r.ChannelID {
 			continue
 		}
 		given[r.ChannelID] = true
 		q.add(e)
 	}
+}
+
+// resolve finds the servers of the tags and networks of the enabled rules, again once they are
+// groupsTTL old, as servers move and tags and networks change. If it can't, rules keep the
+// servers it found before, and those of a tag or network it never found send nothing.
+func (s *Service) resolve(ctx context.Context) {
+	s.state.Lock()
+	fresh := time.Since(s.resolved) < groupsTTL
+	var targets []schedule.Target
+	for _, r := range s.rules {
+		if g, ok := r.group(); ok && r.Enabled && !slices.Contains(targets, g) {
+			targets = append(targets, g)
+			fresh = fresh && s.groups[g] != nil
+		}
+	}
+	s.state.Unlock()
+	if fresh || len(targets) == 0 {
+		return
+	}
+	groups := map[schedule.Target]func(nodeID, serverID string) bool{}
+	for _, g := range targets {
+		match, err := s.targets.Matcher(ctx, []schedule.Target{g})
+		if err != nil {
+			slog.Debug("Can't find the servers of tags and networks", logging.Notifications, "err", err)
+			return
+		}
+		groups[g] = match
+	}
+	s.state.Lock()
+	s.groups, s.resolved = groups, time.Now()
+	s.state.Unlock()
+}
+
+// limit is how often a channel may send once its first messages went.
+func (s *Service) limit(ch *Channel) rate.Limit {
+	return rate.Every(s.every / time.Duration(max(ch.MessagesPerMinute, 1)))
 }
 
 // reload applies the stored channels and rules. The changes lock is held, or Run starts.
@@ -208,8 +261,9 @@ func (s *Service) reload(ctx context.Context) error {
 		switch {
 		case q != nil:
 			q.channel.Store(&ch)
+			q.limit.SetLimit(s.limit(&ch))
 		case s.ctx != nil:
-			q = &sender{svc: s, limit: rate.NewLimiter(rate.Every(s.every), s.burst), wake: make(chan struct{}, 1)}
+			q = &sender{svc: s, limit: rate.NewLimiter(s.limit(&ch), s.burst), wake: make(chan struct{}, 1)}
 			q.channel.Store(&ch)
 			var qctx context.Context
 			qctx, q.stop = context.WithCancel(s.ctx)
@@ -324,7 +378,7 @@ type sender struct {
 // add queues an entry, or counts it if the next message is full.
 func (q *sender) add(e logs.Entry) {
 	q.mu.Lock()
-	if len(q.queue) < maxEntries {
+	if len(q.queue) < q.channel.Load().EntriesPerMessage {
 		q.queue = append(q.queue, e)
 	} else {
 		q.more++

@@ -24,6 +24,11 @@ export interface Channel {
   host: string
   email?: MailSettings
   hasPassword?: boolean
+  /** How many messages it sends a minute once the first few went, and how many entries each has at most. */
+  messagesPerMinute: number
+  entriesPerMessage: number
+  /** The IANA time zone of the times in its texts; empty is UTC. Webhooks get UTC. */
+  timeZone: string
   createdAt: string
   /** When it last sent, and why it last failed, since the master started. */
   sentAt?: string
@@ -37,9 +42,16 @@ export interface ChannelInput {
   url?: string
   email?: MailSettings
   password?: string
+  messagesPerMinute: number
+  entriesPerMessage: number
+  timeZone: string
 }
 
-/** Sends the new entries of the log of at least a level, of some categories, a node or a server, to a channel. */
+/** The most messages a minute and entries a message a channel may send; Discord takes 10 entries a message. */
+export const maxPerMinute = 10
+export const maxEntries = (kind: ChannelKind) => (kind === "discord" ? 10 : 25)
+
+/** Sends the new entries of the log of at least a level, of some categories, and of a node, a server, a tag or a network, to a channel. */
 export interface Rule {
   id: string
   channelId: string
@@ -49,6 +61,9 @@ export interface Rule {
   categories: string[]
   nodeId: string
   serverId: string
+  /** The servers with the tag, or the proxy and game servers of the network, when an entry comes. */
+  tag: string
+  networkId: string
   createdAt: string
 }
 

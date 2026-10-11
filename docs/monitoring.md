@@ -165,6 +165,11 @@ password only while its server, port and user stay the same, so that nobody can 
 sends a test message right away and shows why it failed, e.g. that the webhook answered `404 Not Found`; each channel
 allows three tests at once, then one every 20 seconds.
 
+**Messages** choose how many messages a channel sends a minute once its first 5 went, 1 unless changed and up to 10,
+how many entries each has, 10 unless changed and from 1 to 25 (Discord takes up to 10), and the **time zone** of the
+times in mails, Slack and the texts of Discord, e.g. `2026-10-08 14:00:00 CEST`; UTC unless one is chosen. Discord also
+shows the time of each entry in the time zone of each reader, and webhooks always get times in UTC.
+
 Each channel shows when it last sent and why it last failed, since the master started. A message that fails is sent once
 more after 30 seconds, then given up and counted in the next message. When a channel starts to fail, the master logs a
 warning (category **Notifications**) once, and an information entry when it works again; the channel itself doesn't get
@@ -176,18 +181,24 @@ so where channels are set up. Secrets aren't logged, so they are never sent.
 ### Rules
 
 A rule sends the new entries of the log of at least a level (errors; warnings and errors; or information, warnings and
-errors) to a channel: of the categories it chooses, or of all, and of a node or a server if it names one. Rules can be
-turned off. An entry that several rules send to the same channel goes there once. The rules of a server follow it to
-another node; deleting the server deletes its rules, and removing a node those of the node and its servers.
+errors) to a channel: of the categories it chooses, or of all, and of a node or a server, of the servers with a tag, or
+of the proxy and game servers of a network if it names one. A tag or a network has the servers it has as the entries
+come, also those that get the tag or join the network later; the master looks them up again every 30 seconds while
+entries come, without asking the agents. Entries about a node itself, e.g. that it went offline, only match rules of
+the node or of all nodes. Whoever may change the settings of a server, which include its tags, can put it under a rule
+of a tag or take it out of one; the panel says so. Rules can be turned off. An entry that several rules send to the
+same channel goes there once. The rules of a server follow it to another node; deleting the server deletes its rules,
+removing a node those of the node and its servers, and deleting a network those of the network. A rule of a tag stays,
+also while no server has the tag.
 
 The master follows the log as entries are added, also those it collects from the agents, and sends only new ones: after
-a restart, it starts with the entries added from then on. Entries that come within 5 seconds go in one message of at
-most 10 entries, which counts the others. Each channel sends 5 messages at once, then one a minute at most, which
-bundles what came meanwhile. So a server in a crash loop or many agents that warn at once can't flood a channel, and an
-entry, e.g. of a node that went offline, reaches it within a minute. Messages name each entry's level, message, server
-and node, category, user, error and time. Mails come from the name the settings give the panel and start their subjects
-with it, e.g. `Noryx · Test: A server crashed …`, as do the notifications of Slack, so that those of two panels can be
-told apart.
+a restart, it starts with the entries added from then on. Entries that come within 5 seconds go in one message of as
+many entries as the channel takes, which counts the others. Each channel sends 5 messages at once, then as many a
+minute as it is set to, which bundle what came meanwhile. So a server in a crash loop or many agents that warn at once
+can't flood a channel, and an entry, e.g. of a node that went offline, reaches it within a minute. Messages name each
+entry's level, message, server and node, category, user, error and time. Mails come from the name the settings give the
+panel and start their subjects with it, e.g. `Noryx · Test: A server crashed …`, as do the notifications of Slack, so
+that those of two panels can be told apart.
 
 ### Payload of webhooks
 
@@ -216,7 +227,7 @@ with a status of `2xx`; redirects aren't followed.
 }
 ```
 
-`entries` are the entries in the form `GET /api/logs` returns them, oldest first; `user`, `nodeId`, `nodeName`,
-`serverId` and `serverName` are left out when an entry has none. `notSent` counts the entries that matched but weren't
-sent, as the message was full or sending failed before. A test has `"test": true` and no entries. The URL is the only
-credential, so keep it hard to guess, e.g. with a random token in its path.
+`entries` are the entries in the form `GET /api/logs` returns them, oldest first and with times in UTC; `user`,
+`nodeId`, `nodeName`, `serverId` and `serverName` are left out when an entry has none. `notSent` counts the entries that
+matched but weren't sent, as the message was full or sending failed before. A test has `"test": true` and no entries. The
+URL is the only credential, so keep it hard to guess, e.g. with a random token in its path.

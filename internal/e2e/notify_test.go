@@ -20,6 +20,7 @@ import (
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
 	masterapp "github.com/QwikByte/noryx/internal/master/app"
+	"github.com/QwikByte/noryx/internal/master/network"
 	"github.com/QwikByte/noryx/internal/master/notify"
 )
 
@@ -72,7 +73,7 @@ func TestNotifications(t *testing.T) {
 
 	svc := m.services(t)
 	// Tests allow the webhook at localhost, which the master refuses otherwise.
-	svc.Notify = notify.New(m.db, m.logs, m.settings, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots, Wait: 100 * time.Millisecond})
+	svc.Notify = notify.New(m.db, m.logs, svc.Tasks, m.settings, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots, Wait: 100 * time.Millisecond})
 	go svc.Notify.Run(t.Context())
 	srv := httptest.NewTLSServer(masterapp.Handler(svc))
 	t.Cleanup(srv.Close)
@@ -138,4 +139,70 @@ func TestNotifications(t *testing.T) {
 	}
 	invite("lobby-only", false).do("GET", "/api/notifications", nil, http.StatusForbidden, nil)
 	invite("everywhere", true).do("GET", "/api/notifications", nil, http.StatusOK, nil)
+}
+
+// Rules of tags and networks send the entries about the servers that have the tag or are in the
+// network, and a rule of a network leaves with it.
+func TestNotificationsOfTagsAndNetworks(t *testing.T) {
+	m := startMaster(t)
+	a := m.startAgent(t, "node-1")
+	go m.logs.Collect(t.Context(), m.nodes)
+	proxy := m.createServer(t, a, "Proxy", noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25577)
+	lobby := m.createServer(t, a, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
+	survival := m.createServer(t, a, "Survival", noryxv1.ServerType_SERVER_TYPE_PAPER, 25566)
+	hook, url, roots := m.startWebhook(t)
+	svc := m.services(t)
+	svc.Notify = notify.New(m.db, m.logs, svc.Tasks, m.settings, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots, Wait: 100 * time.Millisecond})
+	go svc.Notify.Run(t.Context())
+	srv := httptest.NewTLSServer(masterapp.Handler(svc))
+	t.Cleanup(srv.Close)
+	admin, err := svc.Users.CreateUser(t.Context(), "admin", "the-admins-password")
+	check(t, err)
+	check(t, svc.Access.MakeAdmin(t.Context(), admin.ID))
+	api := browser(t, srv)
+	api.do("POST", "/api/auth/login", map[string]string{"username": "admin", "password": "the-admins-password"}, http.StatusOK, nil)
+
+	var n network.Network
+	api.do("POST", "/api/networks", map[string]any{"name": "Main", "proxy": proxy, "servers": []network.Ref{survival}}, http.StatusCreated, &n)
+	api.do("POST", "/api/servers/tags", map[string]any{"servers": []network.Ref{lobby}, "add": []string{"lobby"}}, http.StatusNoContent, nil)
+	for path, rule := range map[string]map[string]any{"/tagged": {"tag": "lobby"}, "/network": {"networkId": n.ID}} {
+		var ch notify.Channel
+		api.do("POST", "/api/notifications/channels", map[string]string{"name": path, "kind": "webhook", "url": url + path}, http.StatusCreated, &ch)
+		rule["channelId"], rule["enabled"], rule["level"] = ch.ID, true, "warn"
+		api.do("POST", "/api/notifications/rules", rule, http.StatusCreated, nil)
+	}
+
+	agentLog := slog.New(a.log.Handler(slog.LevelInfo))
+	for _, s := range []network.Ref{proxy, lobby, survival} {
+		agentLog.Warn("A server crashed", logging.Servers, logging.KeyServer, s.ServerID)
+	}
+	crashed := func() map[string][]string {
+		got := map[string][]string{}
+		payloads, paths := hook.got()
+		for i, p := range payloads {
+			for _, e := range p.Entries {
+				if e.Message == "A server crashed" {
+					got[paths[i]] = append(got[paths[i]], e.ServerName)
+				}
+			}
+		}
+		for _, names := range got {
+			slices.Sort(names)
+		}
+		return got
+	}
+	for deadline := time.Now().Add(10 * time.Second); len(crashed()["/network"]) < 2 && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+	}
+	time.Sleep(300 * time.Millisecond) // nothing else arrives
+	if got := crashed(); !slices.Equal(got["/tagged"], []string{"Lobby"}) || !slices.Equal(got["/network"], []string{"Proxy", "Survival"}) {
+		t.Fatalf("sent = %v", got)
+	}
+
+	// Deleting the network deletes its rule; the rule of the tag stays.
+	api.do("DELETE", "/api/networks/"+n.ID, nil, http.StatusOK, nil)
+	var got struct{ Rules []notify.Rule }
+	api.do("GET", "/api/notifications", nil, http.StatusOK, &got)
+	if len(got.Rules) != 1 || got.Rules[0].Tag != "lobby" {
+		t.Fatalf("rules after deleting the network = %+v", got.Rules)
+	}
 }

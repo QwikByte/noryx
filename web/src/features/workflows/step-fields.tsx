@@ -592,7 +592,7 @@ function Notify({ value, set }: { value: Settings; set: Set }) {
       <Choice id="step-channel" label={t("Channel")} value={value.channel} onChange={(channel) => set({ channel })} options={(data?.channels ?? []).map((c) => ({ value: c.id, label: c.name }))} />
       <Choice id="step-level" label={t("Level")} value={value.level || "info"} onChange={(level) => set({ level })} options={levelOptions()} />
       <Text id="step-message" label={t("Message")} value={value.message} onChange={(message) => set({ message })} multiline />
-      <FieldDescription>{t("The channel sends it like an entry of the log, a few at once and then one a minute at most.")}</FieldDescription>
+      <FieldDescription>{t("The channel sends it like an entry of the log, a few at once and then at most as many a minute as it is set to.")}</FieldDescription>
     </>
   )
 }
