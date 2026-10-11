@@ -405,7 +405,7 @@ export const kinds: Record<string, KindInfo> = {
   },
   plugins: {
     label: msg("Update plugins"),
-    description: msg("Plugins and mods get their newest release, never a beta."),
+    description: msg("Plugins and mods get the newest version of their channel, releases unless chosen."),
     icon: PuzzlePieceIcon,
     tone: "success",
     group: "servers",

@@ -100,11 +100,13 @@ func startModrinth(t *testing.T) *fakeModrinth {
 		writeJSON(w, found[0])
 	})
 	mux.HandleFunc("POST /v2/version_files", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, f.byHash(r, func(found modrinth.Version, _ []string) (modrinth.Version, bool) { return found, true }))
+		writeJSON(w, f.byHash(r, func(found modrinth.Version, _, _ []string) (modrinth.Version, bool) { return found, true }))
 	})
 	mux.HandleFunc("POST /v2/version_files/update", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, f.byHash(r, func(found modrinth.Version, loaders []string) (modrinth.Version, bool) {
-			newer := f.find(func(v modrinth.Version) bool { return v.ProjectID == found.ProjectID && overlaps(v.Loaders, loaders) })
+		writeJSON(w, f.byHash(r, func(found modrinth.Version, loaders, types []string) (modrinth.Version, bool) {
+			newer := f.find(func(v modrinth.Version) bool {
+				return v.ProjectID == found.ProjectID && overlaps(v.Loaders, loaders) && slices.Contains(types, v.VersionType)
+			})
 			if len(newer) == 0 {
 				return found, false
 			}
@@ -132,6 +134,12 @@ func (f *fakeModrinth) project(id, title string, loaders []string) {
 // version adds a version, newer than the ones before, with a file named <project>-<number>.jar.
 func (f *fakeModrinth) version(project, number string, loaders []string, requires ...string) {
 	f.release(project, number, project+"-"+number+".jar", []byte(project+" "+number), loaders, requires...)
+}
+
+// preRelease adds a version like version in a channel, beta or alpha.
+func (f *fakeModrinth) preRelease(channel, project, number string, loaders []string) {
+	f.version(project, number, loaders)
+	f.versions[len(f.versions)-1].VersionType = channel
 }
 
 // release adds a version, newer than the ones before, with a file on the CDN at
@@ -199,10 +207,11 @@ func (f *fakeModrinth) find(match func(modrinth.Version) bool) []modrinth.Versio
 }
 
 // byHash answers a lookup of files by hash with the version that pick chooses.
-func (f *fakeModrinth) byHash(r *http.Request, pick func(found modrinth.Version, loaders []string) (modrinth.Version, bool)) map[string]modrinth.Version {
+func (f *fakeModrinth) byHash(r *http.Request, pick func(found modrinth.Version, loaders, types []string) (modrinth.Version, bool)) map[string]modrinth.Version {
 	var req struct {
 		Hashes  []string `json:"hashes"`
 		Loaders []string `json:"loaders"`
+		Types   []string `json:"version_types"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	res := map[string]modrinth.Version{}
@@ -211,7 +220,7 @@ func (f *fakeModrinth) byHash(r *http.Request, pick func(found modrinth.Version,
 		if len(found) == 0 {
 			continue
 		}
-		if v, ok := pick(found[0], req.Loaders); ok {
+		if v, ok := pick(found[0], req.Loaders, req.Types); ok {
 			res[hash] = v
 		}
 	}

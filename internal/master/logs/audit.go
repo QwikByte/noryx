@@ -95,6 +95,7 @@ var actions = map[string]action{
 	"POST " + routeServer + "/plugins/{file}/disable":          {logging.Plugins, "Turn plugin off"},
 	"PUT " + routeServer + "/plugins/pins/{project}":           {logging.Plugins, "Keep plugin version"},
 	"DELETE " + routeServer + "/plugins/pins/{project}":        {logging.Plugins, "Stop keeping plugin version"},
+	"PUT " + routeServer + "/plugins/channels/{project}":       {logging.Plugins, "Change plugin channel"},
 	"POST " + routeBackups:                                     {logging.Backups, "Back up server"},
 	"POST " + routeBackups + "/{backup}/restore":               {logging.Backups, "Restore backup"},
 	"POST " + routeBackups + "/{backup}/restore-into":          {logging.Backups, "Restore backup into another server"},

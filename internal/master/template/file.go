@@ -12,9 +12,9 @@ import (
 
 const (
 	// fileFormat marks the files of exported templates, and fileVersion is the version of their
-	// format, which changes whenever the format does.
+	// format, which changes whenever the format does: 2 gave plugins their channel.
 	fileFormat  = "noryx-template"
-	fileVersion = 1
+	fileVersion = 2
 	// maxFile is as much as any request with a template.
 	maxFile = 1 << 20
 )
@@ -59,11 +59,16 @@ func parseFile(data []byte) (Input, error) {
 		return Input{}, httpapi.Errorf(http.StatusBadRequest, "The template file is invalid: %v", err)
 	}
 	c := f.Template
-	in := Input{Name: c.Name, Description: c.Description, Settings: c.Settings, Tags: c.Tags, Plugins: []string{}, Versions: map[string]string{}}
+	in := Input{
+		Name: c.Name, Description: c.Description, Settings: c.Settings, Tags: c.Tags, Plugins: []string{}, Versions: map[string]string{}, Channels: map[string]string{},
+	}
 	for _, p := range c.Plugins {
 		in.Plugins = append(in.Plugins, p.ID)
 		if p.Version != "" {
 			in.Versions[p.ID] = p.Version
+		}
+		if p.Channel != "" {
+			in.Channels[p.ID] = p.Channel
 		}
 	}
 	return in, nil

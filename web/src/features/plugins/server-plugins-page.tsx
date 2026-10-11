@@ -42,6 +42,7 @@ import { formatBytes } from "@/lib/format"
 import { locale } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import {
+  type Channel,
   fallback,
   type InstalledPlugin,
   type InstallResult,
@@ -56,7 +57,7 @@ import {
   useUpdatePlugins,
 } from "./api"
 import { ChangesDialog } from "./changes-dialog"
-import { ChannelPill } from "./channel-pill"
+import { ChannelPill, TracksPill } from "./channel-pill"
 import { PluginIcon } from "./plugin-icon"
 import { PluginSearch } from "./plugin-search"
 import { VersionMenu } from "./version-menu"
@@ -213,13 +214,17 @@ export function ServerPluginsPage() {
   )
 }
 
-/** Installs a project on a server, the newest suitable release or a chosen version, and tells how it went. */
+/**
+ * Installs a project on a server, the newest suitable version of a channel, releases unless chosen, or a chosen version,
+ * and tells how it went. The server takes the project in the channel from then on.
+ */
 function useInstallOn(serverRef: ServerRef) {
   const install = useInstallPlugins()
-  const run = (project: Project, version?: ProjectVersion) => {
+  const run = (project: Project, version?: ProjectVersion, channel: Channel = "release") => {
     const versions = version && { [project.id]: version.id }
+    const channels = { [project.id]: channel }
     toast.promise(
-      install.mutateAsync({ projects: [project.id], servers: [serverRef], versions }).then((results) => failIfAny(results, versions)),
+      install.mutateAsync({ projects: [project.id], servers: [serverRef], versions, channels }).then((results) => failIfAny(results, versions, channels)),
       {
         loading: t("Installing {{name}}…", { name: version ? `${project.title} ${version.number}` : project.title }),
         success: (files) => t("Installed {{files}}. Restart the server to load it.", { files }),
@@ -245,7 +250,23 @@ function PluginRow({
   elsewhere: string
 }) {
   const install = useInstallOn(serverRef)
+  const change = useChangePlugins(serverRef)
   const { project, update } = plugin
+  const track = (project: Project, channel: Channel) =>
+    change.mutate(
+      { action: "track", project: project.id, channel },
+      {
+        onSuccess: () =>
+          toast.success(
+            channel === "beta"
+              ? t("Updates of {{name}} take betas too.", { name: project.title })
+              : channel === "alpha"
+                ? t("Updates of {{name}} take betas and alphas too.", { name: project.title })
+                : t("Updates of {{name}} take releases only.", { name: project.title }),
+          ),
+        onError: (e) => toast.error(e.message),
+      },
+    )
 
   return (
     <li className={cn("flex items-center gap-3 px-4 py-3", plugin.disabled && "bg-muted/30")}>
@@ -271,13 +292,15 @@ function PluginRow({
               type={server.type}
               version={server.version}
               current={plugin.versionId}
-              onPick={(v) => install.run(project, v)}
+              channel={plugin.tracks}
+              onChannel={(c) => track(project, c)}
+              onPick={(v) => install.run(project, v, plugin.tracks)}
             >
               <Button
                 variant="ghost"
                 size="xs"
-                disabled={install.pending}
-                aria-label={t("Change the version of {{name}}", { name: project.title })}
+                disabled={install.pending || change.isPending}
+                aria-label={t("Change the channel or version of {{name}}", { name: project.title })}
                 className="min-w-0 font-mono font-normal text-muted-foreground"
               >
                 <span className="truncate">{plugin.version}</span>
@@ -288,6 +311,7 @@ function PluginRow({
             plugin.version && <span className="truncate font-mono text-xs font-normal text-muted-foreground">{plugin.version}</span>
           )}
           <ChannelPill channel={plugin.channel} />
+          <TracksPill channel={plugin.tracks} />
           {plugin.pinned && (
             <span title={t("Kept at this version")} className="shrink-0 text-muted-foreground">
               <PushPinIcon className="size-3.5" weight="fill" aria-hidden />
@@ -300,13 +324,25 @@ function PluginRow({
           {project ? plugin.fileName : elsewhere} · {formatBytes(plugin.size)}
         </p>
       </div>
-      {update && project && <UpdateButton plugin={plugin} project={project} server={server} manage={manage} pending={install.pending} onUpdate={() => install.run(project)} />}
+      {update && project && (
+        <UpdateButton
+          plugin={plugin}
+          project={project}
+          server={server}
+          manage={manage}
+          pending={install.pending}
+          onUpdate={() => install.run(project, undefined, plugin.tracks)}
+        />
+      )}
       <PluginMenu plugin={plugin} serverRef={serverRef} manage={manage} />
     </li>
   )
 }
 
-/** Updates a project to its newest suitable release, and tells what changed since the installed version. */
+/**
+ * Updates a project to its newest suitable version in the channel the server takes it in, marked if it is a beta or
+ * alpha, and tells what changed since the installed version.
+ */
 function UpdateButton({
   plugin,
   project,
@@ -325,16 +361,20 @@ function UpdateButton({
   const [changes, setChanges] = useState(false)
   const label = t("Update to {{version}}", { version: plugin.update })
   return (
-    <div className="flex shrink-0 items-center">
+    <div className={cn("flex shrink-0 items-center", !manage && "gap-1.5")}>
       {manage ? (
         <Button size="sm" variant="outline" className="rounded-r-none" disabled={pending} onClick={onUpdate}>
           <ArrowCircleUpIcon />
           <span className="max-sm:sr-only">{label}</span>
+          <ChannelPill channel={plugin.updateChannel} />
         </Button>
       ) : (
-        <Pill tone="info" className="max-sm:hidden">
-          {label}
-        </Pill>
+        <>
+          <Pill tone="info" className="max-sm:hidden">
+            {label}
+          </Pill>
+          <ChannelPill channel={plugin.updateChannel} />
+        </>
       )}
       <Button
         size="icon-sm"
@@ -575,9 +615,10 @@ function AddDialog({ server, serverRef, words, installed }: { server: Server; se
   )
 }
 
-/** Installs the newest suitable release, or a version chosen from the menu next to it. */
+/** Installs the newest suitable version of the channel chosen in the menu next to it, or a version chosen there. */
 function InstallButton({ hit, server, serverRef, installed }: { hit: SearchHit; server: Server; serverRef: ServerRef; installed: boolean }) {
   const install = useInstallOn(serverRef)
+  const [channel, setChannel] = useState<Channel>("release")
   if (installed)
     return (
       <Pill tone="success">
@@ -586,30 +627,41 @@ function InstallButton({ hit, server, serverRef, installed }: { hit: SearchHit; 
       </Pill>
     )
   return (
-    <div className="flex">
-      <Button size="sm" variant="outline" className="rounded-r-none" disabled={install.pending} onClick={() => install.run(hit)}>
-        <DownloadSimpleIcon />
-        {install.pending ? t("Installing…") : t("Install")}
-      </Button>
-      <VersionMenu project={hit.id} title={hit.title} type={server.type} version={server.version} onPick={(v) => install.run(hit, v)}>
-        <Button
-          size="icon-sm"
-          variant="outline"
-          className="-ml-px rounded-l-none"
-          disabled={install.pending}
-          aria-label={t("Install another version of {{name}}", { name: hit.title })}
-        >
-          <CaretDownIcon />
+    <div className="flex items-center gap-2">
+      <TracksPill channel={channel} />
+      <div className="flex">
+        <Button size="sm" variant="outline" className="rounded-r-none" disabled={install.pending} onClick={() => install.run(hit, undefined, channel)}>
+          <DownloadSimpleIcon />
+          {install.pending ? t("Installing…") : t("Install")}
         </Button>
-      </VersionMenu>
+        <VersionMenu
+          project={hit.id}
+          title={hit.title}
+          type={server.type}
+          version={server.version}
+          channel={channel}
+          onChannel={setChannel}
+          onPick={(v) => install.run(hit, v, channel)}
+        >
+          <Button
+            size="icon-sm"
+            variant="outline"
+            className="-ml-px rounded-l-none"
+            disabled={install.pending}
+            aria-label={t("Choose the channel or version of {{name}}", { name: hit.title })}
+          >
+            <CaretDownIcon />
+          </Button>
+        </VersionMenu>
+      </div>
     </div>
   )
 }
 
 /** Throws the error of a single-server installation, or returns the installed files and warns of pre-releases nobody chose. */
-function failIfAny([result]: InstallResult[], versions?: Record<string, string>): string {
+function failIfAny([result]: InstallResult[], versions?: Record<string, string>, channels?: Record<string, Channel>): string {
   if (result.error) throw new Error(result.error)
-  for (const file of result.installed.filter((f) => fallback(f, versions))) {
+  for (const file of result.installed.filter((f) => fallback(f, versions, channels))) {
     toast.warning(t("No release suits the server, so the pre-release {{version}} was installed: {{file}}", { version: file.version, file: file.fileName }))
   }
   return result.installed.map((i) => i.fileName).join(", ")

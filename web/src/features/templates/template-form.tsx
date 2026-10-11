@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Project } from "@/features/plugins/api"
+import { TracksPill } from "@/features/plugins/channel-pill"
 import { PluginIcon } from "@/features/plugins/plugin-icon"
 import { PluginSearch } from "@/features/plugins/plugin-search"
 import { VersionMenu } from "@/features/plugins/version-menu"
@@ -28,7 +29,7 @@ import {
 } from "@/features/servers/settings-fields"
 import { EndOfLifeNotice, SoftwareOptions } from "@/features/servers/software"
 import { TagsField } from "@/features/servers/tags"
-import { keptVersions, parseProperties, propertiesText, type TemplateDraft, type TemplateInput, type TemplatePlugin } from "./api"
+import { keptChannels, keptVersions, parseProperties, propertiesText, type TemplateDraft, type TemplateInput, type TemplatePlugin } from "./api"
 
 /** Compares drafts regardless of the order of their properties. */
 const snapshot = (d: TemplateDraft) => JSON.stringify({ ...d, name: d.name.trim(), properties: propertiesText(d.properties) })
@@ -61,7 +62,12 @@ export function TemplateForm({
     properties: type.proxy ? {} : parseProperties(form.properties),
     plugins: type.addons ? form.plugins : [],
   }
-  const input: TemplateInput = { ...draft, plugins: draft.plugins.map((p) => p.id), versions: keptVersions(draft.plugins) }
+  const input: TemplateInput = {
+    ...draft,
+    plugins: draft.plugins.map((p) => p.id),
+    versions: keptVersions(draft.plugins),
+    channels: keptChannels(draft.plugins),
+  }
   const dirty = snapshot({ ...draft, plugins: form.plugins }) !== snapshot(initial)
   const blocker = useBlocker({ shouldBlockFn: () => dirty && !pending, enableBeforeUnload: () => dirty, withResolver: true })
   const set = (change: Partial<typeof form>) => setForm({ ...form, ...change })
@@ -177,13 +183,16 @@ export function TemplateForm({
                   <li key={p.id} className="flex items-center gap-2 py-1.5 pr-1.5 pl-2 text-sm font-medium">
                     <PluginIcon src={p.icon} className="size-6 rounded-md [&>svg]:size-3.5" />
                     <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                    <TracksPill channel={p.channel} />
                     <VersionMenu
                       project={p.id}
                       title={p.title}
                       type={form.type}
                       version={form.version}
                       current={p.version}
-                      onNewest={() => setPlugin({ id: p.id, slug: p.slug, title: p.title, icon: p.icon })}
+                      channel={p.channel}
+                      onChannel={(c) => setPlugin({ ...p, channel: c === "release" ? undefined : c })}
+                      onNewest={() => setPlugin({ id: p.id, slug: p.slug, title: p.title, icon: p.icon, channel: p.channel })}
                       onPick={(v) => setPlugin({ ...p, version: v.id, versionNumber: v.number })}
                     >
                       <Button
@@ -210,7 +219,9 @@ export function TemplateForm({
                 ))}
               </ul>
               <FieldDescription>
-                {t("New servers get the newest release that suits them, or the version chosen here. A chosen version that doesn't suit a server isn't installed on it.")}
+                {t(
+                  "New servers get the newest version of the channel that suits them, a release unless chosen, or the version chosen here, and keep the channel for updates. A chosen version that doesn't suit a server isn't installed on it.",
+                )}
               </FieldDescription>
             </Field>
           )}

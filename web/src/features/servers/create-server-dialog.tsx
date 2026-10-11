@@ -39,7 +39,7 @@ import {
 import { nodeQuery, nodesQuery } from "@/features/nodes/api"
 import { OperationStatus } from "@/features/operations/operation-status"
 import { guard, useOperation } from "@/features/operations/use-operation"
-import { keptVersions, type Template, templatesQuery } from "@/features/templates/api"
+import { keptChannels, keptVersions, type Template, templatesQuery } from "@/features/templates/api"
 import { formatBytes, formatSeconds, formatTimeZone } from "@/lib/format"
 import { useUpload } from "@/lib/use-upload"
 import {
@@ -209,7 +209,15 @@ export function CreateServerDialog({
     if (fromModpack) Object.assign(server, { type: "", version: "", modpack: form.modpack })
     if (template) {
       const { restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties } = template
-      Object.assign(server, { restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, versions: keptVersions(template.plugins) })
+      Object.assign(server, {
+        restartPolicy,
+        aikarFlags,
+        jvmOptions,
+        cpuLimit,
+        properties,
+        versions: keptVersions(template.plugins),
+        channels: keptChannels(template.plugins),
+      })
       if (tagsAllowed) server.tags = tags
     }
     if (!proxy) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }

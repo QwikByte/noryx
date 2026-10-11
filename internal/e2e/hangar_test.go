@@ -108,8 +108,14 @@ func (f *fakeHangar) project(id int, name, platform string) {
 	})
 }
 
-// version adds a version, newer than the ones before, with a file <name>-<number>.jar for one platform.
+// version adds a version, newer than the ones before, with a file <name>-<number>.jar for one
+// platform, in the channel Release.
 func (f *fakeHangar) version(project int, number, platform string, requires ...int) {
+	f.versionIn("Release", project, number, platform, requires...)
+}
+
+// versionIn adds a version like version in a channel, e.g. Beta or Snapshot.
+func (f *fakeHangar) versionIn(channel string, project int, number, platform string, requires ...int) {
 	name := f.find(strconv.Itoa(project))["name"].(string)
 	path := fmt.Sprintf("/cdn/plugins/%d/%s/%s/%s.jar", project, number, platform, name)
 	content := []byte(name + " " + number)
@@ -122,7 +128,7 @@ func (f *fakeHangar) version(project int, number, platform string, requires ...i
 	deps = append(deps, map[string]any{"name": "Elsewhere", "projectId": nil, "required": true, "externalUrl": "https://example.com"})
 	f.versions = append(f.versions, map[string]any{
 		"id": len(f.versions) + 100, "projectId": project, "name": number, "createdAt": time.Date(2026, 2, len(f.versions)+1, 0, 0, 0, 0, time.UTC),
-		"channel": map[string]string{"name": "Release"},
+		"channel": map[string]string{"name": channel},
 		"downloads": map[string]any{platform: map[string]any{
 			"fileInfo":    map[string]any{"name": name + "-" + number + ".jar", "sizeBytes": len(content), "sha256Hash": hex.EncodeToString(sum[:])},
 			"downloadUrl": f.URL + path,

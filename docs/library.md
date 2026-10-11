@@ -9,11 +9,12 @@ A template preconfigures new servers: software, Minecraft version, memory, the
 [tags](servers.md#lists-tags-and-bulk-actions) and a list of plugins or mods from Modrinth or Hangar. When a server is
 created from a template, only node, name, port, storage and world are chosen, and its stop timeout and time zone can
 differ from the template's; `server.properties` is written before the first start and each plugin is installed in the
-newest release that suits the server, unless the template [keeps a version](#plugin-versions) of it, so templates don't
-go stale. Templates are created from scratch or from an existing server ("Save as template"), which takes its settings,
-its properties (except those the manager sets), its tags and the plugins that come from Modrinth or Hangar. Worlds and
-plugin configurations are not part of templates; [file sets](#file-sets) share the configurations of plugins among
-servers. The properties Noryx sets itself (the port, address and RCON) and secret ones can't be part of a template.
+newest version of its [channel](#channels) that suits the server, unless the template
+[keeps a version](#plugin-versions) of it, so templates don't go stale. Templates are created from scratch or from an
+existing server ("Save as template"), which takes its settings, its properties (except those the manager sets), its tags
+and the plugins that come from Modrinth or Hangar. Worlds and plugin configurations are not part of templates;
+[file sets](#file-sets) share the configurations of plugins among servers. The properties Noryx sets itself (the port,
+address and RCON) and secret ones can't be part of a template.
 
 ### Tags
 
@@ -30,16 +31,17 @@ that suit the template's software and Minecraft version, betas and alphas includ
 when it is saved, and new servers get exactly that version, downloaded with its hash checked like any other. If the kept
 version doesn't suit a new server, e.g. because it runs another Minecraft version than the template, that plugin is left
 out rather than installed in another version, the others are installed, and the panel tells which one is missing. Choose
-another version in the template, or install the plugin from the server's **Plugins** tab.
+another version in the template, or install the plugin from the server's **Plugins** tab. The same menu chooses the
+[channel](#channels) of a plugin, releases unless chosen otherwise, which new servers take it in, also for its updates.
 
 ### Export and import
 
 **Export** downloads a template as a JSON file, e.g. to move it to another master or to share it. The file holds what
-the template sets up: its settings, properties, tags and plugins with the versions it keeps, but no IDs of the master,
-its nodes or servers. **Import** on the **Templates** page reads such a file of up to 1 MiB under a name of choice and
-saves it like a template saved in the panel, with the same checks: its plugins and kept versions are looked up again and
-must suit its software, and properties that Noryx sets are refused. Files from a newer version of Noryx with a format
-this master doesn't know yet are refused with a message to update Noryx first.
+the template sets up: its settings, properties, tags and plugins with the versions and channels it keeps, but no IDs of
+the master, its nodes or servers. **Import** on the **Templates** page reads such a file of up to 1 MiB under a name of
+choice and saves it like a template saved in the panel, with the same checks: its plugins and kept versions are looked
+up again and must suit its software, and properties that Noryx sets are refused. Files from a newer version of Noryx
+with a format this master doesn't know yet are refused with a message to update Noryx first.
 
 ## File sets
 
@@ -146,14 +148,15 @@ from the **Plugins**/**Mods** tab of a server. The **Plugins** page switches bet
 for both only shows the software and servers of the chosen kind. The search filters by software, Minecraft version,
 categories (e.g. economy, management, optimization) and, for mods, those players don't have to install, and sorts by
 relevance, downloads, followers, newest or recently updated. The source, the sort and the software of plugins and of
-mods each user chose last apply again, in all their browsers. The master picks the newest release for each server's
-software and Minecraft version, installs the projects it requires, and replaces an older version of the same project.
-Where no release suits a server, it installs the newest beta or alpha and the panel warns about it. Another version that
-suits the server, betas and alphas included, can be chosen instead, also to downgrade a project. Installed files are
-recognised by their hash, so the tab shows their project, version (marked as beta or alpha) and available updates, also
-for files uploaded by hand; it searches, filters (updates, not from Modrinth) and sorts them, by name or size as the
-user sorted them last, and updates all at once to the newest release that suits the server, never to a beta or alpha.
-Own `.jar` files can be uploaded too. Servers load changes when they restart.
+mods each user chose last apply again, in all their browsers. The master picks the newest version of the chosen
+[channel](#channels), releases unless chosen otherwise, for each server's software and Minecraft version, installs the
+projects it requires, and replaces an older version of the same project. Where no version of the channel suits a server,
+it installs the newest beta or alpha and the panel warns about it. Another version that suits the server, betas and
+alphas included, can be chosen instead, also to downgrade a project. Installed files are recognised by their hash, so
+the tab shows their project, version (marked as beta or alpha), channel and available updates, also for files uploaded
+by hand; it searches, filters (updates, not from Modrinth) and sorts them, by name or size as the user sorted them last,
+and updates all at once to the newest version of each project's channel that suits the server. Own `.jar` files can be
+uploaded too. Servers load changes when they restart.
 
 **What changed** next to an update shows the changelogs of the versions after the installed one up to the update, and in
 the version menu those of the newest suitable versions, as their authors wrote them on Modrinth or Hangar.
@@ -172,16 +175,30 @@ found by name, node, software or `#tag`; those that have the project already are
 node at a time and tells what it installed on each; **Retry the failed ones** installs the same again where it failed.
 
 **Installed** on the **Plugins** page gathers the plugins or mods of all servers you may see, recognised by their hash
-like on the tabs: each project with its servers, versions and updates, and the servers that keep it at its version or
-have it turned off. Nodes that can't be reached or don't answer within 15 seconds are named instead. **Update
-everywhere** updates a project on all its servers to the newest release that suits each, never to a beta or alpha,
-except where it is kept at its version or turned off; **Remove everywhere** deletes its files, turned-off ones too, and
-names the plugins that need it first. Both run as an operation that tells how it went on each server, with **Retry the
-failed ones**. Servers whose plugins you may not manage are left out and named.
+like on the tabs: each project with its servers, versions, channels and updates, and the servers that keep it at its
+version or have it turned off. Nodes that can't be reached or don't answer within 15 seconds are named instead. **Update
+everywhere** updates a project on all its servers to the newest version that suits each in the channel it takes the
+project in, except where it is kept at its version or turned off; **Remove everywhere** deletes its files, turned-off
+ones too, and names the plugins that need it first. Both run as an operation that tells how it went on each server, with
+**Retry the failed ones**. Servers whose plugins you may not manage are left out and named.
 
 Installing from the **Plugins** page, **Update everywhere** and **Remove everywhere** can restart the running servers
 whose plugins changed afterwards, as applying a file set does: the game servers of a network a few at a time like a
 rolling restart, so that it stays open, others at once. Once it restarts servers, it can't be cancelled.
+
+### Channels
+
+A server takes each project in a channel: **Releases**, the default, **Betas too** or **Alphas too**, e.g. for a project
+that publishes betas for months or fixes a crash in a beta first. Installing chooses it, in the menu next to **Install**
+on a server's tab and in the dialog of the **Plugins** page, templates keep it with their plugins, and the version menu
+of an installed project changes it. Updates follow it, on the tab, with **Update everywhere** and in the schedules and
+workflow steps that update plugins: they take the newest version of the channel that suits the server, while a project
+kept at its version stays at it. The tabs mark the channels other than releases and the updates that are betas or
+alphas. A project without a version of its channel for a server is installed in its newest version anyway, e.g. a beta
+of a project without releases, but its updates only take versions of the channel. A project newly installed on a server,
+also because another one requires it, takes releases, whatever an earlier file of it took there; installing a project
+sets its channel to the one chosen. Hangar's channel Release counts as releases, Beta as betas and any other, e.g.
+Snapshot, as alphas. Betas and alphas are downloaded and checked against their hash like releases.
 
 ### Hangar
 

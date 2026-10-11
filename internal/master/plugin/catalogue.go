@@ -93,9 +93,8 @@ func (c catalogue) Download(ctx context.Context, f modrinth.File) ([]byte, error
 }
 
 // identify returns the version of each file known to Modrinth, Hangar or GeyserMC, by the
-// file's SHA-512 hash, and with updates the newest release of its project for a server, if
-// it is another version.
-func (c catalogue) identify(ctx context.Context, files []*noryxv1.PluginFile, t target, updates bool) (known, newer map[string]modrinth.Version, err error) {
+// file's SHA-512 hash, and the newest version of its project for a server in each of channels.
+func (c catalogue) identify(ctx context.Context, files []*noryxv1.PluginFile, t target, channels []string) (known map[string]modrinth.Version, newer updates, err error) {
 	hashes := make([]string, len(files))
 	for i, f := range files {
 		hashes[i] = f.GetSha512()
@@ -103,10 +102,14 @@ func (c catalogue) identify(ctx context.Context, files []*noryxv1.PluginFile, t 
 	if known, err = c.modrinth.VersionsByHash(ctx, hashes); err != nil {
 		return nil, nil, err
 	}
-	newer = map[string]modrinth.Version{}
-	if updates {
-		if newer, err = c.modrinth.Updates(ctx, hashes, t.loaders, t.gameVersion); err != nil {
+	newer = updates{}
+	for _, channel := range channels {
+		found, err := c.modrinth.Updates(ctx, hashes, t.loaders, t.gameVersion, versionTypes(channel))
+		if err != nil {
 			return nil, nil, err
+		}
+		for hash, v := range found {
+			newer.add(hash, channel, v)
 		}
 	}
 	if hangar.Platform(t.loaders) == "" {
@@ -125,7 +128,7 @@ func (c catalogue) identify(ctx context.Context, files []*noryxv1.PluginFile, t 
 		slots <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			v, update, lookupErr := c.identifyOnHangar(ctx, f.GetSha256(), t)
+			v, newest, lookupErr := c.identifyOnHangar(ctx, f.GetSha256(), t, channels)
 			mu.Lock()
 			defer mu.Unlock()
 			switch {
@@ -133,8 +136,8 @@ func (c catalogue) identify(ctx context.Context, files []*noryxv1.PluginFile, t 
 				err = lookupErr
 			case v.ProjectID != "":
 				known[f.GetSha512()] = v
-				if update.ID != "" {
-					newer[f.GetSha512()] = update
+				for channel, u := range newest {
+					newer.add(f.GetSha512(), channel, u)
 				}
 			}
 		})
@@ -161,24 +164,28 @@ func (c catalogue) identifyOnGeyserMC(ctx context.Context, files []*noryxv1.Plug
 }
 
 // identifyOnHangar returns the version of a file on Hangar among the newest of its project,
-// or only the project if it is older, and the newest release for the server.
-func (c catalogue) identifyOnHangar(ctx context.Context, sha256 string, t target) (v, newest modrinth.Version, err error) {
+// or only the project if it is older, and the newest version for the server in each of
+// channels, by channel.
+func (c catalogue) identifyOnHangar(ctx context.Context, sha256 string, t target, channels []string) (v modrinth.Version, newest map[string]modrinth.Version, err error) {
 	project, err := c.hangar.ProjectByHash(ctx, sha256)
 	if project == "" || err != nil {
-		return v, newest, err
+		return v, nil, err
 	}
 	versions, err := c.hangar.Versions(ctx, project, t.loaders, "")
 	if err != nil {
-		return v, newest, err
+		return v, nil, err
 	}
 	v = modrinth.Version{ProjectID: project}
 	if i := slices.IndexFunc(versions, func(v modrinth.Version) bool { return len(v.Files) > 0 && v.Files[0].Hashes.SHA256 == sha256 }); i >= 0 {
 		v = versions[i]
 	}
-	if i := slices.IndexFunc(versions, func(v modrinth.Version) bool {
-		return v.VersionType == "release" && len(v.Files) > 0 && (t.gameVersion == "" || slices.Contains(v.GameVersions, t.gameVersion))
-	}); i >= 0 {
-		newest = versions[i]
+	newest = map[string]modrinth.Version{}
+	for _, channel := range channels {
+		if i := slices.IndexFunc(versions, func(v modrinth.Version) bool {
+			return takes(channel, v) && len(v.Files) > 0 && (t.gameVersion == "" || slices.Contains(v.GameVersions, t.gameVersion))
+		}); i >= 0 {
+			newest[channel] = versions[i]
+		}
 	}
 	return v, newest, nil
 }

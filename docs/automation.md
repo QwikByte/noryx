@@ -149,9 +149,10 @@ Schedules rule servers at set times, on the same [targets](#targets-and-times) a
 - **Console commands**, e.g. a broadcast every evening: up to 20, which each game server runs one after the other.
 - **Update image**, like **Update image** in a server's settings: each server gets the newest image of its software, and
   a running one whose image changed restarts with it.
-- **Update plugins**: the plugins and mods of each server get their newest release that suits the server, never a beta
-  or alpha, as in the **Plugins** tab; projects kept at their version and turned-off files are left alone. The servers
-  load the new files when they restart next, e.g. with a restart schedule after it.
+- **Update plugins**: the plugins and mods of each server get the newest version that suits the server in the
+  [channel](library.md#channels) it takes each in, releases unless chosen otherwise, as in the **Plugins** tab; projects
+  kept at their version and turned-off files are left alone. The servers load the new files when they restart next,
+  e.g. with a restart schedule after it.
 
 Restarts and stops only concern running servers, starts only stopped ones, console commands only running game servers.
 The header of a server's page shows the active schedules that cover it, also through its tags and network.

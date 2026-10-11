@@ -3,6 +3,7 @@ import type { ModpackChoice } from "@/features/modpacks/api"
 import { memoryLimitMb, type Node } from "@/features/nodes/api"
 import { type Operation, operate } from "@/features/operations/api"
 import type { MessageKind } from "@/features/players/api"
+import type { Channel } from "@/features/plugins/api"
 import { api, send } from "@/lib/api"
 
 export type ServerState = "stopped" | "starting" | "running" | "crashing"
@@ -134,6 +135,8 @@ export interface NewServer
   tags?: string[]
   /** The IDs of the versions to install of plugins, by project ID, e.g. those a template keeps. */
   versions?: Record<string, string>
+  /** The channels to take plugins in, by project ID, e.g. those of a template; releases if not set. */
+  channels?: Record<string, Channel>
 }
 
 /** How often lists of servers are checked: more often while servers start, to show them running soon. */

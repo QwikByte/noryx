@@ -199,7 +199,9 @@ Extracting and copying need the permission to change files, searching the one to
 The master downloads only from Modrinth's CDN, up to 256 MB, and only uses a file whose SHA-512 hash matches the one
 Modrinth's API lists; from Hangar, only from its CDN and with the SHA-256 hash its API lists, and versions that only
 link elsewhere can't be installed. Floodgate only comes from GeyserMC's download server, with the SHA-256 hash its API
-lists. A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
+lists. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
+alpha, which the master checks) or where a project has nothing else for it, are checked like releases.
+A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
 elsewhere than on Modrinth's CDN or with paths that leave the server's folder are refused before a server is created or
 moves to another version of its pack, and the agent confines the files like those of the file manager. To tell which
 files of a pack changed on a server, the agent hashes them only if they are regular files without secrets, not through

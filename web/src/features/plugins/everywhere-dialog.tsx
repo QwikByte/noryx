@@ -151,7 +151,7 @@ export function EverywhereDialog({
               <DialogTitle>{title}</DialogTitle>
               <DialogDescription>
                 {update
-                  ? t("Each server gets the newest release that suits it, never a beta or alpha, with what it requires.")
+                  ? t("Each server gets the newest version that suits it in the channel it takes {{name}} in, with what it requires.", { name })
                   : t("Its files are deleted, turned-off ones too. Their configuration in the servers' folders is kept.")}
               </DialogDescription>
             </DialogHeader>

@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -74,6 +75,7 @@ func (h *Handler) Register(mux access.Mux) {
 	mux.Handle("POST "+base+"/{file}/disable", access.OnServer(access.Plugins), h.enable(false))
 	mux.Handle("PUT "+base+"/pins/{project}", access.OnServer(access.Plugins), h.pin(true))
 	mux.Handle("DELETE "+base+"/pins/{project}", access.OnServer(access.Plugins), h.pin(false))
+	mux.Handle("PUT "+base+"/channels/{project}", access.OnServer(access.Plugins), h.track)
 }
 
 type hit struct {
@@ -311,6 +313,8 @@ func (h *Handler) install(w http.ResponseWriter, r *http.Request) {
 		Projects []string `json:"projects"`
 		// Versions are the IDs of the versions chosen for projects, by project ID.
 		Versions map[string]string `json:"versions"`
+		// Channels are the channels the servers take projects in, by project ID; releases if not set.
+		Channels map[string]string `json:"channels"`
 		many
 	}
 	if err := httpapi.ReadJSON(w, r, &req); err != nil {
@@ -320,7 +324,7 @@ func (h *Handler) install(w http.ResponseWriter, r *http.Request) {
 	badVersion := func(project string) bool {
 		return !slices.Contains(req.Projects, project) || !ValidProjectID(req.Versions[project])
 	}
-	switch err := checkProjects(req.Projects); {
+	switch err := cmp.Or(checkProjects(req.Projects), checkChannels(req.Projects, req.Channels)); {
 	case err != nil:
 		httpapi.WriteError(w, r, err)
 		return
@@ -331,13 +335,13 @@ func (h *Handler) install(w http.ResponseWriter, r *http.Request) {
 	h.run(w, r, req.many, maxServers, action{
 		kind: "plugins.install", subject: strconv.Itoa(len(req.Servers)), timeout: installTimeout,
 		run: func(ctx context.Context, servers []Ref) []Result {
-			return h.svc.Install(ctx, req.Projects, req.Versions, servers)
+			return h.svc.Install(ctx, req.Projects, req.Versions, req.Channels, servers)
 		},
 	})
 }
 
 // update updates all plugins and mods of servers, or one project, to the newest suitable
-// release; see Service.Update.
+// version of the channel each server takes them in; see Service.Update.
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		// Project, if set, is the only project to update.
@@ -450,6 +454,21 @@ func (h *Handler) pin(pinned bool) http.HandlerFunc {
 		logging.Note(r.Context(), slog.String("project", r.PathValue("project")))
 		write(w, r, http.StatusNoContent, nil, h.svc.Pin(ctx, ref(r), r.PathValue("project"), pinned))
 	}
+}
+
+// track sets the channel a server takes a project in.
+func (h *Handler) track(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Channel string `json:"channel"`
+	}
+	if err := httpapi.ReadJSON(w, r, &req); err != nil {
+		httpapi.WriteError(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
+	defer cancel()
+	logging.Note(r.Context(), slog.String("project", r.PathValue("project")), slog.String("channel", req.Channel))
+	write(w, r, http.StatusNoContent, nil, h.svc.Track(ctx, ref(r), r.PathValue("project"), req.Channel))
 }
 
 func ref(r *http.Request) Ref { return Ref{NodeID: r.PathValue("node"), ServerID: r.PathValue("id")} }

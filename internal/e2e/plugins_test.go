@@ -284,6 +284,104 @@ func TestPluginsOfAServer(t *testing.T) {
 	}
 }
 
+// A server takes a project in a channel, releases unless installing chose betas or alphas too,
+// which updates follow, on Modrinth and Hangar, and which goes with the server.
+func TestPluginChannels(t *testing.T) {
+	m := startMaster(t)
+	paper := []string{"paper", "spigot", "bukkit"}
+	m.modrinth.project("via", "ViaVersion", paper)
+	m.modrinth.version("via", "5.0", paper)
+	m.modrinth.preRelease("beta", "via", "5.1b1", paper)
+	m.modrinth.preRelease("alpha", "via", "5.2a1", paper)
+	m.modrinth.project("addon", "ViaAddon", paper)
+	m.modrinth.version("addon", "1.0", paper, "via")
+	m.hangar.project(6, "Squaremap", "PAPER")
+	m.hangar.version(6, "1.0", "PAPER")
+	m.hangar.versionIn("Beta", 6, "1.1", "PAPER")
+	m.hangar.versionIn("Snapshot", 6, "1.2", "PAPER")
+	a := m.startAgent(t, "node-1")
+	lobby := plugin.Ref(m.createServer(t, a, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565))
+	api := apiClient{t: t, url: m.panel(t).URL}
+	base := "/api/nodes/" + lobby.NodeID + "/servers/" + lobby.ServerID + "/plugins"
+	listed := func(project string) plugin.Plugin {
+		t.Helper()
+		var l plugin.Listing
+		api.do("GET", base, nil, http.StatusOK, &l)
+		i := slices.IndexFunc(l.Plugins, func(p plugin.Plugin) bool { return p.Project != nil && p.Project.ID == project })
+		if i < 0 {
+			t.Fatalf("%s isn't listed: %+v", project, l)
+		}
+		return l.Plugins[i]
+	}
+	install := func(projects []string, channels map[string]string) plugin.Result {
+		t.Helper()
+		var installed struct{ Results []plugin.Result }
+		api.do("POST", "/api/plugins/install", map[string]any{"projects": projects, "channels": channels, "servers": []plugin.Ref{lobby}}, http.StatusOK, &installed)
+		return installed.Results[0]
+	}
+	track := func(project, channel string, status int) {
+		t.Helper()
+		api.do("PUT", base+"/channels/"+project, map[string]string{"channel": channel}, status, nil)
+	}
+
+	// Installing in the beta channel takes the newest beta, and updates follow the channel.
+	if r := install([]string{"via"}, map[string]string{"via": "beta"}); r.Error != "" || len(r.Installed) != 1 || r.Installed[0].Version != "5.1b1" {
+		t.Fatalf("result = %+v", r)
+	}
+	if p := listed("via"); p.Tracks != "beta" || p.Channel != "beta" || p.Update != "" {
+		t.Fatalf("ViaVersion = %+v", p)
+	}
+	track("via", "alpha", http.StatusNoContent)
+	if p := listed("via"); p.Update != "5.2a1" || p.UpdateChannel != "alpha" {
+		t.Fatalf("ViaVersion = %+v", p)
+	}
+	var updated struct{ Results []plugin.Result }
+	api.do("POST", "/api/plugins/update", map[string]any{"servers": []plugin.Ref{lobby}}, http.StatusOK, &updated)
+	if r := updated.Results[0]; r.Error != "" || len(r.Installed) != 1 || r.Installed[0].Version != "5.2a1" || r.Installed[0].Channel != "alpha" {
+		t.Fatalf("update = %+v", r)
+	}
+	// Back in releases, the older release is no update.
+	track("via", "release", http.StatusNoContent)
+	if p := listed("via"); p.Tracks != "" || p.Version != "5.2a1" || p.Update != "" {
+		t.Fatalf("ViaVersion = %+v", p)
+	}
+	track("via", "nightly", http.StatusBadRequest)
+	track("bad.id", "beta", http.StatusBadRequest)
+	for _, channels := range []map[string]string{{"via": "nightly"}, {"vault": "beta"}} {
+		api.do("POST", "/api/plugins/install", map[string]any{"projects": []string{"via"}, "channels": channels, "servers": []plugin.Ref{lobby}}, http.StatusBadRequest, nil)
+	}
+
+	// A project new on a server takes releases, whatever an earlier file of it took.
+	track("via", "alpha", http.StatusNoContent)
+	api.do("DELETE", base+"/via-5.2a1.jar", nil, http.StatusNoContent, nil)
+	if r := install([]string{"addon"}, nil); r.Error != "" || len(r.Installed) != 2 || r.Installed[1].Version != "5.0" {
+		t.Fatalf("result = %+v", r)
+	}
+	if p := listed("via"); p.Tracks != "" || p.Update != "" {
+		t.Fatalf("ViaVersion = %+v", p)
+	}
+
+	// Hangar's channels other than Release and Beta count as alpha.
+	if r := install([]string{"hangar-6"}, map[string]string{"hangar-6": "beta"}); r.Error != "" || len(r.Installed) != 1 || r.Installed[0].Version != "1.1" {
+		t.Fatalf("result = %+v", r)
+	}
+	if p := listed("hangar-6"); p.Tracks != "beta" || p.Channel != "beta" || p.Update != "" {
+		t.Fatalf("Squaremap = %+v", p)
+	}
+	track("hangar-6", "alpha", http.StatusNoContent)
+	if p := listed("hangar-6"); p.Update != "1.2" || p.UpdateChannel != "alpha" {
+		t.Fatalf("Squaremap = %+v", p)
+	}
+
+	// Channels go with their server.
+	api.do("DELETE", "/api/nodes/"+lobby.NodeID+"/servers/"+lobby.ServerID, nil, http.StatusNoContent, nil)
+	var channels int
+	check(t, m.db.QueryRow(`SELECT COUNT(*) FROM plugin_channels`).Scan(&channels))
+	if channels != 0 {
+		t.Fatalf("%d channels left", channels)
+	}
+}
+
 func jarOf(t *testing.T, files map[string]string) []byte {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)

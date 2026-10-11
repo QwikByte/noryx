@@ -84,6 +84,7 @@ export function SaveTemplateDialog({
         tags: server.tags,
         plugins: projects,
         versions: {},
+        channels: Object.fromEntries(enabled.flatMap((p) => (p.project && p.tracks ? [[p.project.id, p.tracks]] : []))),
       },
       {
         onSuccess: (template) => {

@@ -59,8 +59,25 @@ export interface Search {
   serverOnly: boolean
 }
 
-/** Where a version was published: as a release, or as a pre-release in beta or alpha. */
+/**
+ * Where a version was published: as a release, or as a pre-release in beta or alpha. A server takes a project in a
+ * channel too: releases only, betas too, or alphas too.
+ */
 export type Channel = "release" | "beta" | "alpha"
+
+/** The channels from the most stable; each takes the versions of those before it too. */
+export const channels: Channel[] = ["release", "beta", "alpha"]
+
+/** Whether a server that takes a project in a channel takes a version of the channel of. */
+export const takes = (channel: Channel = "release", of: Channel = "release") => channels.indexOf(of) <= channels.indexOf(channel)
+
+/** What a server takes of a project in a channel. */
+export const channelLabel = (channel: Channel) =>
+  channel === "beta" ? t("Betas too") : channel === "alpha" ? t("Alphas too") : t("Releases")
+
+/** The newest version that suits a server in a channel. */
+export const newestLabel = (channel: Channel = "release") =>
+  channel === "beta" ? t("Newest suitable beta or release") : channel === "alpha" ? t("Newest suitable version") : t("Newest suitable release")
 
 /** A version of a project. */
 export interface ProjectVersion {
@@ -86,11 +103,14 @@ export interface InstalledPlugin {
   versionId?: string
   /** Set for a version that isn't a release. */
   channel?: Exclude<Channel, "release">
-  /** A newer release that suits the server, and its ID. */
+  /** A newer version that suits the server in the channel it takes the project in, its ID and its channel. */
   update?: string
   updateId?: string
+  updateChannel?: Exclude<Channel, "release">
   /** The server keeps the project at its version: updating all plugins leaves it out. */
   pinned?: boolean
+  /** The channel the server takes the project in, if not only releases. */
+  tracks?: Exclude<Channel, "release">
   /** Turned off: the server keeps the file but doesn't load it. */
   disabled?: boolean
   /** The folder of the plugin's settings, e.g. plugins/LuckPerms. */
@@ -152,8 +172,12 @@ export const installedQuery = queryOptions({
   staleTime: 30_000,
 })
 
-/** Whether a pre-release was installed because no release suits the server, rather than chosen among the versions. */
-export const fallback = (file: InstalledFile, versions?: Record<string, string>) => file.channel !== undefined && !versions?.[file.projectId]
+/**
+ * Whether a pre-release was installed because no version of the chosen channel suits the server, rather than chosen
+ * among the versions.
+ */
+export const fallback = (file: InstalledFile, versions?: Record<string, string>, channels?: Record<string, Channel>) =>
+  !takes(channels?.[file.projectId], file.channel) && !versions?.[file.projectId]
 
 /** Whether a project runs on a server type. */
 export function supports(loaders: string[], type: string) {
@@ -219,9 +243,10 @@ export const pluginsQuery = (ref: ServerRef) =>
 export const maxServers = 100
 
 /**
- * Installs or updates projects, with the projects they require, on servers: the newest release that suits each
- * server, or the version chosen for a project. On many, it takes a while, and more than maxServers are installed on
- * in batches, one after the other, each an operation of its own.
+ * Installs or updates projects, with the projects they require, on servers: the newest version of the channel chosen
+ * for a project that suits each server, a release unless chosen, or the version chosen for it. The servers take the
+ * projects in these channels from then on. On many, it takes a while, and more than maxServers are installed on in
+ * batches, one after the other, each an operation of its own.
  */
 export function useInstallPlugins() {
   const queryClient = useQueryClient()
@@ -230,12 +255,14 @@ export function useInstallPlugins() {
       projects,
       servers,
       versions,
+      channels,
       onStart,
       ...restart
     }: Restart & {
       projects: string[]
       servers: ServerRef[]
       versions?: Record<string, string>
+      channels?: Record<string, Channel>
       /** Learns of the operation of each batch, counted from 0, that the master runs as one. */
       onStart?: (op: Operation, batch: number) => void
     }) => {
@@ -245,7 +272,7 @@ export function useInstallPlugins() {
         try {
           const res = await operate<{ results: InstallResult[] }>(
             "/plugins/install",
-            { body: { projects, servers: batch, versions, ...restart } },
+            { body: { projects, servers: batch, versions, channels, ...restart } },
             (op) => onStart?.(op, i / maxServers),
           )
           results.push(...res.results)
@@ -265,7 +292,7 @@ export function useInstallPlugins() {
 }
 
 /**
- * Updates all plugins or mods of a server to the newest release that suits it, never to a beta or alpha, except
+ * Updates all plugins or mods of a server to the newest version that suits it in the channel it takes each in, except
  * those it keeps at their version and turned-off ones.
  */
 export function useUpdatePlugins(ref: ServerRef) {
@@ -277,8 +304,8 @@ export function useUpdatePlugins(ref: ServerRef) {
 }
 
 /**
- * Updates a project to the newest release that suits each server, except where it is kept at its version or turned
- * off, or removes it, also where it is turned off, on many servers at once.
+ * Updates a project to the newest version that suits each server in the channel it takes the project in, except where
+ * it is kept at its version or turned off, or removes it, also where it is turned off, on many servers at once.
  */
 export function usePluginsEverywhere(action: "update" | "remove") {
   const queryClient = useQueryClient()
@@ -295,6 +322,8 @@ export type PluginChange =
   | { action: "enable" | "disable"; fileName: string }
   /** Keeps a project at its version, or lets updates of all plugins update it again. */
   | { action: "pin" | "unpin"; project: string }
+  /** Sets the channel the server takes a project in, which its updates follow. */
+  | { action: "track"; project: string; channel: Channel }
 
 export function useChangePlugins(ref: ServerRef) {
   const queryClient = useQueryClient()
@@ -309,6 +338,8 @@ export function useChangePlugins(ref: ServerRef) {
         case "pin":
         case "unpin":
           return api(`${base(ref)}/pins/${change.project}`, { method: change.action === "pin" ? "PUT" : "DELETE" })
+        case "track":
+          return api(`${base(ref)}/channels/${change.project}`, { method: "PUT", body: { channel: change.channel } })
       }
       const res = await fetch(`/api${base(ref)}/${encodeURIComponent(change.file.name)}`, { method: "PUT", body: change.file })
       if (!res.ok) throw await responseError(res, t("The upload failed with status {{status}}.", { status: res.status }))

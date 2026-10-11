@@ -36,6 +36,7 @@ func TestMoveServer(t *testing.T) {
 	api.do("POST", "/api/groups", map[string]any{"name": "Lobby moderators", "permissions": []string{"servers.restart"}, "targets": []network.Ref{lobby}},
 		http.StatusCreated, &mods)
 	api.do("POST", path(lobby)+"/start", nil, http.StatusNoContent, nil)
+	api.do("PUT", path(lobby)+"/plugins/channels/luckperms", map[string]string{"channel": "beta"}, http.StatusNoContent, nil)
 	_, err := m.db.ExecContext(t.Context(), `
 		INSERT INTO backup_copies (copy_node, location, server_id, server_name, proxy, node_id, node_name, backup_id, label, created_at, size, paths,
 			exclude, kept, copied_at)
@@ -79,6 +80,11 @@ func TestMoveServer(t *testing.T) {
 	api.do("GET", path(moved)+"/copies", nil, http.StatusOK, &copies)
 	if len(copies) != 1 || copies[0].NodeID != a2.node.ID || copies[0].NodeName != "node-2" {
 		t.Fatalf("copies = %+v", copies)
+	}
+	var channelNode string // of the channel it takes a plugin in
+	check(t, m.db.QueryRow(`SELECT node_id FROM plugin_channels WHERE server_id = ?`, lobby.ServerID).Scan(&channelNode))
+	if channelNode != a2.node.ID {
+		t.Fatalf("the channel of a plugin stayed on %s", channelNode)
 	}
 
 	// The settings and notes move with the server, also the version of a mod loader.
