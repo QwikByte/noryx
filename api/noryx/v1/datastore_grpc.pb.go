@@ -54,8 +54,8 @@ type DatastoreServiceClient interface {
 	CreateDatastore(ctx context.Context, in *CreateDatastoreRequest, opts ...grpc.CallOption) (*CreateDatastoreResponse, error)
 	StartDatastore(ctx context.Context, in *StartDatastoreRequest, opts ...grpc.CallOption) (*StartDatastoreResponse, error)
 	StopDatastore(ctx context.Context, in *StopDatastoreRequest, opts ...grpc.CallOption) (*StopDatastoreResponse, error)
-	// UpdateDatastore changes the limits of a datastore, pulls its image again, moves it to
-	// another major version or removes the data a previous version left.
+	// UpdateDatastore changes the limits and parameters of a datastore, pulls its image again,
+	// moves it to another major version or removes the data a previous version left.
 	UpdateDatastore(ctx context.Context, in *UpdateDatastoreRequest, opts ...grpc.CallOption) (*UpdateDatastoreResponse, error)
 	// PublishDatastore publishes the port of a datastore at the node's address in the private
 	// network of the nodes, for the nodes of its network only, or no longer.
@@ -316,8 +316,8 @@ type DatastoreServiceServer interface {
 	CreateDatastore(context.Context, *CreateDatastoreRequest) (*CreateDatastoreResponse, error)
 	StartDatastore(context.Context, *StartDatastoreRequest) (*StartDatastoreResponse, error)
 	StopDatastore(context.Context, *StopDatastoreRequest) (*StopDatastoreResponse, error)
-	// UpdateDatastore changes the limits of a datastore, pulls its image again, moves it to
-	// another major version or removes the data a previous version left.
+	// UpdateDatastore changes the limits and parameters of a datastore, pulls its image again,
+	// moves it to another major version or removes the data a previous version left.
 	UpdateDatastore(context.Context, *UpdateDatastoreRequest) (*UpdateDatastoreResponse, error)
 	// PublishDatastore publishes the port of a datastore at the node's address in the private
 	// network of the nodes, for the nodes of its network only, or no longer.

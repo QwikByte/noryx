@@ -21,7 +21,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { nodesQuery } from "@/features/nodes/api"
 import { guard, useOperation } from "@/features/operations/use-operation"
-import { type Datastore, type DatastoreInput, type Engine, useCreateDatastore, useDatastore } from "./api"
+import { type Datastore, type DatastoreInput, type Engine, parameterBounds, useCreateDatastore, useDatastore } from "./api"
 import { engines } from "./labels"
 
 const exampleName = "main"
@@ -168,11 +168,14 @@ export function CreateDatastoreDialog({ networkId }: { networkId: string }) {
   )
 }
 
-/** Changes the limits of a datastore, pulls its image again or moves it to a newer major version. */
+/** Changes the limits and parameters of a datastore, pulls its image again or moves it to a newer major version. */
 export function ChangeDatastoreDialog({ datastore: ds, trigger }: { datastore: Datastore; trigger: ReactElement }) {
   const [open, setOpen] = useState(false)
   const [memoryMb, setMemoryMb] = useState(ds.memoryMb)
   const [cores, setCores] = useState(ds.cpuMillis / 1000)
+  const [maxConnections, setMaxConnections] = useState(ds.maxConnections)
+  const [bufferMb, setBufferMb] = useState(ds.bufferMb)
+  const bounds = parameterBounds(ds.engine, memoryMb)
   const [version, setVersion] = useState(ds.version)
   const [updateImage, setUpdateImage] = useState(false)
   const { update } = useDatastore(ds.id)
@@ -186,6 +189,8 @@ export function ChangeDatastoreDialog({ datastore: ds, trigger }: { datastore: D
     if (next) {
       setMemoryMb(ds.memoryMb)
       setCores(ds.cpuMillis / 1000)
+      setMaxConnections(ds.maxConnections)
+      setBufferMb(ds.bufferMb)
       setVersion(ds.version)
       setUpdateImage(false)
     }
@@ -201,6 +206,8 @@ export function ChangeDatastoreDialog({ datastore: ds, trigger }: { datastore: D
         update.mutateAsync({
           memoryMb,
           cpuMillis: Math.round(cores * 1000),
+          maxConnections,
+          bufferMb,
           version: upgrade ? version : undefined,
           updateImage,
           onStart: (op) => {
@@ -211,7 +218,11 @@ export function ChangeDatastoreDialog({ datastore: ds, trigger }: { datastore: D
             }
           },
         }),
-      { title, done: () => ({ message: t("Changed the datastore {{name}}", { name: ds.name }) }), then: () => close(false) },
+      {
+        title,
+        done: (changed) => ({ message: t("Changed the datastore {{name}}", { name: ds.name }), description: changed.warning, warning: !!changed.warning }),
+        then: () => close(false),
+      },
     )
   }
 
@@ -243,7 +254,36 @@ export function ChangeDatastoreDialog({ datastore: ds, trigger }: { datastore: D
                 <Input id="change-cpu" type="number" min={0} step={0.25} value={cores} onChange={(e) => setCores(e.target.valueAsNumber || 0)} />
                 <FieldDescription>{t("0 means no limit.")}</FieldDescription>
               </Field>
+              <Field>
+                <FieldLabel htmlFor="change-connections">{t("Max. connections")}</FieldLabel>
+                <Input
+                  id="change-connections"
+                  type="number"
+                  min={bounds.connections.min}
+                  max={bounds.connections.max}
+                  placeholder={String(bounds.connections.default)}
+                  value={maxConnections || ""}
+                  onChange={(e) => setMaxConnections(e.target.valueAsNumber || 0)}
+                />
+                <FieldDescription>
+                  {t("Plugins keep several open on each server. Up to {{max}} with this memory.", { max: bounds.connections.max })}
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="change-buffer">{t(engines[ds.engine].buffer)}</FieldLabel>
+                <Input
+                  id="change-buffer"
+                  type="number"
+                  min={bounds.bufferMb.min}
+                  max={bounds.bufferMb.max}
+                  placeholder={String(bounds.bufferMb.default)}
+                  value={bufferMb || ""}
+                  onChange={(e) => setBufferMb(e.target.valueAsNumber || 0)}
+                />
+                <FieldDescription>{t("Data kept in memory. Up to {{max}} MB with this memory.", { max: bounds.bufferMb.max })}</FieldDescription>
+              </Field>
             </div>
+            <FieldDescription>{t("Leave connections and buffers empty for the defaults; the buffers then follow the memory.")}</FieldDescription>
             <Field>
               <FieldLabel htmlFor="change-version">{t("Version")}</FieldLabel>
               <Select value={version} onValueChange={setVersion}>

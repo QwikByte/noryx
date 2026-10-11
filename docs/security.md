@@ -272,7 +272,11 @@ version.
 ## Databases
 
 A datastore runs as the image's user without capabilities, with `no-new-privileges`, memory, CPU and PID limits and a
-health check. The agent generates the superuser's password, which the image reads from a file that only it may read,
+health check. Of the parameters of the engines, only the most connections and the size of the buffers can be set:
+numbers within bounds that the agent checks, also against the datastore's memory, from which it builds the options of
+the server itself. None that load code or run commands can be set, e.g. PostgreSQL's `shared_preload_libraries` and
+`archive_command` or MariaDB's `plugin_load` and `init_file`.
+The agent generates the superuser's password, which the image reads from a file that only it may read,
 never from the environment or labels, and which never leaves the node; MariaDB's root may only sign in on the container
 itself. Every database has its own user with rights on it alone, and on PostgreSQL nobody else may connect to it or to
 the superuser's database. Only the network's servers reach a datastore: on its node over an internal network

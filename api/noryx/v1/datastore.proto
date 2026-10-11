@@ -17,8 +17,8 @@ service DatastoreService {
   rpc CreateDatastore(CreateDatastoreRequest) returns (CreateDatastoreResponse);
   rpc StartDatastore(StartDatastoreRequest) returns (StartDatastoreResponse);
   rpc StopDatastore(StopDatastoreRequest) returns (StopDatastoreResponse);
-  // UpdateDatastore changes the limits of a datastore, pulls its image again, moves it to
-  // another major version or removes the data a previous version left.
+  // UpdateDatastore changes the limits and parameters of a datastore, pulls its image again,
+  // moves it to another major version or removes the data a previous version left.
   rpc UpdateDatastore(UpdateDatastoreRequest) returns (UpdateDatastoreResponse);
   // PublishDatastore publishes the port of a datastore at the node's address in the private
   // network of the nodes, for the nodes of its network only, or no longer.
@@ -91,6 +91,19 @@ message Datastore {
   uint32 port = 10;
   // Databases of a running datastore, sorted.
   repeated string databases = 11;
+  // The parameters of its engine; agents of older versions send none, as they don't know them.
+  DatastoreParameters parameters = 12;
+}
+
+// DatastoreParameters tune the engine of a datastore, each 0 for its default. The agent
+// checks them with Problem and passes them to the database server as options that it builds
+// itself from the numbers; no other parameters can be set.
+message DatastoreParameters {
+  // Connections at once, max_connections; 0 for DefaultConnections.
+  uint32 max_connections = 1;
+  // MiB of the cache of data, InnoDB's buffer pool or PostgreSQL's shared_buffers; 0 for
+  // DefaultBufferMB.
+  uint32 buffer_mb = 2;
 }
 
 message DatastoreVersions {
@@ -113,6 +126,7 @@ message CreateDatastoreRequest {
   uint32 memory_mb = 4;
   uint32 cpu_millis = 5;
   string storage = 6;
+  DatastoreParameters parameters = 7;
 }
 
 message CreateDatastoreResponse {
@@ -144,6 +158,8 @@ message UpdateDatastoreRequest {
   string version = 5;
   // Removes the data a previous version left.
   bool remove_previous = 6;
+  // The parameters it gets, like the limits.
+  DatastoreParameters parameters = 7;
 }
 
 message UpdateDatastoreResponse {

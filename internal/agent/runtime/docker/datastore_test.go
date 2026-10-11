@@ -47,6 +47,41 @@ func TestDatastoreOptions(t *testing.T) {
 	}
 }
 
+// TestTune checks the options of the engines, by default with buffers that follow the memory,
+// and the room their connections and PostgreSQL's parallel queries get.
+func TestTune(t *testing.T) {
+	mariadb, postgres := noryxv1.DatastoreEngine_DATASTORE_ENGINE_MARIADB, noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES
+	for _, c := range []struct {
+		spec runtime.DatastoreSpec
+		cmd  []string
+		pids int64
+		shm  int64
+	}{
+		{runtime.DatastoreSpec{Engine: mariadb, Version: "12.3", MemoryMB: 256}, []string{"mariadbd", "--max-connections=151", "--innodb-buffer-pool-size=128M"}, 663, 0},
+		{runtime.DatastoreSpec{Engine: mariadb, Version: "12.3", MemoryMB: 2048}, []string{"mariadbd", "--max-connections=151", "--innodb-buffer-pool-size=1024M"}, 663, 0},
+		{
+			runtime.DatastoreSpec{Engine: mariadb, Version: "12.3", MemoryMB: 2048, MaxConnections: 800, BufferMB: 1536},
+			[]string{"mariadbd", "--max-connections=800", "--innodb-buffer-pool-size=1536M"}, 1312, 0,
+		},
+		{runtime.DatastoreSpec{Engine: postgres, Version: "18", MemoryMB: 256}, []string{"postgres", "-c", "max_connections=100", "-c", "shared_buffers=128MB"}, 612, 64 << 20},
+		{runtime.DatastoreSpec{Engine: postgres, Version: "18", MemoryMB: 2048}, []string{"postgres", "-c", "max_connections=100", "-c", "shared_buffers=512MB"}, 612, 512 << 20},
+		{
+			runtime.DatastoreSpec{Engine: postgres, Version: "17", MemoryMB: 1024, MaxConnections: 500, BufferMB: 32},
+			[]string{"postgres", "-c", "max_connections=500", "-c", "shared_buffers=32MB"}, 1012, 256 << 20,
+		},
+	} {
+		c.spec.ID = "store"
+		opts, err := datastoreOptions(c.spec, "/srv/store")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tune(&opts, c.spec)
+		if hc := opts.HostConfig; !slices.Equal(opts.Config.Cmd, c.cmd) || *hc.PidsLimit != c.pids || hc.ShmSize != c.shm {
+			t.Errorf("%+v: runs %q with %d processes and %d bytes of /dev/shm", c.spec, opts.Config.Cmd, *hc.PidsLimit, hc.ShmSize)
+		}
+	}
+}
+
 func TestEveryDatastoreEngineHasADialect(t *testing.T) {
 	for e := range noryxv1.DatastoreEngine_name {
 		engine := noryxv1.DatastoreEngine(e)
@@ -73,11 +108,12 @@ func TestDatastoresLive(t *testing.T) {
 func liveDatastore(t *testing.T, d *Docker, engine noryxv1.DatastoreEngine) {
 	ctx := t.Context()
 	versions := engines[engine].versions
-	spec := runtime.DatastoreSpec{ID: runtime.NewID(), Engine: engine, Version: versions[0], MemoryMB: 512}
+	spec := runtime.DatastoreSpec{ID: runtime.NewID(), Engine: engine, Version: versions[0], MemoryMB: 512, MaxConnections: 120, BufferMB: 192}
 	must(t, d.CreateDatastore(ctx, spec))
 	t.Cleanup(func() { must(t, d.RemoveDatastore(context.WithoutCancel(ctx), spec.ID)) })
 	must(t, d.StartDatastore(ctx, spec.ID))
 	must(t, d.waitReady(ctx, spec.ID))
+	tuned(t, d, spec.ID)
 
 	const password = "abcdefghijklmnopqrstuvwxyz234567"
 	must(t, d.EnsureDatabase(ctx, spec.ID, "shop", password))
@@ -135,6 +171,7 @@ func liveDatastore(t *testing.T, d *Docker, engine noryxv1.DatastoreEngine) {
 	if got := asUser(t, d, spec.ID, password, "SELECT SUM(v) FROM items;"); got != "42" {
 		t.Errorf("after the upgrade, the sum is %q", got)
 	}
+	tuned(t, d, spec.ID)
 	reaches(t, d, server, spec.ID)
 	if engine == noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES {
 		s, err := d.session(ctx, spec.ID)
@@ -153,6 +190,21 @@ func liveDatastore(t *testing.T, d *Docker, engine noryxv1.DatastoreEngine) {
 	must(t, d.DropDatabase(ctx, spec.ID, "shop"))
 	if names, _ := d.Databases(ctx, spec.ID); len(names) > 0 {
 		t.Errorf("databases %v after dropping", names)
+	}
+}
+
+// tuned checks that the engine of a datastore runs with 120 connections and 192 MiB of buffers.
+func tuned(t *testing.T, d *Docker, id string) {
+	s, err := d.session(t.Context(), id)
+	must(t, err)
+	settings := map[string]string{"SELECT @@max_connections;": "120", "SELECT @@innodb_buffer_pool_size DIV 1048576;": "192"}
+	if s.engine == noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES {
+		settings = map[string]string{"SHOW max_connections;": "120", "SHOW shared_buffers;": "192MB"}
+	}
+	for query, want := range settings {
+		if got, err := s.query(t.Context(), query); err != nil || !slices.Equal(got, []string{want}) {
+			t.Errorf("%s = %v, %v; want %s", query, got, err, want)
+		}
 	}
 }
 

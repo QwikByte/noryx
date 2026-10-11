@@ -50,6 +50,15 @@ type Datastore struct {
 	Port      uint32     `json:"port"`
 	CreatedAt time.Time  `json:"createdAt"`
 	Databases []Database `json:"databases"`
+	// MaxConnections and BufferMB tune its engine, each 0 for its default, as
+	// noryxv1.DatastoreParameters describes them.
+	MaxConnections uint32 `json:"maxConnections"`
+	BufferMB       uint32 `json:"bufferMb"`
+}
+
+// parameters returns the parameters of its engine.
+func (ds Datastore) parameters() *noryxv1.DatastoreParameters {
+	return &noryxv1.DatastoreParameters{MaxConnections: ds.MaxConnections, BufferMb: ds.BufferMB}
 }
 
 // Database is a database of a datastore, with a user of the same name.
@@ -74,6 +83,8 @@ type View struct {
 	Problem string   `json:"problem,omitempty"`
 	// Endpoints are where the servers of the network reach it.
 	Endpoints []Endpoint `json:"endpoints"`
+	// Warning tells what a creation or change left out, e.g. on an agent of an older version.
+	Warning string `json:"warning,omitempty"`
 }
 
 // Endpoint is where servers reach a datastore: those on its node by the name of its
@@ -93,16 +104,22 @@ type Input struct {
 	MemoryMB  uint32 `json:"memoryMb"`
 	CPUMillis uint32 `json:"cpuMillis"`
 	Storage   string `json:"storage"`
+	// Each 0 for its default.
+	MaxConnections uint32 `json:"maxConnections"`
+	BufferMB       uint32 `json:"bufferMb"`
 }
 
-// Change changes a datastore: its limits, its image or major version, or the data of the
-// previous version.
+// Change changes a datastore: its limits and parameters, its image or major version, or the
+// data of the previous version.
 type Change struct {
 	MemoryMB       uint32  `json:"memoryMb"` // 0 keeps it
 	CPUMillis      *uint32 `json:"cpuMillis"`
 	Version        string  `json:"version"`
 	UpdateImage    bool    `json:"updateImage"`
 	RemovePrevious bool    `json:"removePrevious"`
+	// Each 0 for its default; nil keeps it.
+	MaxConnections *uint32 `json:"maxConnections"`
+	BufferMB       *uint32 `json:"bufferMb"`
 }
 
 // Networks are the networks of the datastores.
@@ -231,13 +248,15 @@ func view(ds Datastore, res *noryxv1.ListDatastoresResponse, err error) View {
 func (s *Service) Create(ctx context.Context, networkID string, in Input) (View, error) {
 	in.Name, in.Engine = strings.TrimSpace(in.Name), strings.ToLower(in.Engine)
 	engine, ok := engines[in.Engine]
-	switch {
+	switch problem := (&noryxv1.DatastoreParameters{MaxConnections: in.MaxConnections, BufferMb: in.BufferMB}).Problem(engine, in.MemoryMB); {
 	case !noryxv1.DatastoreName.MatchString(in.Name):
 		return View{}, httpapi.Errorf(http.StatusBadRequest, "Use up to 32 lower-case letters, digits and -, starting with a letter or digit, as name.")
 	case !ok:
 		return View{}, httpapi.Errorf(http.StatusBadRequest, "Choose MariaDB or PostgreSQL.")
 	case in.MemoryMB < minMemoryMB:
 		return View{}, httpapi.Errorf(http.StatusBadRequest, "Give the datastore at least %d MB of memory.", minMemoryMB)
+	case problem != "":
+		return View{}, httpapi.Errorf(http.StatusBadRequest, "%s", problem)
 	}
 	if _, err := s.networks.Get(ctx, networkID); err != nil {
 		return View{}, err
@@ -279,19 +298,28 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 	ds := Datastore{
 		ID: strings.ToLower(rand.Text()), NetworkID: networkID, NodeID: n.ID, Name: in.Name, Engine: in.Engine, Version: in.Version,
 		MemoryMB: in.MemoryMB, CPUMillis: in.CPUMillis, Storage: cmp.Or(in.Storage, n.DefaultStorage), CreatedAt: time.Now(), Databases: []Database{},
+		MaxConnections: in.MaxConnections, BufferMB: in.BufferMB,
 	}
 	if err := s.store.insert(ctx, ds); err != nil {
 		return View{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
+	var created *noryxv1.Datastore
 	err = s.agent(ctx, ds.NodeID, func(ctx context.Context, c noryxv1.DatastoreServiceClient) error {
-		_, err := c.CreateDatastore(ctx, &noryxv1.CreateDatastoreRequest{
-			Id: ds.ID, Engine: engine, Version: ds.Version, MemoryMb: ds.MemoryMB, CpuMillis: ds.CPUMillis, Storage: ds.Storage,
+		res, err := c.CreateDatastore(ctx, &noryxv1.CreateDatastoreRequest{
+			Id: ds.ID, Engine: engine, Version: ds.Version, MemoryMb: ds.MemoryMB, CpuMillis: ds.CPUMillis, Storage: ds.Storage, Parameters: ds.parameters(),
 		})
+		created = res.GetDatastore()
 		return err
 	})
 	if err != nil {
 		return View{}, errors.Join(err, s.store.delete(ctx, ds.ID))
+	}
+	ds, warning := taken(ds, created)
+	if warning != "" {
+		if err := s.store.update(ctx, ds); err != nil {
+			return View{}, err
+		}
 	}
 	operation.Step(ctx, "start")
 	if err := s.call(ctx, ds.NodeID, func(ctx context.Context, c noryxv1.DatastoreServiceClient) error {
@@ -304,7 +332,19 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 	if err := s.networks.Configure(ctx, networkID); err != nil {
 		return View{}, err
 	}
-	return s.one(ctx, ds.ID)
+	v, err := s.one(ctx, ds.ID)
+	v.Warning = warning
+	return v, err
+}
+
+// taken returns a datastore with the parameters that its agent took: none if the agent is of an
+// earlier version, which doesn't know them, with a warning if it was asked for some.
+func taken(ds Datastore, got *noryxv1.Datastore) (Datastore, string) {
+	if got.GetParameters() != nil || ds.MaxConnections == 0 && ds.BufferMB == 0 {
+		return ds, ""
+	}
+	ds.MaxConnections, ds.BufferMB = 0, 0
+	return ds, "The agent of the node is too old for the connections and buffers of datastores, so the datastore keeps the defaults of its image. Update the agent first, then set them in the datastore's settings."
 }
 
 // one returns a datastore as its agent reports it.
@@ -375,8 +415,17 @@ func (s *Service) Update(ctx context.Context, id string, c Change) (View, error)
 	if c.CPUMillis != nil {
 		next.CPUMillis = *c.CPUMillis
 	}
+	if c.MaxConnections != nil {
+		next.MaxConnections = *c.MaxConnections
+	}
+	if c.BufferMB != nil {
+		next.BufferMB = *c.BufferMB
+	}
 	if next.MemoryMB < minMemoryMB {
 		return View{}, httpapi.Errorf(http.StatusBadRequest, "Give the datastore at least %d MB of memory.", minMemoryMB)
+	}
+	if problem := next.parameters().Problem(engines[ds.Engine], next.MemoryMB); problem != "" {
+		return View{}, httpapi.Errorf(http.StatusBadRequest, "%s", problem)
 	}
 	n, err := s.nodes.Get(ctx, ds.NodeID)
 	if err == nil {
@@ -386,19 +435,25 @@ func (s *Service) Update(ctx context.Context, id string, c Change) (View, error)
 		return View{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
+	var updated *noryxv1.Datastore
 	err = s.agent(ctx, ds.NodeID, func(ctx context.Context, client noryxv1.DatastoreServiceClient) error {
-		_, err := client.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{
+		res, err := client.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{
 			Id: ds.ID, MemoryMb: next.MemoryMB, CpuMillis: next.CPUMillis, UpdateImage: c.UpdateImage, Version: c.Version, RemovePrevious: c.RemovePrevious,
+			Parameters: next.parameters(),
 		})
+		updated = res.GetDatastore()
 		return err
 	})
 	if err != nil {
 		return View{}, err
 	}
+	next, warning := taken(next, updated)
 	if err := s.store.update(ctx, next); err != nil {
 		return View{}, err
 	}
-	return s.one(ctx, id)
+	v, err := s.one(ctx, id)
+	v.Warning = warning
+	return v, err
 }
 
 // Start starts a datastore, or stops it.
