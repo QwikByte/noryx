@@ -62,6 +62,7 @@ export function ServersPage() {
           servers={servers}
           search={search}
           onSearch={(change) => navigate({ search: (s) => ({ ...s, ...change }), replace: true })}
+          views
         />
       )}
     </>

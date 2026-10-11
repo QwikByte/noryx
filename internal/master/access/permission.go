@@ -158,7 +158,7 @@ var Catalog = []Area{
 	}},
 	{"System", []Info{
 		global(SettingsView, "See the master's settings", "Its version, addresses and settings."),
-		global(SettingsEdit, "Change the master's settings", "Enrollment address, join tokens, sessions, who has to use two-factor authentication and limits of new nodes.", SettingsView),
+		global(SettingsEdit, "Change the master's settings", "Enrollment address, join tokens, sessions, who has to use two-factor authentication, limits of new nodes, what new servers start with, the defaults of users, the name of the panel and how players are warned; the texts of warnings also need console commands on all servers.", SettingsView),
 		global(Terminal, "Use the terminal", "Each command also needs its own permission, e.g. to restart a server."),
 	}},
 	{"Users and groups", []Info{

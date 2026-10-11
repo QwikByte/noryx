@@ -8,6 +8,24 @@
 /* The theme is a class on <html>; public/theme.js sets it before the first paint. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Less motion when the operating system asks for it, or the user (data-motion="less" on <html>, see lib/theme.ts). */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    @slot;
+  }
+  &:where([data-motion="less"] *) {
+    @slot;
+  }
+}
+
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:where(:not([data-motion="less"] *)) {
+      @slot;
+    }
+  }
+}
+
 @theme inline {
   --font-sans: "Mona Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Mona Sans Variable", ui-sans-serif, system-ui, sans-serif;

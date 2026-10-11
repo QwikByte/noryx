@@ -28,7 +28,7 @@ import { type Server, type ServerAction, useMove, useServerAction, type Warning 
 import { DuplicateServerDialog } from "./duplicate-server-dialog"
 import { MoveServerDialog } from "./move-server-dialog"
 import { NotesDialog } from "./notes"
-import { PowerDialog } from "./power-dialog"
+import { canWarn, usePower } from "./power"
 import { serverType } from "./server-types"
 import { TagsDialog } from "./tags"
 
@@ -61,7 +61,8 @@ export function ServerActions({
   const mutation = useServerAction(nodeId)
   const operation = useOperation()
   const move = useMove(server.id)
-  const [dialog, setDialog] = useState<"duplicate" | "move" | "template" | "tags" | "notes" | "restart" | "stop">()
+  const power = usePower({ nodeId })
+  const [dialog, setDialog] = useState<"duplicate" | "move" | "template" | "tags" | "notes">()
   const running = server.state !== "stopped"
   const dialogProps = { nodeId, server, open: true, onOpenChange: (open: boolean) => !open && setDialog(undefined) }
 
@@ -73,6 +74,12 @@ export function ServerActions({
       done: () => ({ message: done }),
       then,
     })
+  }
+
+  // Stops and restarts go as the user chose; warn asks with the warning on, as the menu does.
+  function act(action: ServerAction, done: string, warn = false) {
+    if (action !== "restart" && action !== "stop") return run(action, done)
+    power.request({ nodeId, server, action, run: (warning) => run(action, done, undefined, warning) }, warn)
   }
 
   const { can } = useAccess()
@@ -90,8 +97,7 @@ export function ServerActions({
         ]
       : [{ action: "start", icon: PlayIcon, label: t("Start"), done: t("Started {{name}}", { name: server.name }) }]
   ).filter((p) => may(`servers.${p.action}` as Permission))
-  // Only the players of running game servers can be warned.
-  const warnable = server.state === "running" && !serverType(server.type).proxy ? powers : []
+  const warnable = canWarn(server) ? powers : []
   if (move && !move.finishedAt) {
     return (
       <Pill tone="info">
@@ -115,7 +121,7 @@ export function ServerActions({
           aria-label={compact ? `${label}: ${server.name}` : undefined}
           title={compact ? label : undefined}
           className={cn(compact && "text-muted-foreground", compact && action === "start" && "text-primary")}
-          onClick={() => run(action as ServerAction, done)}
+          onClick={() => act(action as ServerAction, done)}
         >
           <Icon weight={compact ? "fill" : undefined} />
           {!compact && label}
@@ -137,8 +143,8 @@ export function ServerActions({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              {warnable.map(({ action }) => (
-                <DropdownMenuItem key={action} onSelect={() => setDialog(action as "restart" | "stop")}>
+              {warnable.map(({ action, done }) => (
+                <DropdownMenuItem key={action} onSelect={() => act(action as ServerAction, done, true)}>
                   <BellRingingIcon />
                   {action === "stop" ? t("Stop with a warning…") : t("Restart with a warning…")}
                 </DropdownMenuItem>
@@ -205,18 +211,7 @@ export function ServerActions({
       {dialog === "template" && <SaveTemplateDialog {...dialogProps} />}
       {dialog === "tags" && <TagsDialog servers={[{ ...server, nodeId }]} onOpenChange={dialogProps.onOpenChange} />}
       {dialog === "notes" && <NotesDialog nodeId={nodeId} server={server} onOpenChange={dialogProps.onOpenChange} />}
-      {(dialog === "restart" || dialog === "stop") && (
-        <PowerDialog
-          action={dialog}
-          title={dialog === "stop" ? t("Stop {{name}}?", { name: server.name }) : t("Restart {{name}}?", { name: server.name })}
-          description={t("Its players are disconnected.")}
-          warnable
-          warnFirst
-          canMessage={may("console.commands")}
-          onConfirm={(warning) => run(dialog, powers.find((p) => p.action === dialog)?.done ?? "", undefined, warning)}
-          onOpenChange={dialogProps.onOpenChange}
-        />
-      )}
+      {power.dialog}
     </div>
   )
 }

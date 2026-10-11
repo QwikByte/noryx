@@ -12,19 +12,22 @@ import { SelectItem } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { networksQuery } from "@/features/networks/api"
-import { sortingOf } from "@/lib/sort"
+import { useChoice } from "@/features/preferences/api"
 import { useOnlinePlayers } from "./online"
 import { OnlinePlayers } from "./online-players"
 import { PlayerBulkBar } from "./player-bulk-bar"
 import { type PlayerDialog, PlayerDialogs } from "./player-dialog"
 import { type ListKind, PlayerListTab } from "./player-lists"
-import { listSorts, onlineSorts, type PlayerSearch, seenSorts } from "./search"
+import { listSorts, onlineSorts, type PlayerSearch, seenSorts, usePlayerSorting } from "./search"
 import { SeenPlayers } from "./seen-players"
 import { bulkActions, useSelection } from "./selection"
 
 const route = getRouteApi("/_app/players")
 
-/** The players online on all servers, those seen, and who is banned, whitelisted and operator, to act on them, also on several at once. */
+/**
+ * The players online on all servers, those seen, and who is banned, whitelisted and operator, to act on them, also on
+ * several at once. Where the address doesn't say, the list and the sort chosen last apply.
+ */
 export function PlayersPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
@@ -34,9 +37,10 @@ export function PlayersPage() {
   const [dialog, setDialog] = useState<PlayerDialog>()
   const selection = useSelection()
   const network = networks.find((n) => n.id === search.network)
-  const tab = search.tab ?? "online"
+  const [tab, chooseTab] = useChoice("playerTab", "online", search.tab)
   const query = (search.q ?? "").toLowerCase()
   const set = (change: Partial<PlayerSearch>) => void navigate({ search: (s) => ({ ...s, ...change }), replace: true })
+  const sorting = usePlayerSorting(search, set)
   const online = players.filter(
     (p) =>
       (!network || p.network?.id === network.id) && (p.name.toLowerCase().includes(query) || p.server.name.toLowerCase().includes(query)),
@@ -57,7 +61,8 @@ export function PlayersPage() {
           value={tab}
           onChange={(tab) => {
             selection.clear()
-            set({ tab: tab === "online" ? undefined : tab })
+            chooseTab(tab)
+            set({ tab })
           }}
           options={[
             { value: "online", label: t("Online") },
@@ -110,17 +115,17 @@ export function PlayersPage() {
           {isPending ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : (
-            <OnlinePlayers players={online} sorting={sortingOf(search, onlineSorts, set)} selection={selection} onAct={setDialog} />
+            <OnlinePlayers players={online} sorting={sorting(onlineSorts)} selection={selection} onAct={setDialog} />
           )}
         </>
       ) : tab === "seen" ? (
-        <SeenPlayers network={network} query={query} sorting={sortingOf(search, seenSorts, set)} selection={selection} onAct={setDialog} />
+        <SeenPlayers network={network} query={query} sorting={sorting(seenSorts)} selection={selection} onAct={setDialog} />
       ) : (
         <PlayerListTab
           kind={tab}
           network={network}
           query={query}
-          sorting={sortingOf(search, listSorts, set)}
+          sorting={sorting(listSorts)}
           selection={selection}
           onAct={setDialog}
         />

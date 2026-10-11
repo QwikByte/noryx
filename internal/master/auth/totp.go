@@ -15,10 +15,7 @@ import (
 
 // Codes of authenticator apps as they expect them by default (TOTP, RFC 6238): HMAC-SHA1,
 // 6 digits and a new code every 30 seconds.
-const (
-	totpPeriod = 30 // seconds
-	issuer     = "Noryx"
-)
+const totpPeriod = 30 // seconds
 
 var secretEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
 
@@ -29,9 +26,10 @@ func newSecret() string {
 	return secretEncoding.EncodeToString(key)
 }
 
-// totpURI is what the QR code of a secret contains, for authenticator apps to add it.
-func totpURI(username, secret string) string {
-	u := url.URL{Scheme: "otpauth", Host: "totp", Path: "/" + issuer + ":" + username}
+// totpURI is what the QR code of a secret contains, for authenticator apps to add it under
+// issuer. A colon ends the issuer in the label, so the label leaves out the issuer's own.
+func totpURI(issuer, username, secret string) string {
+	u := url.URL{Scheme: "otpauth", Host: "totp", Path: "/" + strings.ReplaceAll(issuer, ":", "") + ":" + username}
 	// Some apps show a "+" as is, so spaces are encoded as "%20".
 	u.RawQuery = strings.ReplaceAll(url.Values{"secret": {secret}, "issuer": {issuer}}.Encode(), "+", "%20")
 	return u.String()

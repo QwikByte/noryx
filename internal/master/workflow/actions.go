@@ -234,9 +234,9 @@ func (x *scope) call(ctx context.Context, srv schedule.Server, timeout time.Dura
 
 type powerSettings struct {
 	Servers
-	// Warnings are the minutes before at which the players are warned in the chat.
+	// Warnings are the minutes before at which the players are warned, as the settings say.
 	Warnings []uint32 `json:"warnings"`
-	// Message is the warning, with {minutes}; empty for the default.
+	// Message is the warning, with {minutes}; empty for the text of the settings.
 	Message string `json:"message,omitempty"`
 }
 
@@ -255,7 +255,7 @@ func (s *powerSettings) check() error {
 	return s.Servers.check()
 }
 
-// needs: a warning of one's own is a console command, say.
+// needs: a warning of one's own is a console command.
 func (s *powerSettings) needs() []access.Permission {
 	if s.Message != "" {
 		return []access.Permission{access.ConsoleCommands}
@@ -273,16 +273,22 @@ var powers = map[string]action{
 func (x *scope) power(ctx context.Context, s Servers, what string, warnings []uint32, message string) (any, error) {
 	list, listErr := x.resolve(ctx, s)
 	if len(warnings) > 0 {
-		msg, err := server.WarningMessage(what, message)
+		how := x.run.svc.deps.Config.Warnings()
+		msg, err := how.Message(what, message)
 		if err != nil {
 			return nil, err
 		}
 		err = server.Countdown(ctx, time.Now().Add(time.Duration(warnings[0])*time.Minute), warnings, func(minutes uint32) {
+			commands, _ := how.Commands(msg, minutes)
 			for _, srv := range list {
 				if server.Warnable(srv.Server) {
 					_ = x.call(ctx, srv, actionTimeout, func(ctx context.Context, c noryxv1.ServerServiceClient) error {
-						_, err := c.SendCommand(ctx, &noryxv1.SendCommandRequest{Id: srv.GetId(), Command: server.SayWarning(msg, minutes)})
-						return err
+						for _, command := range commands {
+							if _, err := c.SendCommand(ctx, &noryxv1.SendCommandRequest{Id: srv.GetId(), Command: command}); err != nil {
+								return err
+							}
+						}
+						return nil
 					})
 				}
 			}

@@ -255,8 +255,8 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Choose the software of the servers."
 	case !versionPattern.MatchString(t.Version):
 		return "Enter a Minecraft version like 1.21.4, or leave it empty for the latest."
-	case t.MemoryMB < 512 || t.MemoryMB > 64*1024:
-		return "Memory must be between 512 and 65536 MB."
+	case t.MemoryMB < noryxv1.MinMemoryMB || t.MemoryMB > noryxv1.MaxMemoryMB:
+		return fmt.Sprintf("Memory must be between %d and %d MB.", noryxv1.MinMemoryMB, noryxv1.MaxMemoryMB)
 	case in.RestartPolicy != "" && noryxv1.ParseRestartPolicy(in.RestartPolicy) == noryxv1.RestartPolicy_RESTART_POLICY_UNSPECIFIED:
 		return "Choose when the servers start on their own."
 	case t.CPULimit < 0 || t.CPULimit > 1024:

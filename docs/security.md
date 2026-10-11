@@ -42,8 +42,12 @@ that sessions show. The panel names a session by a random ID of its own, never b
 users only see and end their own sessions, which needs no password, as it only takes rights away. A session notes the
 address, browser and time of its last use at most once a minute; the browser and operating system are only names from
 fixed lists that the master recognises in the User-Agent, which are shown but never trusted. The CSV
-files of servers and players, which the browser writes, protect spreadsheets from formulas in names, tags and ban
+files of servers, nodes and players, which the browser writes, protect spreadsheets from formulas in names, tags and ban
 reasons as the export of the log does, and quote cells that hold the separator the user chose, comma or semicolon. Notes of servers are plain text, which the panel shows as text only.
+So are the name of the panel and the notice of its sign-in page: of limited length, without control characters but the
+line breaks of the notice, and public, as the sign-in page reads them without a session. The settings take no HTML, CSS
+or images for them, so the Content Security Policy stays as strict. The defaults of users' language and look are public
+too, and only values that users can choose themselves.
 
 ## Two-factor authentication
 
@@ -388,15 +392,20 @@ disabling and deleting apply right away; disabled users are signed out. Streams 
 log of a datastore and terminal commands such as `server logs`, end every 5 minutes, so the panel checks the session and
 the permissions again; the console and the log connect again on their own and continue. Users can only grant
 permissions they have themselves, within their own scope, and only manage users who have no more permissions than they
-do, so no one can raise their own permissions.
+do, so no one can raise their own permissions. The groups that the settings preselect for invitations are only shown
+checked, of those the inviter may give: the invitation checks the groups it gets like any other.
 The last enabled administrator can't be disabled, deleted or removed from the Administrators. The master logs every
 change with the user who made it, also denied attempts. An operation in progress can only be cancelled by the user who
 started it, in the panel or with the same API token, or by one who has the permissions it needed on what it is about,
 and only while it is at steps that stop
 safely: restoring a backup, moving a server, stopping or restarting one once it no longer warns its players, and
 restarting servers one after the other always finish.
-A warning before a stop or restart by hand is the console command `say`, so a message of one's own needs the permission
-to send console commands on each server; others get the default message and can't put text of their own in the chat.
+A warning before a stop or restart by hand is a console command, `say` or `title`, so a message of one's own needs the
+permission to send console commands on each server; others get the text of the settings and can't put text of their own
+in the chat. Changing these texts needs the permissions to change the master's settings and to send console commands to
+all servers, as they go to the console of every server that is warned, also by schedules and workflows; the master
+checks them like a message of one's own, a single line of up to 200 characters without control characters, and makes a
+title or the text above the hotbar JSON with an encoder, never by hand.
 Restarting servers of a network one after the other, also a single one, needs the permission to restart the proxy, which
 sends their players elsewhere, and each server that restarts; sending the players of a server elsewhere needs the
 permission to manage the players of the proxy, like sending one player. Schedules, which may restart any server, also
@@ -458,8 +467,9 @@ certificate that the system trusts, redirects aren't followed and proxies of the
 connect elsewhere; mails go over TLS from the start or after STARTTLS, and the master refuses to sign in or send without
 it. Every request and mail has a timeout, and only the status of an answer is shown, not its body. Discord and Slack get
 the texts of entries, which agents and servers write, as text that can't mention anyone or be formatted: escaped for
-Discord, which also gets no mentions allowed, and as Slack's plain text with `&`, `<` and `>` escaped. The subjects of
-mails are a single line without control characters and encoded, so that an entry can't add headers. A compromised agent
+Discord, which also gets no mentions allowed, and as Slack's plain text with `&`, `<` and `>` escaped, like the name of
+the panel in its notifications. The subjects of mails, and the name of the panel in them and as their sender, are a
+single line without control characters and encoded, so that neither an entry nor the name can add headers. A compromised agent
 can only add warnings about its own node and servers, at the limited rate of the log, and each channel sends 5 messages
 at once, then one a minute at most, which counts what it leaves out. **Send test** works three times at once, then once
 every 20 seconds per channel.

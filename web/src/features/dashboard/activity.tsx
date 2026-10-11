@@ -3,21 +3,21 @@ import { useInfiniteQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { AnimatePresence, motion } from "motion/react"
 import { IconTile } from "@/components/icon-tile"
-import { type LogFilter, logsQuery, useLiveLogs } from "@/features/logs/api"
+import { type Level, logsQuery, useLiveLogs } from "@/features/logs/api"
 import { levels } from "@/features/logs/meta"
 import { formatAgo } from "@/lib/format"
 import { useNow } from "@/lib/use-now"
+import type { WidgetProps } from "./options"
 import { Calm, Panel } from "./panel"
 
-const filter: LogFilter = { level: "info" }
-
-/** The latest entries of the log, as they are logged; new ones slide in at the top. */
-export function RecentActivity({ title }: { title: string }) {
+/** The latest entries of the log of at least a level, as they are logged; new ones slide in at the top. */
+export function RecentActivity({ title, options }: WidgetProps) {
+  const filter = { level: options.level as Level }
   const { data } = useInfiniteQuery(logsQuery(filter))
   useLiveLogs(filter, true)
   // Renders again now and then, so that the times stay current.
   const now = useNow(true, 30_000)
-  const entries = data?.pages.flat().slice(0, 8) ?? []
+  const entries = data?.pages.flat().slice(0, Number(options.count)) ?? []
   return (
     <Panel title={title} more={{ to: "/logs", label: t("Open the log") }}>
       {data && entries.length === 0 ? (

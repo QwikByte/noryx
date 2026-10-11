@@ -70,10 +70,18 @@ func (p Policies) Run(ctx context.Context, t schedule.Task, servers schedule.Ser
 			defer close(backedUp)
 			r.backUpAll(ctx, list)
 		}()
+		// The warnings show as the settings say now, which a message of the policy's own may no
+		// longer fit, e.g. as a title; the servers restart or stop anyway.
+		how := p.config.Warnings()
+		message, warnErr := how.Message(s.Action, s.Message)
+		if len(s.Warnings) > 0 {
+			r.report(warnErr)
+		}
 		err := server.Countdown(ctx, at, s.Warnings, func(minutes uint32) {
+			commands, _ := how.Commands(message, minutes)
 			for _, srv := range list {
-				if server.Warnable(srv.Server) && concerns(s, srv) {
-					_ = p.call(ctx, srv, command, server.SayWarning(s.Message, minutes)) // a server that misses a warning restarts anyway
+				if warnErr == nil && server.Warnable(srv.Server) && concerns(s, srv) {
+					_ = p.call(ctx, srv, command, commands...) // a server that misses a warning restarts anyway
 				}
 			}
 		})

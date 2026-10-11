@@ -69,6 +69,8 @@ func TestUsersGroupsAndPermissions(t *testing.T) {
 	}
 	mod.do("POST", path(lobby)+"/restart", nil, http.StatusNoContent, nil)
 	mod.do("POST", path(lobby)+"/command", map[string]string{"command": "say hi"}, http.StatusOK, nil)
+	// Who restarts servers learns how their players are warned, without seeing the settings.
+	mod.do("GET", "/api/servers/warnings", nil, http.StatusOK, nil)
 	for _, denied := range []struct{ method, path string }{
 		{"POST", path(survival) + "/restart"},
 		{"POST", path(lobby) + "/stop"},
@@ -80,6 +82,7 @@ func TestUsersGroupsAndPermissions(t *testing.T) {
 		{"GET", "/api/users"},
 		{"PUT", "/api/nodes/" + a.node.ID},
 		{"POST", "/api/nodes/" + a.node.ID + "/servers"},
+		{"GET", "/api/servers/defaults"},
 	} {
 		mod.do(denied.method, denied.path, map[string]any{}, http.StatusForbidden, nil)
 	}
@@ -173,4 +176,45 @@ func TestUsersGroupsAndPermissions(t *testing.T) {
 	}
 	root.do("PUT", modPath, map[string]any{"disabled": true, "groups": []string{mods.ID}}, http.StatusNoContent, nil)
 	mod.do("GET", "/api/access/me", nil, http.StatusUnauthorized, nil)
+}
+
+// Inviting preselects the groups of the settings that exist and that the inviter may give,
+// and the invitation still checks the groups it gets.
+func TestInviteGroups(t *testing.T) {
+	m := startMaster(t)
+	svc := m.services(t)
+	srv := httptest.NewTLSServer(masterapp.Handler(svc))
+	t.Cleanup(srv.Close)
+	admin, err := svc.Users.CreateUser(t.Context(), "admin", "the-admins-password")
+	check(t, err)
+	check(t, svc.Access.MakeAdmin(t.Context(), admin.ID))
+	root := browser(t, srv)
+	root.do("POST", "/api/auth/login", map[string]string{"username": "admin", "password": "the-admins-password"}, http.StatusOK, nil)
+	var players, managers, gone access.Group
+	root.do("POST", "/api/groups", map[string]any{"name": "Players", "permissions": []string{"servers.view"}, "allServers": true}, http.StatusCreated, &players)
+	root.do("POST", "/api/groups", map[string]any{"name": "Managers", "permissions": []string{"users.manage", "servers.view"}, "allServers": true}, http.StatusCreated, &managers)
+	root.do("POST", "/api/groups", map[string]any{"name": "Gone"}, http.StatusCreated, &gone)
+	root.do("PUT", "/api/settings", map[string]any{"inviteGroups": []string{players.ID, access.AdminGroup, gone.ID}}, http.StatusOK, nil)
+	root.do("DELETE", "/api/groups/"+gone.ID, nil, http.StatusNoContent, nil)
+	var preselected struct{ Groups []string }
+	root.do("GET", "/api/users/invite", nil, http.StatusOK, &preselected)
+	if want := slices.Sorted(slices.Values([]string{players.ID, access.AdminGroup})); !slices.Equal(preselected.Groups, want) {
+		t.Fatalf("preselected for the administrator = %v, want %v", preselected.Groups, want)
+	}
+
+	var invited struct {
+		SetupLink auth.SetupLink `json:"setupLink"`
+	}
+	root.do("POST", "/api/users", map[string]any{"username": "manager", "groups": []string{managers.ID}}, http.StatusCreated, &invited)
+	manager := browser(t, srv)
+	manager.do("POST", "/api/auth/setup", map[string]string{"token": invited.SetupLink.Token, "password": "the-managers-password"}, http.StatusOK, nil)
+	manager.do("GET", "/api/users/invite", nil, http.StatusOK, &preselected)
+	if !slices.Equal(preselected.Groups, []string{players.ID}) {
+		t.Fatalf("preselected for the manager = %v", preselected.Groups)
+	}
+	manager.do("POST", "/api/users", map[string]any{"username": "other", "groups": []string{players.ID, access.AdminGroup}}, http.StatusForbidden, nil)
+	root.do("POST", "/api/users", map[string]any{"username": "player", "groups": []string{players.ID}}, http.StatusCreated, &invited)
+	player := browser(t, srv)
+	player.do("POST", "/api/auth/setup", map[string]string{"token": invited.SetupLink.Token, "password": "the-players-password"}, http.StatusOK, nil)
+	player.do("GET", "/api/users/invite", nil, http.StatusForbidden, nil)
 }

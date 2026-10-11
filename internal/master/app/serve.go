@@ -156,16 +156,16 @@ func serve(ctx context.Context, cfg config) error {
 	copies := backup.NewCopies(db, nodes, nil)
 	jobs := backup.NewJobs(nodes, datastores, copies)
 	tasks := schedule.NewService(db, nodes, tags, networks, accessService, map[string]schedule.Kind{
-		backup.TaskKind: jobs, policy.TaskKind: policy.New(nodes, networks, usageStore, jobs, plugins),
+		backup.TaskKind: jobs, policy.TaskKind: policy.New(nodes, networks, usageStore, jobs, plugins, conf),
 	}, moves.Busy)
 	if err := tasks.Start(ctx); err != nil {
 		return err
 	}
-	notifications := notify.New(db, logStore, notify.Options{})
+	notifications := notify.New(db, logStore, conf, notify.Options{})
 	go notifications.Run(ctx)
 	workflows := workflow.NewService(db, workflow.Deps{
 		Nodes: nodes, Targets: tasks, Networks: networks, Players: player.NewService(nodes, networks, geyser), Usage: usageStore,
-		Backups: jobs, Plugins: plugins, Notify: notifications, Logs: logStore, Names: names, Access: accessService,
+		Backups: jobs, Plugins: plugins, Notify: notifications, Logs: logStore, Names: names, Access: accessService, Config: conf,
 	})
 	usageStore.Watch(workflows)
 	if err := workflows.Start(ctx); err != nil {
@@ -296,7 +296,7 @@ type Services struct {
 // Handler returns everything the master serves over HTTP: the panel, the sign-in and the
 // API, which needs a session and loads the user's permissions for every request.
 func Handler(s Services) http.Handler {
-	authHandler := auth.NewHandler(s.Users, s.Settings.SessionTTL, func(ctx context.Context, userID int64) (bool, error) {
+	authHandler := auth.NewHandler(s.Users, s.Settings, func(ctx context.Context, userID int64) (bool, error) {
 		required := s.Settings.Get().RequireMFA
 		if required.All || len(required.Groups) == 0 {
 			return required.All, nil
@@ -311,6 +311,7 @@ func Handler(s Services) http.Handler {
 	mux := http.NewServeMux()
 	authHandler.RegisterPublic(mux)
 	workflow.NewHandler(s.Workflows).RegisterPublic(mux)
+	settings.NewHandler(s.Settings, s.Restart).RegisterPublic(mux)
 	mux.Handle("/api/", authHandler.Require(s.Access.Middleware(api)))
 	mux.Handle("/", web.Handler())
 	// Webhooks are called with a token of their own, not with a session, from anywhere.
@@ -324,14 +325,14 @@ func Handler(s Services) http.Handler {
 func API(s Services) *http.ServeMux {
 	api := http.NewServeMux()
 	m := access.NewMux(api, s.Moves.Guard, s.Logs.Audit())
-	access.NewHandler(s.Access, s.Users).Register(m)
+	access.NewHandler(s.Access, s.Users, s.Settings).Register(m)
 	settings.NewHandler(s.Settings, s.Restart).Register(m)
 	logs.NewHandler(s.Logs).Register(m)
 	notify.NewHandler(s.Notify, s.Tidy).Register(m)
 	terminal.NewHandler(s.Nodes, s.Settings, s.Logs, s.Moves.Check).Register(m)
 	node.NewHandler(s.Nodes, s.Networks, s.Overlay, s.Operations, s.FileSets, s.Tidy).Register(m)
 	overlay.NewHandler(s.Overlay, s.Networks, s.Operations).Register(m)
-	server.NewHandler(s.Nodes, s.Networks, s.Tags, s.Plugins, s.Modpacks, s.Operations, s.Moves, s.FileSets, s.Tasks, s.Access, s.Usage, s.Tags, s.Preferences, s.Modpacks, s.Plugins, s.Sightings, s.Copies, s.Workflows, s.Notify, s.FileSets).Register(m)
+	server.NewHandler(s.Nodes, s.Networks, s.Tags, s.Plugins, s.Modpacks, s.Operations, s.Moves, s.FileSets, s.Settings, s.Tasks, s.Access, s.Usage, s.Tags, s.Preferences, s.Modpacks, s.Plugins, s.Sightings, s.Copies, s.Workflows, s.Notify, s.FileSets).Register(m)
 	operation.NewHandler(s.Operations).Register(m)
 	network.NewHandler(s.Networks, s.Operations, s.FileSets, s.Tidy).Register(m)
 	player.NewHandler(player.NewService(s.Nodes, s.Networks, s.GeyserMC), s.Sightings, player.NewFaces(s.Mojang, s.GeyserMC), s.Operations).Register(m)

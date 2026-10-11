@@ -1,22 +1,33 @@
 import {
+  ArrowsOutLineHorizontalIcon,
   CalendarDotsIcon,
   ClockIcon,
   ClockCounterClockwiseIcon,
   CodeIcon,
   FileCsvIcon,
   GlobeIcon,
+  HouseIcon,
+  KeyboardIcon,
   PaletteIcon,
+  PowerIcon,
+  SparkleIcon,
+  TabsIcon,
   TerminalIcon,
   TerminalWindowIcon,
   TextAaIcon,
 } from "@phosphor-icons/react"
 import { t } from "i18next"
+import { pages, startPage } from "@/components/navigation"
 import { Segmented } from "@/components/segmented"
 import { TimeZonePicker } from "@/components/time-zone-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAccess } from "@/features/access/use-access"
 import { AccountRow } from "@/features/auth/account-row"
+import { searchChord } from "@/features/palette/shortcuts"
+import { firstTabs } from "@/features/servers/tabs"
 import { languageSeparator } from "@/lib/csv"
 import { type Clock, clock, locale, timeWith } from "@/lib/i18n"
+import { type Motion, useLook, type Width } from "@/lib/theme"
 import { codeSizes, type Settings, type SettingsChange, useSettings, wraps } from "./api"
 
 // A time in the afternoon shows what each clock means, e.g. 14:30 and 2:30 PM.
@@ -296,6 +307,150 @@ export function ExportSettings() {
       }
     >
       {t("Spreadsheets in languages with a decimal comma, e.g. German, expect semicolons. Excel needs the byte order mark to read umlauts and other letters.")}
+    </AccountRow>
+  )
+}
+
+/** Where the panel and servers open, how wide pages are and how they move, and whether shortcuts of single keys work. */
+export function NavigationSettings() {
+  const access = useAccess()
+  const look = useLook()
+  const { settings, change } = useSettings()
+  return (
+    <>
+      <AccountRow
+        icon={HouseIcon}
+        tone="info"
+        title={t("Start page")}
+        actions={
+          <Select value={startPage(access, settings.startPage)} onValueChange={(page) => change({ startPage: page })}>
+            <SelectTrigger aria-label={t("Start page")} className="w-auto min-w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pages(access).map((page) => (
+                <SelectItem key={page.to} value={page.to}>
+                  {t(page.label)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      >
+        {t("Where the panel opens, also after signing in. The overview stays in the sidebar.")}
+      </AccountRow>
+      <AccountRow
+        icon={TabsIcon}
+        tone="info"
+        title={t("First tab of a server")}
+        actions={
+          <Choice
+            setting="serverTab"
+            label={t("First tab of a server")}
+            fallback="console"
+            options={firstTabs.map((tab) => ({ value: tab.value, label: t(tab.label) }))}
+          />
+        }
+      >
+        {t("The tab a server opens on from lists and the search. Without the permission for it, the first tab you may see.")}
+      </AccountRow>
+      <AccountRow
+        icon={ArrowsOutLineHorizontalIcon}
+        tone="violet"
+        title={t("Page width")}
+        actions={
+          <Segmented<Width>
+            label={t("Page width")}
+            value={look.width}
+            options={[
+              { value: "limited", label: t("Limited") },
+              { value: "full", label: t("Full width") },
+            ]}
+            onChange={(value) => change({ width: value })}
+          />
+        }
+      >
+        {t("Pages keep a width that reads well, or fill wide screens, e.g. for long tables.")}
+      </AccountRow>
+      <AccountRow
+        icon={SparkleIcon}
+        tone="violet"
+        title={t("Motion")}
+        actions={
+          <Segmented<Motion>
+            label={t("Motion")}
+            value={look.motion}
+            options={[
+              { value: "system", label: t("System") },
+              { value: "less", label: t("Less motion") },
+            ]}
+            onChange={(value) => change({ motion: value })}
+          />
+        }
+      >
+        {t("Lists, figures, charts and pages are animated unless your operating system asks for less motion, or you do here.")}
+      </AccountRow>
+      <AccountRow
+        icon={KeyboardIcon}
+        tone="info"
+        title={t("Keyboard shortcuts")}
+        actions={
+          <Segmented<NonNullable<Settings["shortcuts"]>>
+            label={t("Keyboard shortcuts")}
+            value={settings.shortcuts ?? "on"}
+            options={[
+              { value: "on", label: t("On") },
+              { value: "off", label: t("Off") },
+            ]}
+            onChange={(value) => change({ shortcuts: value })}
+          />
+        }
+      >
+        {t("Keys typed one after the other, e.g. g and then s for the servers. Turned off, they don't get in the way of speech input, and {{chord}} still searches.", {
+          chord: searchChord,
+        })}
+      </AccountRow>
+    </>
+  )
+}
+
+/** Whether a single server stops or restarts right away, after asking or with a warning to its players, and when. */
+export function PowerSettings() {
+  const { settings } = useSettings()
+  return (
+    <AccountRow
+      icon={PowerIcon}
+      tone="warning"
+      title={t("Stops and restarts")}
+      actions={
+        <>
+          <Choice
+            setting="power"
+            label={t("Stops and restarts")}
+            fallback="now"
+            options={[
+              { value: "now", label: t("Right away") },
+              { value: "ask", label: t("Ask first") },
+              { value: "warn", label: t("Warn the players first") },
+            ]}
+          />
+          {settings.power && settings.power !== "now" && (
+            <Choice
+              setting="powerWhen"
+              label={t("Which servers")}
+              fallback="always"
+              options={[
+                { value: "always", label: t("For all servers") },
+                { value: "players", label: t("For servers with players") },
+              ]}
+            />
+          )}
+        </>
+      }
+    >
+      {t(
+        "Of a single server, from its buttons and the search; selected servers always ask. Only running game servers can warn their players, so the others ask. Players count as their node measured them last; servers without a measurement count as having some.",
+      )}
     </AccountRow>
   )
 }

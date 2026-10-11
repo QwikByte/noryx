@@ -10,11 +10,12 @@ import { rise } from "@/lib/motion"
 import { useNow } from "@/lib/use-now"
 import { cn } from "@/lib/utils"
 import { row } from "./lists"
+import type { WidgetProps } from "./options"
 import { Calm, Panel } from "./panel"
 import { failed, useAutomationTasks } from "./tasks"
 
 /** The backup jobs and schedules whose last run failed, then the next ones to run. */
-export function Schedules({ title }: { title: string }) {
+export function Schedules({ title, options }: WidgetProps) {
   const access = useAccess()
   const tasks = useAutomationTasks()
   // Renders again now and then, so that the times stay current.
@@ -23,7 +24,7 @@ export function Schedules({ title }: { title: string }) {
   const next = tasks
     .filter((a) => a.task.nextRun && !failing.includes(a))
     .sort((a, b) => Date.parse(a.task.nextRun!) - Date.parse(b.task.nextRun!))
-    .slice(0, 8)
+    .slice(0, Number(options.count))
   return (
     <Panel
       title={title}

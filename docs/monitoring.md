@@ -24,8 +24,8 @@ datastores of their node too, and the size of their data every minute.
 
 The master records the latest measurement of every agent each minute and keeps it for a week. Charts show the last 24
 hours (averages of 5 minutes) or 7 days (averages of 30 minutes), with the most players and the largest size of the data
-of each step, and a table shows the same values. Gaps are times in which a server didn't run or its node couldn't be
-reached. The history of a server moves and goes away with it, that of a datastore goes away with it. Thresholds and
+of each step, and a table shows the same values; the range and the view each user chose last apply again, in all their
+browsers. Gaps are times in which a server didn't run or its node couldn't be reached. The history of a server moves and goes away with it, that of a datastore goes away with it. Thresholds and
 warnings are only for nodes and servers.
 
 ### Warnings
@@ -95,12 +95,18 @@ a restart of either. Calls that only read are logged at the debug level, downloa
 ### Logs page
 
 The **Logs** page lists the entries newest first, with new ones streaming in. Filters for the time, level, category,
-source, node and a text search are part of the address, so a view can be shared. An entry opens to show all its details
-and narrows the list to its user, server or category. Key figures and a chart show the warnings and errors of the last
-24 hours; selecting an hour shows its entries. The entries are exported as CSV or JSON lines; CSV files are separated
-by commas or semicolons and start with a byte order mark as the user chose ([Settings of each
-user](panel.md#settings-of-each-user)). `GET /api/logs/export?format=csv` takes them as `separator=comma|semicolon`
-and `bom=on|off`.
+source, node and a text search are part of the address, so a view can be shared. The time is the last hour, 24 hours,
+7 days or 30 days, or **From … until …** two dates and times in the user's time zone, either of which can stay open;
+one with an end gets no new entries. An entry opens to show all its details and narrows the list to its user, server or
+category. Key figures and a chart show the warnings and errors of the last 24 hours; selecting an hour shows its
+entries. **Show this level by default** below the filters makes the chosen level the user's default, which applies in
+all their browsers where the address names no level, e.g. warnings and errors. The default shows as a chip, which shows
+all levels when removed, and **Show all levels by default** takes it back. The entries that match are exported as CSV
+or JSON lines; CSV files are separated by commas or semicolons and start with a byte order mark as the user chose
+([Settings of each user](panel.md#settings-of-each-user)).
+`GET /api/logs` and `GET /api/logs/export` take the time as `since` and `until`, RFC 3339 times of which `until` is
+exclusive, and `GET /api/logs/export?format=csv` takes the separator and the byte order mark as
+`separator=comma|semicolon` and `bom=on|off`.
 
 ### Everywhere else
 
@@ -179,7 +185,9 @@ a restart, it starts with the entries added from then on. Entries that come with
 most 10 entries, which counts the others. Each channel sends 5 messages at once, then one a minute at most, which
 bundles what came meanwhile. So a server in a crash loop or many agents that warn at once can't flood a channel, and an
 entry, e.g. of a node that went offline, reaches it within a minute. Messages name each entry's level, message, server
-and node, category, user, error and time.
+and node, category, user, error and time. Mails come from the name the settings give the panel and start their subjects
+with it, e.g. `Noryx · Test: A server crashed …`, as do the notifications of Slack, so that those of two panels can be
+told apart.
 
 ### Payload of webhooks
 

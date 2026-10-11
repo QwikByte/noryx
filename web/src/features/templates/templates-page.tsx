@@ -1,6 +1,6 @@
 import { DownloadSimpleIcon, MemoryIcon, PencilSimpleIcon, PlusIcon, StackIcon, TrashIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import { t } from "i18next"
 import { toast } from "sonner"
 import { ErrorCallout } from "@/components/callout"
@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { EmptyState } from "@/components/empty-state"
 import { TabIntro } from "@/components/hub-layout"
 import { IconTile } from "@/components/icon-tile"
+import { NoMatch, SearchField } from "@/components/list-toolbar"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
@@ -17,8 +18,11 @@ import { CreateServerDialog } from "@/features/servers/create-server-dialog"
 import { displayVersion, serverLook, serverType } from "@/features/servers/server-types"
 import { TagList } from "@/features/servers/tags"
 import { formatMegabytes } from "@/lib/format"
+import { matches } from "@/lib/search"
 import { exportUrl, type Template, templatesQuery, useDeleteTemplate } from "./api"
 import { ImportTemplateDialog } from "./import-template-dialog"
+
+const route = getRouteApi("/_app/_library/templates")
 
 function NewTemplate() {
   return (
@@ -34,9 +38,15 @@ function NewTemplate() {
   )
 }
 
+/** The templates, searched by the address. */
 export function TemplatesPage() {
   const manage = useAccess().can("templates.manage")
   const { data: templates, isPending, error } = useQuery(templatesQuery)
+  const { q } = route.useSearch()
+  const navigate = route.useNavigate()
+  const shown = (templates ?? []).filter((tpl) =>
+    matches(q, tpl.name, tpl.description, serverType(tpl.type).label, tpl.version, ...tpl.tags, ...tpl.plugins.map((p) => p.title)),
+  )
   return (
     <>
       <TabIntro actions={manage && <NewTemplate />}>
@@ -60,11 +70,23 @@ export function TemplatesPage() {
           {manage && <NewTemplate />}
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {templates.map((template) => (
-            <TemplateCard key={template.id} template={template} />
-          ))}
-        </ul>
+        <>
+          <SearchField
+            label={t("Search templates")}
+            value={q}
+            onChange={(q) => navigate({ search: { q }, replace: true })}
+            className="mb-5 sm:max-w-xs"
+          />
+          {shown.length === 0 ? (
+            <NoMatch>{t("Nothing matches your search.")}</NoMatch>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {shown.map((template) => (
+                <TemplateCard key={template.id} template={template} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </>
   )

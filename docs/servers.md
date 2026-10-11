@@ -13,12 +13,18 @@ Container labels are the agent's only state, so servers keep running while an ag
 
 ## Creating and deleting
 
-**Create server** asks for the node, name, software, Minecraft version, memory, port and storage location. The field of
-the Minecraft version suggests the releases that Modrinth lists, as do the settings and templates; empty means the
-latest. A game server can get a seed, a game mode, a difficulty and a world type under **World**, which start as its
+**Create server** asks for the node, name, software, Minecraft version, memory, port and storage location. It starts
+with the template that the [settings](administration.md#general) choose for new servers, for those who may see
+templates, or else with the software, memory, Java version, stop timeout and time zone they set (Paper, 2 GiB, 512 MiB
+for proxies, at least 4 GiB for modpacks, the newest Java, 1 minute and UTC by default), on the node the user created a
+server on last in this browser, while it is online, or else on the first online node. Memory is one of the usual
+amounts, or any other from 512 MiB to 64 GiB that is entered, here as in the settings of servers and templates. The
+field of the Minecraft version suggests the releases that Modrinth lists, as do the settings and templates; empty means
+the latest. A game server can get a seed, a game mode, a difficulty and a world type under **World**, which start as its
 template has them, or as Minecraft's defaults. They are written to `server.properties` before the first start, and the
-agent checks them like other properties. The [stop timeout and the time zone](#settings-and-images) fold away the same
-way, as the template has them, or 1 minute and UTC. Deleting a server with all its worlds asks for its name first.
+agent checks them like other properties. The Java version of a game server, the [stop timeout and the time
+zone](#settings-and-images) fold away the same way, as the template or the settings have them. Deleting a server with
+all its worlds asks for its name first.
 
 A server that ran elsewhere, e.g. at a host or on another panel, can start from **An archive of a server**: a ZIP or
 `.tar.gz` archive of the contents of its folder, with `server.properties` at its top. Software, version, memory and port
@@ -134,11 +140,19 @@ Stopping and restarting a server run as [operations](panel.md#operations), as th
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives
 up after 60 seconds by default, doesn't cut them off. Starting a server only takes a moment and answers right away.
 
-**Restart with a warning…** and **Stop with a warning…** in the menu of a running game server warn its players in the
-chat first, 1, 2, 5 or 10 minutes before, and again 5 minutes and 1 minute before, like
-[schedules](automation.md#schedules) do. Until then, the operation shows the time left and can be cancelled, which
-leaves the server running. The warning has the default message of schedules; one's own message needs the permission to
-send console commands, as the warning is the console command `say`. Proxies get no warning.
+**Restart with a warning…** and **Stop with a warning…** in the menu of a running game server warn its players first,
+1, 2, 5 or 10 minutes before, and again 5 minutes and 1 minute before, like [schedules](automation.md#schedules) do.
+The [settings](administration.md#general) can change the texts, the steps, the longest lead time (up to an hour, which
+offers 15, 30 and 60 minutes too) and where the warning shows: in the chat (`say`), as a title or above the hotbar.
+Until then, the operation shows the time left and can be cancelled, which leaves the server running. The warning has
+the text of the settings; one's own message needs the permission to send console commands, as the warning is a console
+command. Proxies get no warning.
+
+**Stop** and **Restart** of a server, on its page, its card, its row of the table and the widget of pinned servers, act
+right away, unless a user chooses on their account page that they ask first or open the dialog with the warning on,
+which only running game servers have, so that the others ask. They can do so only for servers with players, by the
+latest count of their node; a server it didn't count, e.g. as its console didn't answer, asks too. `restart lobby` and
+`stop lobby` in the [search](panel.md#search) follow the same choice, and selected servers always ask.
 
 When a node shuts down or reboots, systemd gives Docker 90 seconds to stop (its `DefaultTimeoutStopSec`), which cuts
 longer stop timeouts short: servers that haven't saved their worlds by then are killed. To give them their full stop
@@ -188,11 +202,18 @@ on its old node, stopped.
 
 The **Servers** page and the page of each node list servers as cards or as a compact table, the table from 13 servers on
 until one is chosen. They are searched, filtered by state, type, node, network and tag, sorted by name, state, players,
-CPU, memory or node, either way round, and grouped by network, node, type or tag, in groups that fold away. A click on a
-header of the table sorts by its column, and another click turns the order around. The address keeps all of it, so that
+CPU, memory, node, network, type, version, port or ticks per second, either way round, and grouped by network, node, type
+or tag, in groups that fold away. A click on a header of the table sorts by its column, and another click turns the
+order around. **Columns** chooses what the table shows besides the server and its state: its node, network, type,
+version, port, tags, players, ticks per second, CPU and memory; the type, version, port and tags of a server show with
+its name unless they have columns of their own. The address keeps the search, filters, sort, grouping and view, so that
 a view can be shared or bookmarked; where it doesn't say, the view, sort and grouping a user chose last apply, in all
-lists and all their browsers. **Export CSV** downloads the servers as listed, with their node, network, type, version,
-port, state, tags and what running servers use, for spreadsheets. Selected servers start, restart or stop together, run
+lists and all their browsers, as do the columns and the folded groups, e.g. a network folded on the **Servers** page
+stays folded on the page of a node. **Views** next to the search saves what the **Servers** page shows by name, e.g.
+"Lobbies on node 2": its search, filters, sort, grouping and view, which the menu and **Ctrl+K** show again. The master
+keeps up to 20 views for each user, which only the user sees. **Export CSV** downloads the servers as listed, with their
+type, version, port, state and tags and the other columns of the table, e.g. their node or what running servers use,
+for spreadsheets. Selected servers start, restart or stop together, run
 a console command such as `save-all`, or get and lose tags; an action applies to the selected servers in a fitting state
 on which the user may do it, at most 8 at a time on each node, and the panel tells which failed and offers to try those again.
 Restarting and stopping them can warn the players of the game servers first, like a single server.

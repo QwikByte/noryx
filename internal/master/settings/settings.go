@@ -20,12 +20,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/https"
 	"github.com/QwikByte/noryx/internal/master/node"
+	"github.com/QwikByte/noryx/internal/master/preference"
+	"github.com/QwikByte/noryx/internal/master/server"
 	"github.com/QwikByte/noryx/internal/master/usage"
 	"github.com/QwikByte/noryx/internal/pki"
+	"github.com/QwikByte/noryx/web"
 )
 
 const (
@@ -36,6 +41,9 @@ const (
 	minLogSizeMB        = 100
 	maxLogSizeMB        = 100 << 10 // 100 GiB
 	maxMFAGroups        = 100
+	maxPanelName        = 64
+	maxSignInNotice     = 500
+	maxInviteGroups     = 100
 )
 
 var (
@@ -75,6 +83,48 @@ type Settings struct {
 	RequireMFA MFARequirement `json:"requireMfa"`
 	// Thresholds tell when the usage of nodes and servers warns, unless they have their own.
 	Thresholds usage.Defaults `json:"thresholds"`
+
+	// PanelName names the panel in the browser's tab, the sidebar and notifications, and
+	// authenticator apps show it for the secrets set up from now on; empty means Noryx.
+	// SignInNotice shows on the sign-in page, e.g. whom to ask for access. Both are plain text
+	// and public, as the sign-in page shows them before anyone signs in.
+	PanelName    string `json:"panelName"`
+	SignInNotice string `json:"signInNotice"`
+
+	// UserDefaults apply to users who haven't chosen otherwise, instead of what their browser
+	// tells. They are public too, as the sign-in page shows them.
+	UserDefaults UserDefaults `json:"userDefaults"`
+	// InviteGroups are the IDs of the groups that inviting a user preselects. Groups that don't
+	// exist (any more) are left out.
+	InviteGroups []string `json:"inviteGroups"`
+
+	// NewServers are what the panel creates servers with, unless a template is chosen.
+	NewServers server.NewServers `json:"newServers"`
+	// Warnings tell how the players are warned before their servers restart or stop.
+	Warnings server.Warnings `json:"warnings"`
+}
+
+// UserDefaults are the language and the look of the panel for users who haven't chosen them,
+// by the keys of their settings (see preference.Settings); empty ones follow the browser.
+type UserDefaults struct {
+	Language string `json:"language"`
+	Theme    string `json:"theme"`
+	Accent   string `json:"accent"`
+	Density  string `json:"density"`
+	Clock    string `json:"clock"`
+}
+
+// validate checks that each default is one that users can choose themselves.
+func (d UserDefaults) validate() error {
+	if d.Language != "" && !slices.Contains(web.Languages, d.Language) {
+		return httpapi.Errorf(http.StatusBadRequest, "Choose one of the panel's languages as the default, e.g. de, or none to follow the browser.")
+	}
+	for _, kv := range [][2]string{{"theme", d.Theme}, {"accent", d.Accent}, {"density", d.Density}, {"clock", d.Clock}} {
+		if kv[1] != "" && !preference.Valid(kv[0], kv[1]) {
+			return httpapi.Errorf(http.StatusBadRequest, "Choose a default %s that users can choose themselves, or none to follow the browser.", kv[0])
+		}
+	}
+	return nil
 }
 
 // MFARequirement tells who has to use two-factor authentication: all users, or the members
@@ -89,6 +139,9 @@ func defaults() Settings {
 	return Settings{
 		SessionHours: 12, JoinTokenMinutes: 60, NodeDefaults: node.Limits{MemoryReserveMB: new(uint32(1024))}, LogDays: 30, LogSizeMB: 2048, CheckUpdates: true,
 		RequireMFA: MFARequirement{Groups: []string{}}, Thresholds: usage.DefaultThresholds(),
+		InviteGroups: []string{},
+		NewServers:   server.DefaultNewServers(),
+		Warnings:     server.DefaultWarnings(),
 	}
 }
 
@@ -152,6 +205,8 @@ func (s *Service) Get() Settings {
 	l.PortMin, l.PortMax, l.MemoryReserveMB = clone(l.PortMin), clone(l.PortMax), clone(l.MemoryReserveMB)
 	st.RequireMFA.Groups = slices.Clone(st.RequireMFA.Groups)
 	st.Thresholds = st.Thresholds.Clone()
+	st.InviteGroups = slices.Clone(st.InviteGroups)
+	st.Warnings = st.Warnings.Clone()
 	return st
 }
 
@@ -167,11 +222,21 @@ func clone[T any](p *T) *T {
 func (s *Service) Update(ctx context.Context, next Settings) (Settings, error) {
 	next.EnrollAddr, next.PanelAddr = strings.TrimSpace(next.EnrollAddr), strings.TrimSpace(next.PanelAddr)
 	next.PanelDomain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(next.PanelDomain), "."))
+	next.PanelName, next.SignInNotice = strings.TrimSpace(next.PanelName), strings.TrimSpace(strings.ReplaceAll(next.SignInNotice, "\r\n", "\n"))
+	if next.InviteGroups == nil {
+		next.InviteGroups = []string{}
+	}
+	slices.Sort(next.InviteGroups)
+	next.InviteGroups = slices.Compact(next.InviteGroups)
 	if next.RequireMFA.All || next.RequireMFA.Groups == nil {
 		next.RequireMFA.Groups = []string{}
 	}
 	slices.Sort(next.RequireMFA.Groups)
 	next.RequireMFA.Groups = slices.Compact(next.RequireMFA.Groups)
+	w := &next.Warnings
+	w.Restart, w.Stop = strings.TrimSpace(w.Restart), strings.TrimSpace(w.Stop)
+	// The warnings count down, the most minutes first.
+	w.Steps = slices.Compact(slices.SortedFunc(slices.Values(w.Steps), func(a, b uint32) int { return cmp.Compare(b, a) }))
 	err := validate(next, cmp.Or(next.PanelAddr, s.master.PanelDefaultAddr))
 	if err == nil && next.PanelAddr != "" && next.PanelAddr != s.Get().PanelAddr {
 		err = s.checkPanelAddr(next.PanelAddr)
@@ -278,8 +343,20 @@ func (s *Service) CheckUpdates() bool { return s.Get().CheckUpdates }
 // Thresholds implements usage.Config.
 func (s *Service) Thresholds() usage.Defaults { return s.Get().Thresholds }
 
-// SessionTTL is how long new sign-ins to the panel last.
+// NewServers implements server.Config.
+func (s *Service) NewServers() server.NewServers { return s.Get().NewServers }
+
+// Warnings implements server.Config.
+func (s *Service) Warnings() server.Warnings { return s.Get().Warnings }
+
+// SessionTTL implements auth.Config.
 func (s *Service) SessionTTL() time.Duration { return time.Duration(s.Get().SessionHours) * time.Hour }
+
+// PanelName implements auth.Config and notify.Config.
+func (s *Service) PanelName() string { return cmp.Or(s.Get().PanelName, "Noryx") }
+
+// InviteGroups implements access.Config.
+func (s *Service) InviteGroups() []string { return s.Get().InviteGroups }
 
 // validate checks the settings; panelAddr is where the panel listens with them.
 func validate(s Settings, panelAddr string) error {
@@ -309,8 +386,22 @@ func validate(s Settings, panelAddr string) error {
 		return httpapi.Errorf(http.StatusBadRequest, "Enter how large the log may grow, from %d to %d MiB.", minLogSizeMB, maxLogSizeMB)
 	case len(s.RequireMFA.Groups) > maxMFAGroups || slices.ContainsFunc(s.RequireMFA.Groups, func(id string) bool { return !groupID.MatchString(id) }):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that have to use two-factor authentication.", maxMFAGroups)
+	case !plainText(s.PanelName, maxPanelName, false):
+		return httpapi.Errorf(http.StatusBadRequest, "Enter a name of the panel of up to %d characters in one line, or leave it empty for Noryx.", maxPanelName)
+	case !plainText(s.SignInNotice, maxSignInNotice, true):
+		return httpapi.Errorf(http.StatusBadRequest, "Enter a notice of up to %d characters of plain text for the sign-in page, or leave it empty.", maxSignInNotice)
+	case len(s.InviteGroups) > maxInviteGroups || slices.ContainsFunc(s.InviteGroups, func(id string) bool { return !groupID.MatchString(id) }):
+		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that inviting a user preselects.", maxInviteGroups)
 	}
-	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate())
+	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate())
+}
+
+// plainText tells whether s has at most n characters and no control characters but, if lines
+// is set, line breaks; nor the separators of lines and paragraphs, which start lines too.
+func plainText(s string, n int, lines bool) bool {
+	return utf8.RuneCountInString(s) <= n && !strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsControl(r) && (r != '\n' || !lines) || r == '\u2028' || r == '\u2029'
+	})
 }
 
 // validAddr accepts host:port with a port from 1 to 65535 and a host that validHost accepts.

@@ -10,9 +10,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useNoLanguage } from "@/features/settings/public"
 import { chooseLanguage, languageName, languages } from "@/lib/i18n"
 
-/** Chooses the panel's language; "" follows the browser. onChoose stores the choice, e.g. for the signed-in user. */
+/** Chooses the panel's language; "" follows the panel's default or the browser. onChoose stores the choice, e.g. for the signed-in user. */
 export function LanguageMenu({ value, onChoose = chooseLanguage }: { value: string; onChoose?: (language: string) => void }) {
   return (
     <DropdownMenu>
@@ -32,9 +33,10 @@ export function LanguageMenu({ value, onChoose = chooseLanguage }: { value: stri
 
 /** The languages as items of a menu. */
 export function LanguageChoices({ value, onChoose }: { value: string; onChoose: (language: string) => void }) {
+  const none = useNoLanguage()
   return (
     <DropdownMenuRadioGroup value={value} onValueChange={onChoose}>
-      <DropdownMenuRadioItem value="">{t("Browser language")}</DropdownMenuRadioItem>
+      <DropdownMenuRadioItem value="">{none}</DropdownMenuRadioItem>
       {languages.map((code) => (
         <DropdownMenuRadioItem key={code} value={code} lang={code}>
           {languageName(code)}

@@ -8,7 +8,7 @@ import { Section } from "@/components/section"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAccess } from "@/features/access/use-access"
-import { useCsvFormat } from "@/features/preferences/api"
+import { useCsvFormat, useSettings } from "@/features/preferences/api"
 import { cn } from "@/lib/utils"
 import { exportUrl, type LogFilter, useLiveLogs } from "./api"
 import { LogOverview } from "./log-chart"
@@ -18,18 +18,22 @@ import { timeOf } from "./search"
 
 const route = getRouteApi("/_app/logs")
 
-/** The log of the master and its agents, filtered by the address, with new entries streaming in. */
+/**
+ * The log of the master and its agents, filtered by the address, and by the user's default level where it names none,
+ * with new entries streaming in.
+ */
 export function LogsPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const [live, setLive] = useState(true)
   const csvFormat = useCsvFormat()
-  const { range, hour, ...rest } = search
-  const time = useMemo(() => timeOf(range, hour), [range, hour])
-  const filter: LogFilter = { ...rest, ...time }
+  const { logLevel } = useSettings().settings
+  const { range, from, to, ...rest } = search
+  const time = useMemo(() => timeOf({ range, from, to }), [range, from, to])
+  const filter: LogFilter = { ...rest, level: search.level ?? logLevel, ...time }
   const update = (change: Partial<typeof search>) => void navigate({ search: (prev) => ({ ...prev, ...change }), replace: true })
-  // An hour in the past gets no new entries.
-  const streaming = live && !hour
+  // A time with an end gets no new entries.
+  const streaming = live && !to
   // Opened by its address without the permission, the page would ask for the log again and again.
   const allowed = useAccess().canSomewhere("logs.view")
   const down = useLiveLogs(filter, streaming && allowed)
@@ -50,7 +54,7 @@ export function LogsPage() {
         title={t("Logs")}
         actions={
           <>
-            <Button variant="outline" aria-pressed={live} onClick={() => setLive(!live)} disabled={!!hour}>
+            <Button variant="outline" aria-pressed={live} onClick={() => setLive(!live)} disabled={!!to}>
               <span
                 aria-hidden
                 className={cn("size-2 rounded-full", !streaming ? "bg-muted-foreground/50" : down ? "animate-pulse bg-warning" : "animate-pulse bg-success")}
@@ -81,7 +85,12 @@ export function LogsPage() {
         }
       />
       <LogFilters search={search} onChange={update} />
-      <LogOverview filter={filter} onSelectHour={(start) => update({ hour: start.toISOString(), range: undefined })} />
+      <LogOverview
+        filter={filter}
+        onSelectHour={(start) =>
+          update({ range: undefined, from: start.toISOString(), to: new Date(start.getTime() + 3_600_000).toISOString() })
+        }
+      />
       <Section title={t("Entries")} className="mt-8">
         <LogList filter={filter} live={streaming} onFilter={update} />
       </Section>

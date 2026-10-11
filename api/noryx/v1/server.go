@@ -2,9 +2,23 @@ package noryxv1
 
 import (
 	"regexp"
+	"slices"
 	"time"
 	_ "time/tzdata" // so that time zones are known on systems without a database of them
 )
+
+// The memory of a server's heap, in MB.
+const (
+	MinMemoryMB = 512
+	MaxMemoryMB = 64 << 10
+)
+
+// javaVersions are those of the images of game servers; empty is the newest.
+var javaVersions = []string{"", "8", "11", "17", "21", "25"}
+
+// ValidJava reports whether java is a Java version of the images of game servers, or empty for
+// the newest.
+func ValidJava(java string) bool { return slices.Contains(javaVersions, java) }
 
 // ContainerMemoryMB is the hard memory limit of the container of a server whose heap is
 // heapMB: Java needs memory beyond its heap, e.g. for its code and threads. The master

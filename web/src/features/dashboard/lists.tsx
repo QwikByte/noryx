@@ -16,33 +16,36 @@ import { serverLook, statusOf } from "@/features/servers/server-types"
 import { formatCores, formatNumber } from "@/features/usage/format"
 import { formatBytes } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { HiddenMenu, HideMenu } from "./attention-menus"
+import { chosen, type WidgetProps } from "./options"
 import { useOverview, useProblems } from "./overview"
 import { Calm, Panel } from "./panel"
 
 /** A row of a widget that links somewhere. */
 export const row = "transition-colors hover:bg-muted/50"
 
-/** What needs an operator, the most urgent first; solved problems fade away. */
+/** What needs an operator, the most urgent first, but what the user hid; solved and hidden problems fade away. */
 export function Attention({ title }: { title: string }) {
-  const problems = useProblems()
+  const { problems, hidden } = useProblems()
   return (
-    <Panel title={title} count={problems.length}>
+    <Panel title={title} count={problems.length} actions={hidden.length > 0 && <HiddenMenu problems={hidden} />}>
       {problems.length === 0 ? (
         <Calm icon={CheckCircleIcon} tone="success">
-          {t("Everything is running smoothly.")}
+          {hidden.length > 0 ? t("Nothing needs attention but what you hid.") : t("Everything is running smoothly.")}
         </Calm>
       ) : (
         <ul className="divide-y">
           <AnimatePresence initial={false}>
             {problems.map((p, i) => (
-              <motion.li key={p.key} layout {...rise(i)} exit={{ opacity: 0, x: 16 }}>
-                <Link {...p.link} className={cn("flex items-center gap-3 px-4 py-3", row)}>
+              <motion.li key={p.key} layout {...rise(i)} exit={{ opacity: 0, x: 16 }} className={cn("group flex items-center pr-2", row)}>
+                <Link {...p.link} className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4">
                   <IconTile icon={WarningCircleIcon} tone={p.tone} size="sm" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium">{p.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">{p.detail}</span>
                   </span>
                 </Link>
+                <HideMenu problem={p} />
               </motion.li>
             ))}
           </AnimatePresence>
@@ -52,13 +55,13 @@ export function Attention({ title }: { title: string }) {
   )
 }
 
-/** The nodes with what they use now, and their CPU during the last day. */
-export function Nodes({ title }: { title: string }) {
+/** The nodes, all or those chosen, with what they use now, and their CPU during the last day. */
+export function Nodes({ title, options }: WidgetProps) {
   const { nodes, servers = [] } = useOverview()
   return (
     <Panel title={title} more={{ to: "/nodes", label: t("All nodes") }}>
       <ul className="divide-y">
-        {nodes.map((n, i) => (
+        {chosen(nodes, options.nodes).map((n, i) => (
           <motion.li key={n.id} {...rise(i)}>
             <NodeRow node={n} servers={servers.filter((s) => s.nodeId === n.id).length} />
           </motion.li>
@@ -109,9 +112,11 @@ function Load({ label, value, detail }: { label: string; value: number; detail: 
   )
 }
 
-/** The networks with the states of their servers and their players. */
-export function Networks({ title }: { title: string }) {
-  const { networks, servers = [], usage } = useOverview()
+/** The networks, all or those chosen, with the states of their servers and their players. */
+export function Networks({ title, options }: WidgetProps) {
+  const overview = useOverview()
+  const { servers = [], usage } = overview
+  const networks = chosen(overview.networks, options.networks)
   return (
     <Panel title={title} more={{ to: "/networks", label: t("All networks") }}>
       {networks.length === 0 ? (
@@ -148,13 +153,13 @@ export function Networks({ title }: { title: string }) {
 }
 
 /** The servers with the most players, each with a bar of its share. */
-export function TopServers({ title }: { title: string }) {
+export function TopServers({ title, options }: WidgetProps) {
   const { gameServers, usage, ref } = useOverview()
   const players = (s: (typeof gameServers)[number]) => usage(ref(s))?.players?.online ?? 0
   const busiest = gameServers
     .filter(players)
     .sort((a, b) => players(b) - players(a))
-    .slice(0, 5)
+    .slice(0, Number(options.count))
   return (
     <Panel title={title}>
       {busiest.length === 0 ? (

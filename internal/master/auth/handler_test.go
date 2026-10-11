@@ -26,7 +26,7 @@ func TestRequireTellsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewHandler(svc, func() time.Duration { return time.Hour }, notRequired).Require(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	handler := NewHandler(svc, config{}, notRequired).Require(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 
 	for cookie, want := range map[string]string{token: buildinfo.Version, "wrong": "", "": ""} {
 		req := httptest.NewRequest(http.MethodGet, "/api/servers", nil)

@@ -131,7 +131,7 @@ export function NetworkPage() {
       <StatStrip className="mb-7 sm:grid-cols-3">
         <StatCard
           to={canSomewhere("servers.view") ? "/players" : undefined}
-          search={{ network: network.id }}
+          search={{ network: network.id, tab: "online" }}
           icon={UsersThreeIcon}
           tone="info"
           label={t("Players online")}

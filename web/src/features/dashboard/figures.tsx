@@ -28,6 +28,8 @@ export function Figures({ title }: { title: string }) {
     <StatStrip label={title} className="grid-cols-2 @4xl:grid-cols-4">
       <StatCard
         to={seesServers ? "/players" : undefined}
+        // The players page lists those online then, rather than the list chosen last.
+        search={{ tab: "online" }}
         icon={UsersThreeIcon}
         tone="info"
         label={t("Players online")}

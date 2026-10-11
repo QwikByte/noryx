@@ -31,7 +31,8 @@ import { useAccess } from "@/features/access/use-access"
 import { AlertsSettings } from "@/features/notify/alerts-setting"
 import { DesktopNotificationsSetting } from "@/features/notify/desktop-setting"
 import { useSettings } from "@/features/preferences/api"
-import { CodeSettings, ExportSettings, TimesSettings } from "@/features/preferences/settings"
+import { CodeSettings, ExportSettings, NavigationSettings, PowerSettings, TimesSettings } from "@/features/preferences/settings"
+import { useNoLanguage } from "@/features/settings/public"
 import { formatAgo, formatDateTime } from "@/lib/format"
 import { languageName, languages, msg } from "@/lib/i18n"
 import { type Accent, accents, type Density, type Theme, useLook } from "@/lib/theme"
@@ -83,6 +84,12 @@ export function AccountPage() {
         <FormSection title={t("Panel")}>
           <PanelSettings user={user} />
         </FormSection>
+        <FormSection id="navigation" title={t("Navigation and layout")}>
+          <NavigationSettings />
+        </FormSection>
+        <FormSection id="power" title={t("Servers")}>
+          <PowerSettings />
+        </FormSection>
         <FormSection title={t("Times and dates")}>
           <TimesSettings />
         </FormSection>
@@ -114,6 +121,7 @@ function PanelSettings({ user }: { user: User }) {
   const { change } = useSettings()
   const look = useLook()
   const setLanguage = useSetLanguage()
+  const noLanguage = useNoLanguage()
   return (
     <>
       <AccountRow
@@ -168,11 +176,11 @@ function PanelSettings({ user }: { user: User }) {
               setLanguage.mutate(language === "browser" ? "" : language, { onError: (error) => toast.error(error.message) })
             }
           >
-            <SelectTrigger aria-label={t("Language")} className="w-44">
+            <SelectTrigger aria-label={t("Language")} className="w-auto min-w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="browser">{t("Browser language")}</SelectItem>
+              <SelectItem value="browser">{noLanguage}</SelectItem>
               {languages.map((code) => (
                 <SelectItem key={code} value={code} lang={code}>
                   {languageName(code)}

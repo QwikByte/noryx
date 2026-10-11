@@ -59,8 +59,9 @@ func (s *Service) MFA(ctx context.Context, id int64) (MFA, error) {
 }
 
 // SetUpMFA starts setting up two-factor authentication with a new secret, which replaces
-// the one of an unfinished setup.
-func (s *Service) SetUpMFA(ctx context.Context, user User) (MFASetup, error) {
+// the one of an unfinished setup. The authenticator app shows it under issuer, the name of
+// the panel, which it keeps when the name changes later.
+func (s *Service) SetUpMFA(ctx context.Context, user User, issuer string) (MFASetup, error) {
 	secret := newSecret()
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_mfa (user_id, secret) VALUES (?, ?)
@@ -68,7 +69,7 @@ func (s *Service) SetUpMFA(ctx context.Context, user User) (MFASetup, error) {
 	if err == nil && rowsAffected(res) == 0 {
 		err = errMFAOn
 	}
-	return MFASetup{Secret: secret, URI: totpURI(user.Username, secret)}, err
+	return MFASetup{Secret: secret, URI: totpURI(issuer, user.Username, secret)}, err
 }
 
 // EnableMFA turns on two-factor authentication once a code shows that the app has the

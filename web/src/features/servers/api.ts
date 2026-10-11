@@ -2,6 +2,7 @@ import { type QueryClient, queryOptions, useMutation, useMutationState, useQuery
 import type { ModpackChoice } from "@/features/modpacks/api"
 import { memoryLimitMb, type Node } from "@/features/nodes/api"
 import { type Operation, operate } from "@/features/operations/api"
+import type { MessageKind } from "@/features/players/api"
 import { api, send } from "@/lib/api"
 
 export type ServerState = "stopped" | "starting" | "running" | "crashing"
@@ -66,6 +67,26 @@ export type ServerSettings = Pick<
   | "stopTimeout"
   | "timeZone"
 >
+
+/** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
+export interface NewServerSettings {
+  type: string
+  memoryMb: number
+  /** The memory of proxies, which need far less than game servers. */
+  proxyMemoryMb: number
+  /** The Java version of game servers; empty is the newest. */
+  java: string
+  stopTimeout: number
+  timeZone: string
+  /** The ID of the template chosen instead, for those who may see templates; empty for none. */
+  template: string
+}
+
+/** What to create servers with, also for those who may create servers but not see the settings. */
+export const newServersQuery = queryOptions({
+  queryKey: ["new-servers"],
+  queryFn: () => api<NewServerSettings>("/servers/defaults"),
+})
 
 /** A server together with the node it runs on. */
 export interface NodeServer extends Server {
@@ -158,7 +179,7 @@ export function useCreateServer() {
 }
 
 /** The settings of a server created from an archive, which brings its own server.properties. */
-export type ImportedSettings = Pick<NewServer, "name" | "type" | "version" | "memoryMb" | "port" | "acceptEula" | "storage" | "stopTimeout" | "timeZone">
+export type ImportedSettings = Pick<NewServer, "name" | "type" | "version" | "memoryMb" | "port" | "acceptEula" | "storage" | "java" | "stopTimeout" | "timeZone">
 
 /**
  * Creates a server whose data is a ZIP or .tar.gz archive of a server from elsewhere, with upload progress. leftOut
@@ -251,13 +272,31 @@ export function useMoveServer(nodeId: string, serverId: string) {
 
 export type ServerAction = "start" | "stop" | "restart" | "delete"
 
-/** Warns the players in the chat before servers stop or restart, and again 5 minutes and 1 minute before. */
+/** Warns the players before servers stop or restart, and again at the steps of the settings. */
 export interface Warning {
-  /** 1 to 10. */
+  /** 1 to the longest lead time of the settings. */
   minutes: number
-  /** {minutes} becomes the minutes left; empty is the default. A message of one's own needs the permission to send console commands. */
+  /** {minutes} becomes the minutes left; empty is the text of the settings. A message of one's own needs the permission to send console commands. */
   message?: string
 }
+
+/** How the players are warned before restarts and stops, as the settings of the master say. */
+export interface WarningSettings {
+  /** The texts of restarts and stops without a warning of their own; {minutes} becomes the minutes left. */
+  restart: string
+  stop: string
+  /** The minutes before at which a warning by hand repeats, the most first. */
+  steps: number[]
+  /** How long before at most a warning by hand starts, up to 60 minutes. */
+  maxMinutes: number
+  kind: MessageKind
+}
+
+/** How the players are warned, also for those who warn them but may not see the settings. */
+export const warningsQuery = queryOptions({
+  queryKey: ["warnings"],
+  queryFn: () => api<WarningSettings>("/servers/warnings"),
+})
 
 export type BulkAction =
   | { action: "start" }

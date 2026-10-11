@@ -30,6 +30,38 @@ warns ([Warnings](monitoring.md#warnings)), the port range and memory reserve th
 looks for updates. Administrators can also look for an update right
 away.
 
+**Name and notice** names the panel, e.g. `Noryx · Test` or a community's name, so that two panels don't look the same:
+in the title of the browser's tab, the sidebar and the sign-in page, as the sender and at the start of the subjects of
+mails and in the notifications of Slack, and in authenticator apps for
+[two-factor authentication](#two-factor-authentication) set up from then on; entries in the apps already keep the name
+they have. Empty means Noryx. The notice, e.g. whom to ask for access, shows below the form of the sign-in page. Both
+are plain text, a name of up to 64 characters in one line and a notice of up to 500 with line breaks, and public: the
+sign-in page reads them without a session, also from `GET /api/panel`.
+
+**Defaults for users** chooses the language, colour theme, accent colour, density and time format of users who haven't
+chosen them on their account page, instead of what their browser has; each can stay **From the browser**. They also
+apply to users who are signed in, as soon as their panel loads them again, and on the sign-in page of browsers where
+nobody chose them yet, e.g. a default accent for a test panel, so they are public like the name. Where the panel offers
+the browser's language, it then offers **Default of the panel** with the default language. **Groups of invited users**
+are the groups that **Invite user** preselects (see [Invitations](#invitations)).
+
+**New servers** sets what [Create server](servers.md#creating-and-deleting) starts with: a template, which the dialog
+chooses for those who may see templates, and else the software, the memory of game servers and of proxies (any amount
+from 512 MiB to 64 GiB), the Java version of game servers, the stop timeout and the time zone. The master checks them
+like the settings of a server. A template that is deleted later is ignored, and the other settings apply again. Those
+who may create servers get these settings without seeing the others.
+
+**Warnings to players** sets how the players of game servers are warned before their servers restart or stop: the
+texts of restarts and of stops, with `{minutes}` for the minutes left, e.g. in the language of the players; where the
+warnings show, in the chat (`say`), as a title or above the hotbar; the longest lead time of restarts and stops by hand
+(1 minute to an hour, 10 minutes by default); and the minutes before at which those warn again (up to 5, 5 and 1 by
+default). Restarts and stops by hand, also of many servers, use all of it, and
+[schedules and workflows](automation.md) the texts unless they have their own, and where they show. The texts go to the
+console of every server they warn, so changing them also needs the permission to send console commands to all
+servers; the master checks them like a warning of one's own: one line of up to 200 characters, which fits the console
+as the warnings show. Users who may restart or stop servers, or see schedules or workflows, see them as the
+placeholders of warnings without seeing the settings.
+
 ### Agents
 
 The **Agents** tab lists all nodes with their agent version, certificate and settings, which can be changed there too.
@@ -65,7 +97,8 @@ notifications and see the log for all servers.
 ### Users and groups
 
 The **Users** tab invites users, chooses their groups, disables and deletes them, creates setup links and turns off
-two-factor authentication for users who lost their phone. The **Groups** tab defines what their members may do, see
+two-factor authentication for users who lost their phone; it searches them, filters them by group and state and sorts
+them ([Lists](panel.md#lists)). The **Groups** tab defines what their members may do, see
 [Users and permissions](#users-and-permissions).
 
 ## Users and permissions
@@ -100,7 +133,8 @@ first one or after losing access.
 ### Invitations
 
 New users get a setup link (valid for three days, usable once) to choose their password; the same link resets a
-forgotten password. The token is in the link's fragment, which browsers don't send to servers, and the panel removes it
+forgotten password. **Invite user** preselects the groups that **Settings → General** names, of those the inviter may
+give; groups deleted since are left out, and the inviter can still change them, within their own permissions as always. The token is in the link's fragment, which browsers don't send to servers, and the panel removes it
 from the address bar once it was read. Users change their own password on their account page (in the menu of their name
 in the sidebar), which signs them out everywhere else.
 
@@ -124,8 +158,8 @@ with a setup link, turning on two-factor authentication and disabling a user rev
 ### Two-factor authentication
 
 Two-factor authentication is off until users set it up on their account page: they scan a QR code with an authenticator
-app (TOTP, e.g. Google Authenticator, Aegis or a password manager), confirm with a code of it and their password, and
-get 10 recovery codes that each replace a code once. Then signing in asks for a code after the password, and other
+app (TOTP, e.g. Google Authenticator, Aegis or a password manager), which names the entry after the panel's name of the
+settings, confirm with a code of it and their password, and get 10 recovery codes that each replace a code once. Then signing in asks for a code after the password, and other
 sessions end. A setup link then only sets the password; signing in still needs a code. Turning it off and new recovery
 codes need the password. Users who may manage a user turn it off for them, e.g. after they lost their phone and recovery
 codes, but not for themselves; without any administrator who can still sign in, `noryx-master user add` creates a new

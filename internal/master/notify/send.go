@@ -59,7 +59,7 @@ func (s *Service) send(ctx context.Context, ch *Channel, m message) error {
 	case Discord:
 		return s.post(ctx, ch.secret, discord(m))
 	case Slack:
-		return s.post(ctx, ch.secret, slack(m))
+		return s.post(ctx, ch.secret, slack(m, s.conf.PanelName()))
 	case Webhook:
 		return s.post(ctx, ch.secret, webhook(m))
 	case Email:
@@ -187,20 +187,21 @@ func slackText(s string) map[string]any {
 }
 
 // slack is the payload of a Slack webhook: a block of plain text per entry, and a fallback text
-// for notifications that doesn't quote any entry. Texts are cut before they are escaped, which
-// can make them four times as long, so that a block stays within Slack's 3000 characters.
-func slack(m message) map[string]any {
+// for notifications that doesn't quote any entry but names the panel. Texts are cut before they
+// are escaped, which can make them four times as long, so that a block stays within Slack's
+// 3000 characters.
+func slack(m message, panel string) map[string]any {
 	blocks := []map[string]any{}
 	for _, e := range m.entries {
 		text := plain(levelName(e)+": "+e.Message, 350) + "\n" + plain(details(e)+" · "+e.Time.UTC().Format(time.DateTime)+" UTC", 350)
 		blocks = append(blocks, map[string]any{"type": "section", "text": slackText(text)})
 	}
-	fallback := "Noryx: new entries of the log"
+	fallback := slackEscape(panel) + ": new entries of the log"
 	if summary := m.summary(); summary != "" {
 		blocks = append(blocks, map[string]any{"type": "context", "elements": []any{slackText(summary)}})
 	}
 	if m.test {
-		fallback = "Noryx: test"
+		fallback = slackEscape(panel) + ": test"
 		blocks = append(blocks, map[string]any{"type": "section", "text": slackText(testText)})
 	}
 	return map[string]any{"text": fallback, "blocks": blocks}
@@ -270,7 +271,7 @@ func (s *Service) mail(ctx context.Context, ch *Channel, m message) error {
 	}
 	w, err := c.Data()
 	if err == nil {
-		_, err = w.Write(mailMessage(cfg, m))
+		_, err = w.Write(mailMessage(cfg, m, s.conf.PanelName()))
 	}
 	if err == nil {
 		err = w.Close()
@@ -320,12 +321,12 @@ func (a *auth) Next(challenge []byte, more bool) ([]byte, error) {
 	return nil, errors.New("unexpected challenge of the mail server")
 }
 
-// mailMessage is a plain text mail. Its subject quotes an entry, which can't add headers: it is
-// a single line and encoded.
-func mailMessage(cfg *Mail, m message) []byte {
-	subject, body := "Noryx: test", testText+"\n"
+// mailMessage is a plain text mail from the panel. Its subject quotes an entry, which can't add
+// headers: it is a single line and encoded, as is the panel's name in it and as the sender.
+func mailMessage(cfg *Mail, m message, panel string) []byte {
+	subject, body := panel+": test", testText+"\n"
 	if !m.test {
-		subject = "Noryx: " + plain(m.entries[0].Message, 150)
+		subject = panel + ": " + plain(m.entries[0].Message, 150)
 		if n := len(m.entries) + m.more - 1; n > 0 {
 			subject += fmt.Sprintf(" (and %d more)", n)
 		}
@@ -345,7 +346,7 @@ func mailMessage(cfg *Mail, m message) []byte {
 	_, domain, _ := strings.Cut(cfg.From, "@")
 	var b bytes.Buffer
 	for _, h := range [][2]string{
-		{"From", (&mail.Address{Name: "Noryx", Address: cfg.From}).String()},
+		{"From", (&mail.Address{Name: panel, Address: cfg.From}).String()},
 		{"To", strings.Join(to, ", ")},
 		{"Subject", mime.QEncoding.Encode("utf-8", subject)},
 		{"Date", time.Now().Format(time.RFC1123Z)},

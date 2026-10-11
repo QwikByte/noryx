@@ -22,6 +22,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import { useChoice } from "@/features/preferences/api"
 import { serverType, serverTypes } from "@/features/servers/server-types"
 import { formatDate } from "@/lib/format"
 import { locale, msg } from "@/lib/i18n"
@@ -34,7 +35,6 @@ import {
   type Search,
   type SearchHit,
   type Sort,
-  type Source,
   searchQuery,
 } from "./api"
 import { categories } from "./categories"
@@ -53,12 +53,12 @@ const sorts: Record<Sort, string> = {
 
 const modLoaders = serverTypes.flatMap((s) => (s.addons?.kind === "mods" ? s.addons.loaders : []))
 
-type Filters = Omit<Search, "query" | "kind">
+type Filters = Omit<Search, "query" | "kind" | "sort" | "type">
 
 /**
  * Searches Modrinth for plugins and mods, in categories and sorted, or Hangar for plugins. A given server type and Minecraft version are
- * fixed, otherwise they can be chosen, among the software of a kind if given. Without a query, the most downloaded
- * ones come first.
+ * fixed, otherwise they can be chosen, among the software of a kind if given. The source, the sort and the software of
+ * each kind chosen last apply again. Without a query, the most downloaded ones come first.
  */
 export function PluginSearch({
   kind,
@@ -73,17 +73,20 @@ export function PluginSearch({
   action: (hit: SearchHit) => ReactNode
   autoFocus?: boolean
 }) {
-  const [source, setSource] = useState<Source>("modrinth")
+  const [source, setSource] = useChoice("pluginSource", "modrinth")
+  const [sort, setSort] = useChoice("pluginSort", "relevance")
+  const [softwareChoice, chooseSoftware] = useChoice(kind === "mods" ? "modType" : "pluginType", "")
   // Hangar has no mods, and plugins only of some software, e.g. not of Folia.
   const sources = kind !== "mods" && (type === undefined || onHangar(type))
   const hangar = sources && source === "hangar"
   const choices = serverTypes.filter((s) => s.addons && (!kind || s.addons.kind === kind) && (!hangar || onHangar(s.value)))
   const [input, setInput] = useState("")
   const query = useDebounced(input.trim())
-  // The first software is searched first, the most common one.
-  const [filters, setFilters] = useState<Filters>({ type: choices[0].value, categories: [], sort: "relevance", serverOnly: false })
+  const [filters, setFilters] = useState<Filters>({ categories: [], serverOnly: false })
   const set = (change: Partial<Filters>) => setFilters((f) => ({ ...f, ...change }))
-  const software = type ?? filters.type
+  // Without a choice of software, or one that the source lacks, the first is searched, the most common one.
+  const chosen = softwareChoice === "all" ? undefined : (choices.find((s) => s.value === softwareChoice) ?? choices[0]).value
+  const software = type ?? chosen
   // Players may have to install mods too, never plugins.
   const mods = !hangar && (software ? serverType(software).addons?.kind === "mods" : kind !== "plugins")
   const search: Search = {
@@ -91,6 +94,7 @@ export function PluginSearch({
     source: hangar ? "hangar" : "modrinth",
     query,
     kind,
+    sort,
     type: software,
     version: version ?? filters.version,
     // Hangar's categories differ, and it has no mods.
@@ -98,10 +102,6 @@ export function PluginSearch({
     serverOnly: filters.serverOnly && mods,
   }
 
-  function changeSource(next: Source) {
-    setSource(next)
-    if (next === "hangar" && filters.type && !onHangar(filters.type)) set({ type: "paper" })
-  }
   const { data: releases = [] } = useQuery({ ...gameVersionsQuery, enabled: version === undefined })
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(searchQuery(search))
   const hits = data?.pages.flatMap((p) => p.hits) ?? []
@@ -135,11 +135,11 @@ export function PluginSearch({
                 { value: "modrinth", label: "Modrinth" },
                 { value: "hangar", label: "Hangar" },
               ]}
-              onChange={changeSource}
+              onChange={setSource}
               className="self-center"
             />
           )}
-          <Select value={filters.sort} onValueChange={(sort) => set({ sort: sort as Sort })}>
+          <Select value={sort} onValueChange={(sort) => setSort(sort as Sort)}>
             <SelectTrigger aria-label={t("Sort")} className="max-sm:flex-1">
               <ArrowsDownUpIcon className="text-muted-foreground" />
               <SelectValue />
@@ -157,8 +157,8 @@ export function PluginSearch({
           {type === undefined && (
             <Choice
               label={t("Software")}
-              value={filters.type}
-              onChange={(type) => set({ type })}
+              value={chosen}
+              onChange={(type) => chooseSoftware(type ?? "all")}
               everything={kind === "mods" ? t("All mod loaders") : kind === "plugins" ? t("All plugin software") : t("All software")}
             >
               {choices.map((s) => (

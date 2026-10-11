@@ -29,6 +29,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/plugin"
 	"github.com/QwikByte/noryx/internal/master/ratelimit"
 	"github.com/QwikByte/noryx/internal/master/schedule"
+	"github.com/QwikByte/noryx/internal/master/server"
 )
 
 const (
@@ -105,6 +106,11 @@ type Access interface {
 	Grants(ctx context.Context, userID int64) (access.Grants, error)
 }
 
+// Config tells how the players are warned, as the settings say when a step warns them.
+type Config interface {
+	Warnings() server.Warnings
+}
+
 // Deps are what workflows act on and learn from.
 type Deps struct {
 	Nodes    Nodes
@@ -118,6 +124,7 @@ type Deps struct {
 	Logs     Logs
 	Names    Names
 	Access   Access
+	Config   Config
 }
 
 // Author is the user who saves a workflow or runs it, with the permissions of the request.

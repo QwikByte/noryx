@@ -31,6 +31,8 @@ import { useAccess } from "@/features/access/use-access"
 import { mfaQuery } from "@/features/auth/api"
 import { limitsForm, limitsOf } from "@/features/nodes/limits"
 import { LimitsFields } from "@/features/nodes/limits-fields"
+import { NewServerFields } from "@/features/servers/new-server-fields"
+import { WarningFields } from "@/features/servers/warning-fields"
 import { UpdateCheck } from "@/features/updates/update-check"
 import { ThresholdFields, ThresholdsHelp } from "@/features/usage/thresholds"
 import { formatDate, formatDateTime, formatDuration } from "@/lib/format"
@@ -47,6 +49,8 @@ import {
   settingsQuery,
   useUpdateSettings,
 } from "./api"
+import { InviteGroupsField, UserDefaultsFields } from "./defaults-fields"
+import { NameFields } from "./name-fields"
 import { RestartButton } from "./restart-button"
 
 /** The General tab: the running master and its settings. */
@@ -202,6 +206,12 @@ function formOf(s: MasterSettings) {
     requireMfa,
     thresholds: s.thresholds,
     nodeDefaults: limitsForm(s.nodeDefaults),
+    panelName: s.panelName,
+    signInNotice: s.signInNotice,
+    userDefaults: s.userDefaults,
+    inviteGroups: s.inviteGroups,
+    newServers: s.newServers,
+    warnings: s.warnings,
   }
 }
 
@@ -255,6 +265,10 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
           <PanelRestartNotice settings={settings} master={master} />
         </FormSection>
 
+        <FormSection title={t("Name and notice")}>
+          <NameFields value={form} onChange={set} />
+        </FormSection>
+
         <FormSection title={t("Enrollment")}>
           <Field>
             <FieldLabel htmlFor="settings-enroll-addr">{t("Enrollment address")}</FieldLabel>
@@ -301,6 +315,11 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             <FieldDescription>{t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}</FieldDescription>
           </Field>
           <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} />
+        </FormSection>
+
+        <FormSection title={t("Defaults for users")}>
+          <UserDefaultsFields value={form.userDefaults} onChange={(userDefaults) => set({ userDefaults })} />
+          <InviteGroupsField value={form.inviteGroups} onChange={(inviteGroups) => set({ inviteGroups })} />
         </FormSection>
 
         <FormSection title={t("Log")}>
@@ -378,6 +397,14 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             form={form.nodeDefaults}
             onChange={(change) => set({ nodeDefaults: { ...form.nodeDefaults, ...change } })}
           />
+        </FormSection>
+
+        <FormSection title={t("New servers")}>
+          <NewServerFields value={form.newServers} onChange={(newServers) => set({ newServers })} />
+        </FormSection>
+
+        <FormSection title={t("Warnings to players")}>
+          <WarningFields value={form.warnings} onChange={(warnings) => set({ warnings })} />
         </FormSection>
       </fieldset>
       <div

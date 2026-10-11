@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useEffectEvent, useRef } from "react"
 import { pages } from "@/components/navigation"
 import { type Access, useAccess } from "@/features/access/use-access"
+import { useSettings } from "@/features/preferences/api"
 import { msg } from "@/lib/i18n"
 
 export type Creation = "server" | "network" | "node"
@@ -49,13 +50,19 @@ interface Shortcut {
   opens?: Opens
 }
 
-/** The shortcuts the user may use, in the groups that list them. */
-export function shortcutGroups(access: Access) {
+const search: Shortcut = { keys: [searchChord], label: msg("Search, also while typing"), opens: "search" }
+
+/** Whether the user takes shortcuts of single keys, e.g. g s; WCAG 2.1.4 asks that they can be turned off. */
+export const useSingleKeys = () => useSettings().settings.shortcuts !== "off"
+
+/** The shortcuts the user may use, in the groups that list them; without those of single keys, only the search's. */
+export function shortcutGroups(access: Access, singleKeys = true) {
+  if (!singleKeys) return [{ heading: msg("General"), shortcuts: [search] }]
   const groups: { heading: string; shortcuts: Shortcut[] }[] = [
     {
       heading: msg("General"),
       shortcuts: [
-        { keys: [searchChord], label: msg("Search, also while typing"), opens: "search" },
+        search,
         { keys: ["/"], label: msg("Search"), opens: "search" },
         { keys: ["?"], label: msg("Show the keyboard shortcuts"), opens: "shortcuts" },
       ],
@@ -88,9 +95,10 @@ function elsewhere(event: KeyboardEvent) {
   )
 }
 
-/** Follows the keyboard shortcuts: pages open here, open is told about the rest. */
+/** Follows the keyboard shortcuts, those of single keys if the user takes them: pages open here, open is told about the rest. */
 export function useShortcuts(open: (what: Opens) => void) {
   const access = useAccess()
+  const singleKeys = useSingleKeys()
   const navigate = useNavigate()
   const pending = useRef({ key: "", at: 0 })
 
@@ -100,6 +108,7 @@ export function useShortcuts(open: (what: Opens) => void) {
       event.preventDefault()
       return open("search")
     }
+    if (!singleKeys) return
     // Modifiers alone, e.g. Shift for ?, don't break a sequence.
     if (event.key.length !== 1) return
     const first = event.timeStamp - pending.current.at < sequenceTime ? pending.current.key : ""

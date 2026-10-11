@@ -8,7 +8,9 @@ which Paper's ban list and plugins such as EssentialsX write, show when they end
 **Players** tab of a game server shows the same for that server alone, with the same actions.
 **Players online** on a network's page opens the page for that network.
 The headers of the tables sort them, by player, server and network, by when they were seen and how long they played, or
-by player and number of servers; the address keeps the order. **Export CSV** downloads a tab as shown, searched and
+by player and number of servers; the address keeps the tab and the order. Where it doesn't say, the tab and the order
+each user chose last apply, in all their browsers, and the order also on the servers' **Players** tabs; **Players
+online**, e.g. on the overview, opens the players online. **Export CSV** downloads a tab as shown, searched and
 sorted, for spreadsheets: the players online with their server, node and network, the players seen with when and how
 long they played and their servers, or the players of a list with their servers, and for bans the reason, when it
 started and ends and who banned them.

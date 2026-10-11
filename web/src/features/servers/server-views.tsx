@@ -8,13 +8,14 @@ import { Meter } from "@/components/meter"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PinButton } from "@/features/preferences/pin-button"
-import { formatCores } from "@/features/usage/format"
+import type { ServerUsage } from "@/features/usage/api"
+import { formatCores, formatNumber } from "@/features/usage/format"
 import { formatBytes, formatMegabytes } from "@/lib/format"
 import { rise } from "@/lib/motion"
 import type { Sorting } from "@/lib/sort"
 import { cn } from "@/lib/utils"
 import { type NodeServer, serverKey } from "./api"
-import type { Facts, Group, Sort } from "./browse"
+import { type Column, columns as columnLabels, type Facts, type Group, type Sort, sorts } from "./browse"
 import { ServerActions } from "./server-actions"
 import { ServerStateBadge } from "./server-state"
 import { displayVersion, memoryTitle, serverLook, serverType } from "./server-types"
@@ -27,6 +28,8 @@ export interface ViewProps {
   sorting: Sorting<Sort>
   /** Whether servers of several nodes are listed, which then show their node. */
   showNode: boolean
+  /** The columns the table shows besides the server and its state. */
+  columns: Column[]
   selected: (s: NodeServer) => boolean
   onSelect: (servers: NodeServer[], selected: boolean) => void
   collapsed: (group: Group) => boolean
@@ -255,11 +258,44 @@ function ServerCard({
   )
 }
 
-/** A compact table of servers, for many of them, in groups that fold away. */
-export function ServerTable({ groups, facts, sorting, showNode, selected, onSelect, collapsed, onCollapse }: ViewProps) {
+const none = <span className="text-muted-foreground">–</span>
+
+/**
+ * How each column shows a server, and the classes of its cells and header, e.g. where narrow tables leave it out:
+ * the type, version, port and tags below 4xl, where they show with the name instead.
+ */
+const cells: Record<Column, { className: string; show: (s: NodeServer, usage: ServerUsage | undefined, facts: Facts) => ReactNode }> = {
+  node: { className: "text-muted-foreground @max-3xl:hidden", show: (s) => s.nodeName },
+  network: { className: "text-muted-foreground @max-5xl:hidden", show: (s, _, facts) => facts.network(s)?.name ?? "–" },
+  type: { className: "text-muted-foreground @max-4xl:hidden", show: (s) => serverType(s.type).label },
+  version: { className: "text-muted-foreground @max-4xl:hidden", show: (s) => displayVersion(s.version) },
+  port: { className: "text-muted-foreground @max-4xl:hidden", show: (s) => <span className="font-mono">{s.port}</span> },
+  tags: { className: "@max-4xl:hidden", show: (s) => <TagList tags={s.tags} /> },
+  players: {
+    className: "text-right tabular-nums",
+    show: (_, usage) => (usage?.players ? `${usage.players.online} / ${usage.players.max}` : none),
+  },
+  tps: { className: "text-right tabular-nums @max-2xl:hidden", show: (_, usage) => (usage?.tps === undefined ? none : formatNumber(usage.tps)) },
+  cpu: { className: "text-right tabular-nums @max-xl:hidden", show: (_, usage) => (usage ? formatCores(usage.cpuMillis) : none) },
+  memory: {
+    className: "text-right tabular-nums @max-xl:hidden",
+    show: (s, usage) => (usage ? formatBytes(usage.memoryBytes) : <span className="text-muted-foreground">{formatMegabytes(s.memoryMb)}</span>),
+  },
+}
+
+const sortable = (column: Column): column is Column & Sort => column in sorts
+
+/**
+ * A compact table of servers, for many of them, in groups that fold away. It shows the chosen columns, the node
+ * only if servers of several nodes are listed and the network only if some server has one; the type, version, port
+ * and tags of servers show with their name where they have no column.
+ */
+export function ServerTable({ groups, facts, sorting, showNode, columns, selected, onSelect, collapsed, onCollapse }: ViewProps) {
   const all = groups.flatMap((g) => g.servers)
   const showNetwork = all.some((s) => facts.network(s))
-  const columns = 7 + Number(showNode) + Number(showNetwork)
+  const shown = columns.filter((c) => (c !== "node" || showNode) && (c !== "network" || showNetwork))
+  // Hides what shows with the name once these all have columns, as long as the table is wide enough for them.
+  const inColumns = (...these: Column[]) => (these.every((c) => shown.includes(c)) ? "@4xl:hidden" : undefined)
   return (
     <div className="surface @container overflow-hidden rounded-xl">
       <Table>
@@ -270,11 +306,17 @@ export function ServerTable({ groups, facts, sorting, showNode, selected, onSele
             </TableHead>
             <SortableHead sorting={sorting} column="name">{t("Server")}</SortableHead>
             <SortableHead sorting={sorting} column="state">{t("State")}</SortableHead>
-            {showNode && <SortableHead sorting={sorting} column="node" className="@max-3xl:hidden">{t("Node")}</SortableHead>}
-            {showNetwork && <TableHead className="@max-5xl:hidden">{t("Network")}</TableHead>}
-            <SortableHead sorting={sorting} column="players" className="text-right">{t("Players")}</SortableHead>
-            <SortableHead sorting={sorting} column="cpu" className="text-right @max-xl:hidden">{t("CPU")}</SortableHead>
-            <SortableHead sorting={sorting} column="memory" className="text-right @max-xl:hidden">{t("Memory")}</SortableHead>
+            {shown.map((c) =>
+              sortable(c) ? (
+                <SortableHead key={c} sorting={sorting} column={c} className={cells[c].className}>
+                  {t(columnLabels[c])}
+                </SortableHead>
+              ) : (
+                <TableHead key={c} className={cells[c].className}>
+                  {t(columnLabels[c])}
+                </TableHead>
+              ),
+            )}
             <TableHead className="w-0">
               <span className="sr-only">{t("Actions")}</span>
             </TableHead>
@@ -284,7 +326,7 @@ export function ServerTable({ groups, facts, sorting, showNode, selected, onSele
           <TableBody key={group.key}>
             {group.label && (
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableCell colSpan={columns} className="py-2 pl-4">
+                <TableCell colSpan={4 + shown.length} className="py-2 pl-4">
                   <GroupHeading group={group} facts={facts} collapsed={collapsed(group)} onCollapse={() => onCollapse(group)}>
                     <SelectAll
                       servers={group.servers}
@@ -315,11 +357,15 @@ export function ServerTable({ groups, facts, sorting, showNode, selected, onSele
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <ServerLink server={server} className="truncate font-semibold hover:underline" />
-                            <TagList tags={server.tags} />
+                            <TagList tags={server.tags} className={inColumns("tags")} />
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {serverType(server.type).label} {displayVersion(server.version)} ·{" "}
-                            <span className="font-mono">{server.port}</span>
+                          <p className={cn("truncate text-xs text-muted-foreground", inColumns("type", "version", "port"))}>
+                            <span className={inColumns("type")}>{serverType(server.type).label} </span>
+                            <span className={inColumns("version")}>{displayVersion(server.version)}</span>
+                            <span className={inColumns("port")}>
+                              <span className={inColumns("type", "version")}> · </span>
+                              <span className="font-mono">{server.port}</span>
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -327,23 +373,11 @@ export function ServerTable({ groups, facts, sorting, showNode, selected, onSele
                     <TableCell>
                       <ServerStateBadge server={server} nodeId={server.nodeId} />
                     </TableCell>
-                    {showNode && <TableCell className="text-muted-foreground @max-3xl:hidden">{server.nodeName}</TableCell>}
-                    {showNetwork && (
-                      <TableCell className="text-muted-foreground @max-5xl:hidden">{facts.network(server)?.name ?? "–"}</TableCell>
-                    )}
-                    <TableCell className="text-right tabular-nums">
-                      {usage?.players ? `${usage.players.online} / ${usage.players.max}` : <span className="text-muted-foreground">–</span>}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums @max-xl:hidden">
-                      {usage ? formatCores(usage.cpuMillis) : <span className="text-muted-foreground">–</span>}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums @max-xl:hidden">
-                      {usage ? (
-                        formatBytes(usage.memoryBytes)
-                      ) : (
-                        <span className="text-muted-foreground">{formatMegabytes(server.memoryMb)}</span>
-                      )}
-                    </TableCell>
+                    {shown.map((c) => (
+                      <TableCell key={c} className={cells[c].className}>
+                        {cells[c].show(server, usage, facts)}
+                      </TableCell>
+                    ))}
                     <TableCell className="pr-3">
                       <ServerActions nodeId={server.nodeId} server={server} compact pin />
                     </TableCell>

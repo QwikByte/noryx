@@ -1,8 +1,10 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
 import { t } from "i18next"
 import type { NodeLimits } from "@/features/nodes/api"
+import type { NewServerSettings, WarningSettings } from "@/features/servers/api"
 import type { ThresholdDefaults } from "@/features/usage/api"
 import { api } from "@/lib/api"
+import { publicSettingsQuery, type UserDefaults } from "./public"
 
 /** The certificate the panel serves: self-signed, of Let's Encrypt, or none for plain HTTP, e.g. behind a reverse proxy. */
 export type PanelHTTPS = "" | "self-signed" | "letsencrypt"
@@ -30,6 +32,18 @@ export interface MasterSettings {
   requireMfa: { all: boolean; groups: string[] }
   /** When the usage of servers and nodes warns, unless they have their own thresholds. */
   thresholds: ThresholdDefaults
+
+  /** The name of the panel, empty for Noryx, and the notice of the sign-in page; both are plain text and public. */
+  panelName: string
+  signInNotice: string
+  /** The language and look of users who haven't chosen them, which are public too. */
+  userDefaults: UserDefaults
+  /** The IDs of the groups that inviting a user preselects; deleted ones are left out. */
+  inviteGroups: string[]
+  /** What the panel creates servers with, unless a template is chosen. */
+  newServers: NewServerSettings
+  /** How the players are warned before restarts and stops. */
+  warnings: WarningSettings
 }
 
 /** The certificate the panel serves. */
@@ -81,7 +95,10 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (settings: MasterSettings) => api<SettingsView>("/settings", { method: "PUT", body: settings }),
-    onSuccess: (view) => queryClient.setQueryData(settingsQuery.queryKey, view),
+    onSuccess: (view) => {
+      queryClient.setQueryData(settingsQuery.queryKey, view)
+      void queryClient.invalidateQueries({ queryKey: publicSettingsQuery.queryKey })
+    },
   })
 }
 

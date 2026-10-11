@@ -3,21 +3,27 @@ import { createRootRouteWithContext, createRoute, createRouter, lazyRouteCompone
 import { AppShell } from "@/components/app-shell"
 import { ErrorPage } from "@/components/error-page"
 import { HubLayout } from "@/components/hub-layout"
-import { automation, home, library } from "@/components/navigation"
+import { automation, home, library, startPage } from "@/components/navigation"
 import { NotFound } from "@/components/not-found"
 import { PageFocus } from "@/components/page-focus"
 import { DocumentTitle } from "@/components/page-title"
 import { Toaster } from "@/components/ui/sonner"
 import { accessQuery } from "@/features/access/api"
 import { accessOf } from "@/features/access/use-access"
+import { validateUserSearch } from "@/features/access/browse"
 import { meQuery, mustSetUpMfa, type User } from "@/features/auth/api"
 import { LoginPage } from "@/features/auth/login-page"
 import { validateLogSearch } from "@/features/logs/search"
+import { validateNetworkSearch } from "@/features/networks/browse"
+import { validateNodeSearch } from "@/features/nodes/browse"
 import { validatePlayerSearch } from "@/features/players/search"
 import type { Kind } from "@/features/plugins/api"
+import { preferencesQuery } from "@/features/preferences/api"
 import { validateServerSearch } from "@/features/servers/browse"
+import { firstTab } from "@/features/servers/tabs"
 import { ApiError, onOutdated } from "@/lib/api"
 import { msg } from "@/lib/i18n"
+import { validateQuery } from "@/lib/search"
 
 // Queries and mutations tell their state before the next click is handled, instead of in a
 // timer that a click can come before: a button disabled while its mutation is pending can't
@@ -126,23 +132,31 @@ const notFoundRoute = createRoute({
   component: NotFound,
 })
 
-// The overview, or else the first section the user may see.
+/** The user's preferences for a page that opens, or nothing if they can't be loaded. */
+const preferencesOf = (queryClient: QueryClient) => queryClient.ensureQueryData(preferencesQuery).catch(() => undefined)
+
+// The overview, or else the first section the user may see. As the panel opens, when it is loaded at "/" or after
+// signing in, the user's start page shows instead; the sidebar's link to the overview stays the overview.
 const indexRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/",
   staticData: { title: msg("Overview") },
-  beforeLoad: ({ context }) => {
-    const to = home(accessOf(context.queryClient.getQueryData(accessQuery.queryKey)))
+  beforeLoad: async ({ context, location, preload }) => {
+    const access = accessOf(context.queryClient.getQueryData(accessQuery.queryKey))
+    const opens = !preload && (!router.state.resolvedLocation || location.state.open)
+    const to = opens ? startPage(access, (await preferencesOf(context.queryClient))?.settings.startPage) : home(access)
     if (to !== "/") throw redirect({ to })
   },
   component: lazyRouteComponent(() => import("@/features/dashboard/dashboard-page"), "DashboardPage"),
 })
 
-// Pages are loaded on demand, which keeps the sign-in page small.
+// Pages are loaded on demand, which keeps the sign-in page small. Lists keep their search, sort and view in the
+// address, like those of servers.
 const nodesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/nodes",
   staticData: { title: msg("Nodes") },
+  validateSearch: validateNodeSearch,
   component: lazyRouteComponent(() => import("@/features/nodes/nodes-page"), "NodesPage"),
 })
 const nodeRoute = createRoute({
@@ -173,10 +187,20 @@ const playerRoute = createRoute({
   staticData: { title: msg("Players") },
   component: lazyRouteComponent(() => import("@/features/players/player-page"), "PlayerPage"),
 })
+// A server opens on the tab the user chose, or else the first they may see, as it is entered from elsewhere, e.g. from a
+// list or the search, but not from its own tabs or as its console.
 const serverRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/nodes/$nodeId/servers/$serverId",
   staticData: { title: msg("Servers") },
+  beforeLoad: async ({ context, location, params, preload }) => {
+    const path = `/nodes/${params.nodeId}/servers/${params.serverId}`
+    const from = router.state.resolvedLocation?.pathname ?? ""
+    if (preload || location.state.console || location.pathname !== path || from === path || from.startsWith(`${path}/`)) return
+    const access = accessOf(context.queryClient.getQueryData(accessQuery.queryKey))
+    const tab = firstTab(access, params, (await preferencesOf(context.queryClient))?.settings.serverTab)
+    if (tab !== "console") throw redirect({ to: `/nodes/$nodeId/servers/$serverId/${tab}`, params })
+  },
   component: lazyRouteComponent(() => import("@/features/servers/server-page"), "ServerPage"),
 })
 const serverConsoleRoute = createRoute({
@@ -249,6 +273,7 @@ const networksRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/networks",
   staticData: { title: msg("Networks") },
+  validateSearch: validateNetworkSearch,
   component: lazyRouteComponent(() => import("@/features/networks/networks-page"), "NetworksPage"),
 })
 const networkRoute = createRoute({
@@ -314,6 +339,7 @@ const templatesRoute = createRoute({
   getParentRoute: () => libraryRoute,
   path: "/templates",
   staticData: { title: msg("Templates") },
+  validateSearch: validateQuery,
   component: lazyRouteComponent(() => import("@/features/templates/templates-page"), "TemplatesPage"),
 })
 const newTemplateRoute = createRoute({
@@ -333,6 +359,7 @@ const fileSetsRoute = createRoute({
   getParentRoute: () => libraryRoute,
   path: "/filesets",
   staticData: { title: msg("File sets") },
+  validateSearch: validateQuery,
   component: lazyRouteComponent(() => import("@/features/filesets/filesets-page"), "FileSetsPage"),
 })
 const fileSetRoute = createRoute({
@@ -346,6 +373,7 @@ const backupJobsRoute = createRoute({
   getParentRoute: () => automationRoute,
   path: "/backups",
   staticData: { title: msg("Backups") },
+  validateSearch: validateQuery,
   component: lazyRouteComponent(() => import("@/features/backups/backup-jobs-page"), "BackupJobsPage"),
 })
 const newBackupJobRoute = createRoute({
@@ -365,6 +393,7 @@ const policiesRoute = createRoute({
   getParentRoute: () => automationRoute,
   path: "/policies",
   staticData: { title: msg("Schedules") },
+  validateSearch: validateQuery,
   component: lazyRouteComponent(() => import("@/features/policies/policies-page"), "PoliciesPage"),
 })
 const newPolicyRoute = createRoute({
@@ -384,6 +413,7 @@ const workflowsRoute = createRoute({
   getParentRoute: () => automationRoute,
   path: "/workflows",
   staticData: { title: msg("Workflows") },
+  validateSearch: validateQuery,
   component: lazyRouteComponent(() => import("@/features/workflows/workflows-page"), "WorkflowsPage"),
 })
 // example starts the new workflow from one of the examples.
@@ -461,6 +491,7 @@ const usersRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: "users",
   staticData: { title: msg("Users") },
+  validateSearch: validateUserSearch,
   component: lazyRouteComponent(() => import("@/features/access/users-page"), "UsersPage"),
 })
 const groupsRoute = createRoute({
@@ -569,5 +600,11 @@ onOutdated(() => {
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router
+  }
+  interface HistoryState {
+    /** Set as the panel opens, e.g. after signing in, which then shows the user's start page rather than the overview. */
+    open?: boolean
+    /** Set where the console of a server is chosen, which then shows rather than the tab the server opens on. */
+    console?: boolean
   }
 }

@@ -14,6 +14,12 @@ import (
 
 func notRequired(context.Context, int64) (bool, error) { return false, nil }
 
+// config is that of the tests: sessions of an hour, and the panel's default name.
+type config struct{}
+
+func (config) SessionTTL() time.Duration { return time.Hour }
+func (config) PanelName() string         { return "Noryx" }
+
 // Users see and end only their own sessions.
 func TestSessions(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))

@@ -96,6 +96,9 @@ export interface SetupLink {
 
 export const usersQuery = queryOptions({ queryKey: ["users"], queryFn: () => api<User[]>("/users") })
 
+/** The groups of the settings that inviting a user preselects, of those the signed-in user may give. */
+export const inviteGroupsQuery = queryOptions({ queryKey: ["users", "invite"], queryFn: () => api<{ groups: string[] }>("/users/invite") })
+
 /** The address of a setup link. The token is in the fragment, which browsers don't send to servers. */
 export const setupUrl = (link: SetupLink) => `${location.origin}/setup#${link.token}`
 

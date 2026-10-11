@@ -39,6 +39,10 @@ const (
 	readRetry = 10 * time.Second
 )
 
+// Config tells the name of the panel, which messages name as where they come from: in the
+// subjects and as the sender of mails, and in the notifications of Slack.
+type Config interface{ PanelName() string }
+
 // Options are for tests: production uses none.
 type Options struct {
 	// Allow lets channels connect to the addresses it reports besides public ones, e.g. to
@@ -54,6 +58,7 @@ type Options struct {
 type Service struct {
 	db     *sql.DB
 	logs   *logs.Store
+	conf   Config
 	dialer *net.Dialer
 	client *http.Client
 	roots  *x509.CertPool
@@ -72,7 +77,7 @@ type Service struct {
 }
 
 // New returns the service of notifications, which Run starts.
-func New(db *sql.DB, store *logs.Store, o Options) *Service {
+func New(db *sql.DB, store *logs.Store, conf Config, o Options) *Service {
 	dialer := newDialer(o.Allow)
 	transport := &http.Transport{
 		Proxy:                 nil, // a proxy would connect elsewhere than to the checked address
@@ -89,7 +94,7 @@ func New(db *sql.DB, store *logs.Store, o Options) *Service {
 		wait = 5 * time.Second
 	}
 	return &Service{
-		db: db, logs: store, dialer: dialer, roots: o.Roots, tests: ratelimit.New(3, 20*time.Second),
+		db: db, logs: store, conf: conf, dialer: dialer, roots: o.Roots, tests: ratelimit.New(3, 20*time.Second),
 		wait: wait, retry: retryAfter, every: interval, burst: burst,
 		client: &http.Client{Transport: transport, Timeout: sendTimeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse

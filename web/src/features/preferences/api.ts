@@ -1,19 +1,39 @@
 import { queryOptions, useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { toast } from "sonner"
-import type { LogEntry } from "@/features/logs/api"
+import type { UserSort } from "@/features/access/browse"
+import type { Level, LogEntry } from "@/features/logs/api"
+import type { NetworkSort } from "@/features/networks/browse"
+import type { NodeSort } from "@/features/nodes/browse"
+import type { PlayerSearch } from "@/features/players/search"
+import type { Sort as PluginSort, Source as PluginSource } from "@/features/plugins/api"
 import type { Grouping, Sort, View } from "@/features/servers/browse"
+import type { ServerTab } from "@/features/servers/tabs"
+import { defaultsQuery } from "@/features/settings/public"
+import type { UsageRange } from "@/features/usage/api"
 import { api } from "@/lib/api"
 import { type CsvFormat, languageSeparator } from "@/lib/csv"
-import { chooseFormats, type Formats, msg } from "@/lib/i18n"
+import { chooseFormats, type Formats, msg, setDefaultLanguage } from "@/lib/i18n"
 import type { Order } from "@/lib/sort"
-import { type Accent, type Density, setLook, type Theme, useDark } from "@/lib/theme"
+import { type Accent, type Density, type Motion, setLook, type Theme, useDark, type Width } from "@/lib/theme"
 
 /** A widget of the overview and how many of its three columns it spans on large screens. */
 export interface Widget {
   id: string
   columns: 1 | 2 | 3
   hidden?: boolean
+  /**
+   * What the user chose for it, e.g. { count: "10" }, with IDs of nodes and networks separated by commas; the widget has
+   * its defaults for the others.
+   */
+  options?: Record<string, string>
+}
+
+/** An item of Needs attention that the user hid until a time, or before that until it changes from the state it had. */
+export interface HiddenItem {
+  key: string
+  state?: string
+  until: string
 }
 
 export interface ServerRef {
@@ -50,6 +70,41 @@ export interface Settings extends Formats {
   editorKeys?: "standard" | "vim"
   csvSeparator?: CsvFormat["separator"]
   csvBom?: "off" | "on"
+  /** What the user chose last in lists, which applies where the address doesn't say, see useChoice. */
+  playerTab?: NonNullable<PlayerSearch["tab"]>
+  playerSort?: PlayerSearch["sort"]
+  playerOrder?: Order
+  pluginSource?: PluginSource
+  pluginSort?: PluginSort
+  /** The software whose plugins and whose mods the plugin search finds, or "all". */
+  pluginType?: string
+  modType?: string
+  serverPluginSort?: "name" | "size"
+  usageRange?: UsageRange
+  usageView?: "charts" | "table"
+  /** The least level the log shows where its address names none; without, it shows all. */
+  logLevel?: Exclude<Level, "debug">
+  /** Where the panel opens, the address of a page of the sidebar, and the tab a server opens on; both only if the user may see them. */
+  startPage?: string
+  serverTab?: ServerTab
+  /** Whether pages fill wide screens and move less whatever the operating system asks; the browser keeps them like the theme. */
+  width?: Width
+  motion?: Motion
+  /** Whether shortcuts of single keys work; Ctrl+K always does. */
+  shortcuts?: "on" | "off"
+  /** Whether a single server stops or restarts right away, after asking or with a warning to its players, and whether only with players. */
+  power?: "now" | "ask" | "warn"
+  powerWhen?: "always" | "players"
+  /** The columns that tables of servers show besides the server and its state, separated by commas; empty for none. */
+  serverColumns?: string
+  /** How the lists of nodes, networks and users are shown and sorted where their address doesn't say. */
+  nodeView?: View
+  nodeSort?: NodeSort
+  nodeOrder?: Order
+  networkSort?: NetworkSort
+  networkOrder?: Order
+  userSort?: UserSort
+  userOrder?: Order
 }
 
 /** A change of settings; null takes one back to the browser's. */
@@ -77,6 +132,17 @@ export interface Preferences {
   pinned: ServerRef[]
   alerts: Alerts
   settings: Settings
+  hidden: HiddenItem[]
+  /** The groups of server lists that the user folded away, e.g. "network/<id>", in all lists of servers. */
+  folded: string[]
+  /** The views of the servers page that the user saved, in their order. */
+  views: SavedView[]
+}
+
+/** A view of the servers page that the user saved by name, with the search of its address, which is checked again when it is shown. */
+export interface SavedView {
+  name: string
+  search: Record<string, string>
 }
 
 export const preferencesQuery = queryOptions({
@@ -110,6 +176,13 @@ function useChange<K extends keyof Preferences>(part: K, field?: string) {
 }
 
 export const useSetDashboard = () => useChange("dashboard", "widgets")
+
+/** The items of Needs attention the user hid, and a change of them. */
+export function useHidden() {
+  const { data } = useQuery(preferencesQuery)
+  const set = useChange("hidden", "items")
+  return { hidden: data?.hidden ?? [], set: set.mutate }
+}
 
 export const defaultAlerts: Alerts = { level: "warn", only: false, pinned: false, nodes: [], servers: [], categories: [] }
 
@@ -187,7 +260,7 @@ export function useSettings() {
   return {
     settings: data?.settings ?? {},
     change: (change: SettingsChange) => {
-      setLook({ theme: change.theme ?? undefined, accent: change.accent ?? undefined, density: change.density ?? undefined })
+      setLook(change)
       mutate(change)
     },
   }
@@ -203,23 +276,32 @@ export function useCsvFormat(): CsvFormat {
   return { separator: settings.csvSeparator ?? languageSeparator, bom: settings.csvBom === "on" }
 }
 
-/** Applies the signed-in user's settings in this browser, which keeps them for the next visit. */
+/**
+ * Applies the signed-in user's settings in this browser, which keeps them for the next visit, and the panel's
+ * defaults where the user chose none.
+ */
 export function useApplySettings() {
   const { data } = useQuery(preferencesQuery)
+  const { data: defaults } = useQuery(defaultsQuery)
   // Other formats of times reload the panel, so it waits until the changes are stored.
   const storing = useIsMutating({ mutationKey: settingsKey }) > 0
-  const { theme, accent, density, clock, timeZone, times, weekStart, codeSize, codeTheme } = data?.settings ?? {}
-  useEffect(() => setLook({ theme, accent, density }), [theme, accent, density])
+  const { theme, accent, density, width, motion, clock, timeZone, times, weekStart, codeSize, codeTheme } = { ...defaults, ...data?.settings }
+  useEffect(() => setLook({ theme, accent, density, width, motion }), [theme, accent, density, width, motion])
   // The console, the terminal and the editor take their size and colours from <html>, see index.css.
   useEffect(() => {
     const root = document.documentElement.dataset
     root.codeSize = codeSize ?? "small"
     root.codeTheme = codeTheme ?? "dark"
   }, [codeSize, codeTheme])
-  const loaded = data !== undefined
+  // The defaults are waited for too, so that a reload for the default language takes the formats along, and
+  // the formats this browser shows stay while the defaults can't be loaded.
+  const loaded = data !== undefined && defaults !== undefined
+  const language = defaults?.language ?? ""
   useEffect(() => {
-    if (loaded && !storing) chooseFormats({ clock, timeZone, times, weekStart })
-  }, [loaded, storing, clock, timeZone, times, weekStart])
+    if (!loaded || storing) return
+    setDefaultLanguage(language)
+    chooseFormats({ clock, timeZone, times, weekStart })
+  }, [loaded, storing, language, clock, timeZone, times, weekStart])
 }
 
 /** The sizes of the text of the console, the terminal and the editor. */
@@ -241,3 +323,15 @@ export function useCodeDark() {
   const dark = useDark()
   return useSettings().settings.codeTheme !== "panel" || dark
 }
+
+/**
+ * A choice of a list, e.g. its sort: the address's wins, otherwise the one the user chose last applies, in all their
+ * browsers, else fallback. choose keeps another one.
+ */
+export function useChoice<K extends keyof Settings>(key: K, fallback: NonNullable<Settings[K]>, address?: Settings[K]) {
+  const { settings, change } = useSettings()
+  return [address ?? settings[key] ?? fallback, (value: NonNullable<Settings[K]>) => change({ [key]: value } as SettingsChange)] as const
+}
+/** Stores the groups of server lists that the user folded away, and the views of the servers page they saved. */
+export const useSetFolded = () => useChange("folded", "groups")
+export const useSetViews = () => useChange("views", "views")

@@ -1,15 +1,19 @@
 import { CalendarCheckIcon, PencilSimpleIcon, PlusIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import { t } from "i18next"
 import { ErrorCallout } from "@/components/callout"
 import { EmptyState } from "@/components/empty-state"
 import { TabIntro } from "@/components/hub-layout"
+import { NoMatch, SearchField } from "@/components/list-toolbar"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { TaskCard } from "@/features/schedules/task-card"
+import { matches } from "@/lib/search"
 import { actions, describePolicy, type PolicySettings, policies } from "./api"
+
+const route = getRouteApi("/_app/_automation/policies")
 
 function NewPolicy() {
   return (
@@ -39,9 +43,13 @@ function confirmRun({ action, warnings, condition }: PolicySettings) {
   if (action === "image") return t("Running servers whose image changed restart right away.")
 }
 
+/** The schedules, searched by the address. */
 export function PoliciesPage() {
   const manage = useAccess().can("policies.manage")
   const { data: list, isPending, error } = useQuery(policies.tasksQuery)
+  const { q } = route.useSearch()
+  const navigate = route.useNavigate()
+  const shown = (list ?? []).filter((policy) => matches(q, policy.name, describePolicy(policy.settings)))
   return (
     <>
       <TabIntro actions={manage && <NewPolicy />}>
@@ -60,33 +68,45 @@ export function PoliciesPage() {
           {manage && <NewPolicy />}
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {list.map((policy) => (
-            <TaskCard
-              manage={manage}
-              key={policy.id}
-              task={policy}
-              taskApi={policies}
-              icon={actions[policy.settings.action].icon}
-              tone="warning"
-              title={
-                <Link to="/policies/$policyId" params={{ policyId: policy.id }} className="block truncate font-semibold hover:underline">
-                  {policy.name}
-                </Link>
-              }
-              summary={describePolicy(policy.settings)}
-              edit={
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/policies/$policyId" params={{ policyId: policy.id }}>
-                    <PencilSimpleIcon />
-                    {t("Edit")}
-                  </Link>
-                </Button>
-              }
-              confirmRun={confirmRun(policy.settings)}
-            />
-          ))}
-        </ul>
+        <>
+          <SearchField
+            label={t("Search schedules")}
+            value={q}
+            onChange={(q) => navigate({ search: { q }, replace: true })}
+            className="mb-5 sm:max-w-xs"
+          />
+          {shown.length === 0 ? (
+            <NoMatch>{t("Nothing matches your search.")}</NoMatch>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {shown.map((policy) => (
+                <TaskCard
+                  manage={manage}
+                  key={policy.id}
+                  task={policy}
+                  taskApi={policies}
+                  icon={actions[policy.settings.action].icon}
+                  tone="warning"
+                  title={
+                    <Link to="/policies/$policyId" params={{ policyId: policy.id }} className="block truncate font-semibold hover:underline">
+                      {policy.name}
+                    </Link>
+                  }
+                  summary={describePolicy(policy.settings)}
+                  edit={
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/policies/$policyId" params={{ policyId: policy.id }}>
+                        <PencilSimpleIcon />
+                        {t("Edit")}
+                      </Link>
+                    </Button>
+                  }
+                  confirmRun={confirmRun(policy.settings)}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </>
   )

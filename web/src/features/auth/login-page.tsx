@@ -1,9 +1,12 @@
+import { useQuery } from "@tanstack/react-query"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { t } from "i18next"
 import { type FormEvent, useState } from "react"
+import { Callout } from "@/components/callout"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { publicSettingsQuery } from "@/features/settings/public"
 import { useLogin } from "./api"
 import { AuthLayout } from "./auth-layout"
 
@@ -21,7 +24,8 @@ export function LoginPage() {
     event.preventDefault()
     login.mutate(
       { ...credentials, code },
-      { onSuccess: (result) => ("mfaRequired" in result ? setCode("") : navigate({ to: redirect ?? "/" })) },
+      // The panel opens where the user was going, or at "/" on their start page.
+      { onSuccess: (result) => ("mfaRequired" in result ? setCode("") : navigate({ to: redirect ?? "/", state: { open: true } })) },
     )
   }
 
@@ -77,7 +81,19 @@ export function LoginPage() {
           )}
         </FieldGroup>
       </form>
+      <SignInNotice />
     </AuthLayout>
+  )
+}
+
+/** The notice of the settings, e.g. whom to ask for access, as plain text with its line breaks. */
+function SignInNotice() {
+  const { data } = useQuery(publicSettingsQuery)
+  if (!data?.notice) return null
+  return (
+    <Callout role="note" className="mt-8 break-words whitespace-pre-line">
+      {data.notice}
+    </Callout>
   )
 }
 

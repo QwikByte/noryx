@@ -249,3 +249,96 @@ func TestRequireMFA(t *testing.T) {
 		t.Fatalf("requirement for all = %+v", r)
 	}
 }
+
+// The name of the panel and the notice of the sign-in page are plain text, which the sign-in
+// page reads without a session.
+func TestPanelNameAndNotice(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s, err := Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:0"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := func(name, notice string) error {
+		next := s.Get()
+		next.PanelName, next.SignInNotice = name, notice
+		_, err := s.Update(t.Context(), next)
+		return err
+	}
+	for _, bad := range [][2]string{
+		{"Noryx\nTest", ""}, {"Noryx\x1b[31m", ""}, {"Noryx Test", ""}, {strings.Repeat("n", maxPanelName+1), ""},
+		{"", "Ask\x00Alex"}, {"", "Ask\tAlex"}, {"", "Ask Alex"}, {"", strings.Repeat("n", maxSignInNotice+1)},
+	} {
+		if err := set(bad[0], bad[1]); err == nil {
+			t.Errorf("name %q and notice %q accepted", bad[0], bad[1])
+		}
+	}
+	if s.PanelName() != "Noryx" {
+		t.Fatalf("name = %q", s.PanelName())
+	}
+	if err := set(strings.Repeat("·", maxPanelName), ""); err != nil {
+		t.Errorf("%d characters: %v", maxPanelName, err)
+	}
+	if err := set(" Noryx · Test ", " Ask Alex\r\nfor access. "); err != nil || s.PanelName() != "Noryx · Test" || s.Get().SignInNotice != "Ask Alex\nfor access." {
+		t.Fatalf("set: %v, settings = %+v", err, s.Get())
+	}
+
+	mux := http.NewServeMux()
+	NewHandler(s, nil).RegisterPublic(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/panel", nil))
+	if body := strings.TrimSpace(rec.Body.String()); rec.Code != http.StatusOK ||
+		body != `{"name":"Noryx · Test","notice":"Ask Alex\nfor access.","defaults":{"language":"","theme":"","accent":"","density":"","clock":""}}` {
+		t.Fatalf("status %d: %s", rec.Code, body)
+	}
+}
+
+// The defaults of users are values that users can choose themselves, and the groups of
+// invitations are named once.
+func TestUserDefaults(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s, err := Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:0"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Get(); got.UserDefaults != (UserDefaults{}) || got.InviteGroups == nil || len(got.InviteGroups) != 0 {
+		t.Fatalf("defaults = %+v, invite groups %v", got.UserDefaults, got.InviteGroups)
+	}
+	set := func(d UserDefaults, groups []string) error {
+		next := s.Get()
+		next.UserDefaults, next.InviteGroups = d, groups
+		_, err := s.Update(t.Context(), next)
+		return err
+	}
+	for _, bad := range []UserDefaults{{Language: "fr"}, {Language: "../de"}, {Theme: "pink"}, {Accent: "red"}, {Density: "tight"}, {Clock: "13h"}} {
+		if err := set(bad, nil); err == nil {
+			t.Errorf("%+v accepted", bad)
+		}
+	}
+	many := make([]string, maxInviteGroups+1)
+	for i := range many {
+		many[i] = "group" + strconv.Itoa(i)
+	}
+	for _, bad := range [][]string{{"../admins"}, {""}, many} {
+		if err := set(UserDefaults{}, bad); err == nil {
+			t.Errorf("invite groups %v accepted", bad)
+		}
+	}
+	want := UserDefaults{Language: "de", Theme: "dark", Accent: "blue", Density: "compact", Clock: "24h"}
+	if err := set(want, []string{"mods", "administrators", "mods"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Get(); got.UserDefaults != want || !slices.Equal(got.InviteGroups, []string{"administrators", "mods"}) {
+		t.Fatalf("defaults = %+v, invite groups %v", got.UserDefaults, got.InviteGroups)
+	}
+	if groups := s.InviteGroups(); !slices.Equal(groups, []string{"administrators", "mods"}) {
+		t.Fatalf("invite groups = %v", groups)
+	}
+}

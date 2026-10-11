@@ -1,31 +1,60 @@
 import { ArrowRightIcon, CpuIcon, CubeIcon, HardDrivesIcon, MemoryIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import { t } from "i18next"
 import { motion } from "motion/react"
 import { AnimatedNumber } from "@/components/animated-number"
 import { ErrorCallout } from "@/components/callout"
+import { CsvButton } from "@/components/csv-button"
 import { EmptyState } from "@/components/empty-state"
 import { IconTile } from "@/components/icon-tile"
+import { ListToolbar, NoMatch, SearchField, SortMenu, ViewSwitch } from "@/components/list-toolbar"
 import { Meter } from "@/components/meter"
 import { PageHeader } from "@/components/page-header"
 import { StatCard, StatStrip } from "@/components/stat-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { OverlaySettingsSection } from "@/features/overlay/overlay-settings"
+import { useSettings } from "@/features/preferences/api"
+import { useSorting } from "@/features/preferences/sorting"
 import { allServersQuery, assignedMemoryMb, type NodeServer, runningCount } from "@/features/servers/api"
+import { useUsages } from "@/features/usage/api"
 import { formatBytes, formatMegabytes } from "@/lib/format"
 import { rise } from "@/lib/motion"
 import { AddNodeDialog } from "./add-node-dialog"
 import { memoryCapacityMb, type Node, nodesQuery, onlineCapacityMb } from "./api"
+import { browseNodes, type NodeFacts, type NodeSearch, nodeRows, nodeSortOrders, nodeSorts } from "./browse"
 import { CpuTrend } from "./cpu-trend"
 import { NodeStatusBadge } from "./node-status"
+import { NodeTable } from "./node-table"
 
+const route = getRouteApi("/_app/nodes")
+
+/**
+ * The nodes as cards or a table, searched and sorted by the settings in the address; where it doesn't say, the view
+ * and sort chosen last apply, which the user keeps in all browsers.
+ */
 export function NodesPage() {
   const { can } = useAccess()
   const { data: nodes, isPending, error } = useQuery(nodesQuery)
   const add = can("nodes.enroll") && <AddNodeDialog />
   const { data: servers } = useQuery(allServersQuery)
+  const usages = useUsages(nodes?.filter((n) => n.status === "online").map((n) => n.id) ?? [])
+  const facts: NodeFacts = {
+    // Missing without the permission to see the node, and while its agent can't measure the machine.
+    usage: (n) => {
+      const usage = usages.node(n.id)
+      return usage?.cpuCount && usage.memoryTotalBytes ? usage : undefined
+    },
+    servers: (n) => (n.status === "online" ? servers?.filter((s) => s.nodeId === n.id) : undefined),
+  }
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+  const { settings, change } = useSettings()
+  const set = (c: Partial<NodeSearch>) => void navigate({ search: (s) => ({ ...s, ...c }), replace: true })
+  const sorting = useSorting(search, nodeSortOrders, { sort: "nodeSort", order: "nodeOrder" }, set)
+  const view = search.view ?? settings.nodeView ?? ((nodes?.length ?? 0) > 12 ? "table" : "grid")
+  const shown = browseNodes(nodes ?? [], search.q, sorting.by, sorting.order, facts)
 
   return (
     <>
@@ -45,13 +74,33 @@ export function NodesPage() {
       ) : (
         <>
           <Overview nodes={nodes} servers={servers} />
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {nodes.map((node, i) => (
-              <motion.li key={node.id} {...rise(i)}>
-                <NodeCard node={node} servers={servers?.filter((s) => s.nodeId === node.id)} />
-              </motion.li>
-            ))}
-          </ul>
+          <ListToolbar
+            className="mb-5"
+            search={<SearchField label={t("Search nodes")} value={search.q} onChange={(q) => set({ q })} className="min-w-0 flex-1" />}
+          >
+            <SortMenu sorting={sorting} sorts={nodeSorts} />
+            <ViewSwitch
+              value={view}
+              onChange={(v) => {
+                change({ nodeView: v })
+                set({ view: v })
+              }}
+            />
+            <CsvButton name="nodes" rows={() => nodeRows(shown, facts)} />
+          </ListToolbar>
+          {shown.length === 0 ? (
+            <NoMatch>{t("Nothing matches your search.")}</NoMatch>
+          ) : view === "table" ? (
+            <NodeTable nodes={shown} facts={facts} sorting={sorting} />
+          ) : (
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {shown.map((node, i) => (
+                <motion.li key={node.id} {...rise(i)}>
+                  <NodeCard node={node} servers={servers?.filter((s) => s.nodeId === node.id)} />
+                </motion.li>
+              ))}
+            </ul>
+          )}
           <OverlaySettingsSection />
         </>
       )}

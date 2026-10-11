@@ -23,6 +23,7 @@ import { PaletteButton } from "@/features/palette/command-palette"
 import { preferencesQuery, useApplySettings, usePinned } from "@/features/preferences/api"
 import { allServersQuery } from "@/features/servers/api"
 import { serverLook, statusOf } from "@/features/servers/server-types"
+import { usePanelName } from "@/features/settings/public"
 import { UpdateBanner } from "@/features/updates/update-banner"
 import { chooseLanguage } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -62,6 +63,7 @@ export function AppShell() {
     if (user?.language && !settingsPending) chooseLanguage(user.language)
   }, [user?.language, settingsPending])
   useApplySettings()
+  const name = usePanelName()
 
   const toggleLabel = collapsed ? t("Expand the sidebar") : t("Collapse the sidebar")
 
@@ -80,7 +82,7 @@ export function AppShell() {
             className={cn("flex min-w-0 flex-1 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring", collapsed && "sr-only")}
           >
             <Logo className="size-7" />
-            <span className="heading text-[0.9375rem] whitespace-nowrap">{t("Noryx")}</span>
+            <span className="heading truncate text-[0.9375rem]">{name}</span>
           </Link>
           <Button
             variant="ghost"
@@ -114,7 +116,7 @@ export function AppShell() {
             <SheetContent side="left" aria-describedby={undefined} className="dark w-72 gap-0 overflow-y-auto bg-sidebar p-0 text-foreground">
               <SheetTitle className="flex h-14 items-center gap-2.5 border-b px-4">
                 <Logo className="size-7" />
-                <span className="heading text-[0.9375rem]">{t("Noryx")}</span>
+                <span className="heading truncate text-[0.9375rem]">{name}</span>
               </SheetTitle>
               <MainNav className="flex-1 px-2.5 py-3" onNavigate={() => setMenu(false)} />
             </SheetContent>
@@ -128,7 +130,8 @@ export function AppShell() {
           <AccountMenu folded className="md:hidden" />
         </header>
         <main id={contentId} tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
-          <div className="mx-auto max-w-7xl">
+          {/* Pages keep a width that reads well, unless the user lets them fill wide screens (data-width on <html>). */}
+          <div className="mx-auto max-w-7xl in-data-[width=full]:max-w-none">
             <ConnectionBanner />
             {access.admin && <UpdateBanner />}
             <Page />

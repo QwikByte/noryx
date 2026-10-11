@@ -1,22 +1,17 @@
-import {
-  FunnelSimpleIcon,
-  ListIcon,
-  MagnifyingGlassIcon,
-  RowsIcon,
-  SortAscendingIcon,
-  SortDescendingIcon,
-  SquaresFourIcon,
-} from "@phosphor-icons/react"
+import { ColumnsIcon, FunnelSimpleIcon, RowsIcon } from "@phosphor-icons/react"
 import { t } from "i18next"
 import type { ReactNode } from "react"
 import { CsvButton } from "@/components/csv-button"
 import { FilterChip } from "@/components/filter-chip"
+import { ListToolbar, MenuChoice, SearchField, SortMenu, ViewSwitch } from "@/components/list-toolbar"
 import { radios } from "@/components/radios"
 import { StatusDot } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -26,12 +21,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import type { Cell } from "@/lib/csv"
-import type { Order, Sorting } from "@/lib/sort"
+import type { Sorting } from "@/lib/sort"
 import { cn } from "@/lib/utils"
 import type { NodeServer, ServerState } from "./api"
 import {
+  type Column,
+  columns as columnLabels,
   type Facts,
   type Grouping,
   groupings,
@@ -65,8 +61,8 @@ function optionsOf(property: Property, servers: NodeServer[], facts: Facts) {
 }
 
 /**
- * Searches, filters, sorts and groups the servers, and switches between cards and a table. The
- * states show how many servers of the search have each.
+ * Searches, filters, sorts and groups the servers, switches between cards and a table and chooses
+ * the columns of the table. The states show how many servers of the search have each.
  */
 export function ServerToolbar({
   servers,
@@ -78,7 +74,10 @@ export function ServerToolbar({
   hidden,
   view,
   sorting,
+  columns,
+  onColumns,
   rows,
+  views,
 }: {
   servers: NodeServer[]
   search: ServerSearch
@@ -90,8 +89,13 @@ export function ServerToolbar({
   hidden: Property[]
   view: View
   sorting: Sorting<Sort>
+  /** The columns chosen for the table, and a choice of others; undefined takes it back to the default ones. */
+  columns: Column[]
+  onColumns: (columns: Column[] | undefined) => void
   /** The servers listed, as CSV. */
   rows: () => Cell[][]
+  /** The views the user saved, next to the search. */
+  views?: ReactNode
 }) {
   const filters = properties
     .filter((p) => !hidden.includes(p))
@@ -100,104 +104,75 @@ export function ServerToolbar({
     .filter(({ property, options }) => search[property] || options.length > (property === "tag" ? 0 : 1))
   const active = filters.filter(({ property }) => search[property])
   const filtered = active.length > 0 || search.q || search.state
-  const layoutRadio = radios<View>(["grid", "table"], view, (v) => onSearch({ view: v }))
   const stateRadio = radios([undefined, ...states], search.state, (state) => onSearch({ state }))
 
   return (
     <div className="mb-5 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:min-w-72 sm:flex-1 lg:max-w-md">
-          <InputGroup className="min-w-0 flex-1">
-            <InputGroupAddon>
-              <MagnifyingGlassIcon />
-            </InputGroupAddon>
-            <InputGroupInput
-              type="search"
-              placeholder={t("Search servers")}
-              aria-label={t("Search servers")}
-              value={search.q ?? ""}
-              onChange={(e) => onSearch({ q: e.target.value || undefined })}
-            />
-          </InputGroup>
-          {filters.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <FunnelSimpleIcon />
-                  {t("Filter")}
-                  {active.length > 0 && (
-                    <span className="rounded-sm bg-primary px-1.5 text-xs text-primary-foreground tabular-nums">{active.length}</span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                {filters.map(({ property, options }) => (
-                  <DropdownMenuSub key={property}>
-                    <DropdownMenuSubTrigger>{propertyLabels[property]()}</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
-                      <DropdownMenuRadioGroup
-                        value={search[property] ?? ""}
-                        onValueChange={(value) => onSearch({ [property]: value || undefined })}
-                      >
-                        <DropdownMenuRadioItem value="">{t("All")}</DropdownMenuRadioItem>
-                        {options.map((o) => (
-                          <DropdownMenuRadioItem key={o.value} value={o.value}>
-                            <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                            <span className="text-xs text-muted-foreground tabular-nums">{o.count}</span>
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Choice
-            icon={sorting.order === "asc" ? SortAscendingIcon : SortDescendingIcon}
-            label={t("Sort")}
-            value={sorting.by}
-            options={Object.entries(sorts).map(([value, label]) => ({ value: value as Sort, label: t(label) }))}
-            onChange={(sort) => sorting.sort(sort)}
-          >
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup value={sorting.order} onValueChange={(order) => sorting.sort(sorting.by, order as Order)}>
-              <DropdownMenuRadioItem value="asc">{t("Ascending")}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="desc">{t("Descending")}</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </Choice>
-          <Choice
-            icon={RowsIcon}
-            label={t("Group by")}
-            value={search.group ?? "none"}
-            options={(Object.keys(groupings) as Grouping[])
-              .filter((g) => g === "none" || g === search.group || filters.some((f) => f.property === g))
-              .map((value) => ({ value, label: t(groupings[value]) }))}
-            onChange={(group) => onSearch({ group: group === "none" ? undefined : group })}
+      <ListToolbar
+        search={
+          <>
+            <SearchField label={t("Search servers")} value={search.q} onChange={(q) => onSearch({ q })} className="min-w-0 flex-1" />
+            {filters.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <FunnelSimpleIcon />
+                    {t("Filter")}
+                    {active.length > 0 && (
+                      <span className="rounded-sm bg-primary px-1.5 text-xs text-primary-foreground tabular-nums">{active.length}</span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  {filters.map(({ property, options }) => (
+                    <DropdownMenuSub key={property}>
+                      <DropdownMenuSubTrigger>{propertyLabels[property]()}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
+                        <DropdownMenuRadioGroup
+                          value={search[property] ?? ""}
+                          onValueChange={(value) => onSearch({ [property]: value || undefined })}
+                        >
+                          <DropdownMenuRadioItem value="">{t("All")}</DropdownMenuRadioItem>
+                          {options.map((o) => (
+                            <DropdownMenuRadioItem key={o.value} value={o.value}>
+                              <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                              <span className="text-xs text-muted-foreground tabular-nums">{o.count}</span>
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {views}
+          </>
+        }
+      >
+        <SortMenu sorting={sorting} sorts={sorts} />
+        <MenuChoice
+          icon={RowsIcon}
+          label={t("Group by")}
+          value={search.group ?? "none"}
+          options={(Object.keys(groupings) as Grouping[])
+            .filter((g) => g === "none" || g === search.group || filters.some((f) => f.property === g))
+            .map((value) => ({ value, label: t(groupings[value]) }))}
+          onChange={(group) => onSearch({ group: group === "none" ? undefined : group })}
+        />
+        <ViewSwitch value={view} onChange={(v) => onSearch({ view: v })} />
+        {view === "table" && (
+          <ColumnsMenu
+            // The node only where servers of several nodes are listed, the network only once some server has one.
+            offered={(Object.keys(columnLabels) as Column[]).filter(
+              (c) => (c !== "node" || !hidden.includes("node")) && (c !== "network" || servers.some((s) => facts.network(s))),
+            )}
+            columns={columns}
+            onChange={onColumns}
           />
-          <div role="radiogroup" aria-label={t("Layout")} className="inline-flex rounded-lg bg-muted p-0.5 ring-1 ring-border ring-inset">
-            {(
-              [
-                ["grid", SquaresFourIcon, t("Cards")],
-                ["table", ListIcon, t("Table")],
-              ] as const
-            ).map(([value, Icon, label]) => (
-              <button
-                key={value}
-                {...layoutRadio(value)}
-                aria-label={label}
-                title={label}
-                className="grid h-8 w-9 place-items-center rounded-md text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm"
-              >
-                <Icon className="size-4" weight="bold" />
-              </button>
-            ))}
-          </div>
-          <CsvButton name="servers" rows={rows} />
-        </div>
-      </div>
+        )}
+        <CsvButton name="servers" rows={rows} />
+      </ListToolbar>
       <div className="flex flex-wrap items-center gap-2">
         <div role="radiogroup" aria-label={t("State")} className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-0.5 ring-1 ring-border ring-inset [scrollbar-width:none]">
           {[undefined, ...states].map((state) => (
@@ -237,41 +212,37 @@ export function ServerToolbar({
   )
 }
 
-/** A dropdown that chooses one of a few options, showing the chosen one. */
-function Choice<T extends string>({
-  icon: Icon,
-  label,
-  value,
-  options,
+/** Chooses the columns of the table among those offered; it stays open for the next choice. */
+function ColumnsMenu({
+  offered,
+  columns,
   onChange,
-  children,
 }: {
-  icon: typeof SortAscendingIcon
-  label: string
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (value: T) => void
-  /** More choices, after the options. */
-  children?: ReactNode
+  offered: Column[]
+  columns: Column[]
+  onChange: (columns: Column[] | undefined) => void
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={`${label}: ${options.find((o) => o.value === value)?.label}`}>
-          <Icon />
-          <span className="max-sm:hidden">{options.find((o) => o.value === value)?.label}</span>
+        <Button variant="outline" size="icon" aria-label={t("Columns")} title={t("Columns")}>
+          <ColumnsIcon />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>{label}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as T)}>
-          {options.map((o) => (
-            <DropdownMenuRadioItem key={o.value} value={o.value}>
-              {o.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {children}
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuLabel>{t("Columns")}</DropdownMenuLabel>
+        {offered.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c}
+            checked={columns.includes(c)}
+            onSelect={(e) => e.preventDefault()}
+            onCheckedChange={(on) => onChange(on ? [...columns, c] : columns.filter((other) => other !== c))}
+          >
+            {t(columnLabels[c])}
+          </DropdownMenuCheckboxItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => onChange(undefined)}>{t("Default columns")}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

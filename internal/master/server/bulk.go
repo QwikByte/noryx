@@ -75,7 +75,7 @@ func (h *Handler) bulk(w http.ResponseWriter, r *http.Request) {
 	}
 	err := checkServers(r, req.Servers, action.need)
 	if err == nil {
-		err = req.Warning.check(r, req.Action, req.Servers)
+		err = req.Warning.check(r, req.Action, req.Servers, h.conf)
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)

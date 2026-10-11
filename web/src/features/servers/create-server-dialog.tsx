@@ -23,6 +23,7 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useAccess } from "@/features/access/use-access"
+import { meQuery } from "@/features/auth/api"
 import type { ModpackChoice } from "@/features/modpacks/api"
 import { ModpackPicker } from "@/features/modpacks/modpack-picker"
 import {
@@ -41,9 +42,19 @@ import { guard, useOperation } from "@/features/operations/use-operation"
 import { keptVersions, type Template, templatesQuery } from "@/features/templates/api"
 import { formatBytes, formatSeconds, formatTimeZone } from "@/lib/format"
 import { useUpload } from "@/lib/use-upload"
-import { freeMemoryMb, type ImportedSettings, type NewServer, serversQuery, useCreateServer, useImportServer } from "./api"
-import { defaults, modpack, serverType, suggestPort, usedPorts } from "./server-types"
-import { MemoryField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
+import {
+  freeMemoryMb,
+  type ImportedSettings,
+  type NewServer,
+  type NewServerSettings,
+  newServersQuery,
+  serversQuery,
+  useCreateServer,
+  useImportServer,
+} from "./api"
+import { lastNode, rememberNode } from "./last-node"
+import { defaults, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
+import { JavaField, MemoryField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
 import { EndOfLifeNotice, SoftwareOptions } from "./software"
 import { TagList } from "./tags"
 import { type World, worldChanges, worldOf } from "./world"
@@ -57,6 +68,7 @@ type Form = Omit<NewServer, "port" | "storage"> & {
   templateId?: string
   modpack?: ModpackChoice
   world: World
+  java: string
   stopTimeout: number
   timeZone: string
   /** A new server starts empty, or with the data of an archive of a server from elsewhere. */
@@ -66,20 +78,22 @@ type Form = Omit<NewServer, "port" | "storage"> & {
 
 const none = "none"
 
-function blank(template?: Template): Form {
-  const basics = template
-    ? { type: template.type, version: template.version === "LATEST" ? "" : template.version, memoryMb: template.memoryMb }
-    : { type: "paper", version: "", memoryMb: defaults("paper").memoryMb }
-  const { stopTimeout = 60, timeZone = "" } = template ?? {}
+/** A new server as its template has it, or else as the settings of new servers, once they are known. */
+function blank(template?: Template, settings?: NewServerSettings): Form {
+  const type = template?.type ?? settings?.type ?? "paper"
+  const { java = "", stopTimeout = 60, timeZone = "" } = template ?? settings ?? {}
   return {
     name: "",
     acceptEula: false,
     templateId: template?.id,
     world: worldOf(template?.properties),
+    type,
+    version: template && template.version !== "LATEST" ? template.version : "",
+    memoryMb: template?.memoryMb ?? defaults(type, settings).memoryMb,
+    java,
     stopTimeout,
     timeZone,
     source: "empty",
-    ...basics,
   }
 }
 
@@ -116,18 +130,24 @@ export function CreateServerDialog({
 }) {
   const [ownOpen, setOpen] = useState(false)
   const open = shown ?? ownOpen
-  const [form, setForm] = useState(() => blank(fixedTemplate))
+  const [changed, setForm] = useState<Form>()
   const create = useCreateServer()
   const importServer = useImportServer()
   const upload = useUpload()
   const [importError, setImportError] = useState<string>()
   const operation = useOperation()
   const navigate = useNavigate()
+  const { data: settings } = useQuery({ ...newServersQuery, enabled: open })
   const { data: templates = [] } = useQuery({ ...templatesQuery, enabled: open && !fixedTemplate })
+  // Until something is chosen, the form follows the settings of new servers and their template as they load.
+  const form = changed ?? blank(fixedTemplate ?? templates.find((candidate) => candidate.id === settings?.template), settings)
   const { can } = useAccess()
+  const { data: me } = useQuery(meQuery)
   const { data: allNodes = [], isPending: nodesPending } = useQuery({ ...nodesQuery, enabled: open && !fixedNode })
   const nodes = allNodes.filter((n) => can("servers.create", n.id))
-  const nodeId = fixedNode ?? form.nodeId ?? nodes.find((n) => n.status === "online")?.id
+  // The node the user created a server on last, while it is online, or else the first online one.
+  const online = nodes.filter((n) => n.status === "online")
+  const nodeId = fixedNode ?? form.nodeId ?? (online.find((n) => me && n.id === lastNode(me.id)) ?? online[0])?.id
   const template = fixedTemplate ?? templates.find((candidate) => candidate.id === form.templateId)
   const { data: node } = useQuery({ ...nodeQuery(nodeId ?? ""), enabled: open && !!nodeId })
   const { data: servers } = useQuery({ ...serversQuery(nodeId ?? ""), enabled: open && !!nodeId })
@@ -135,7 +155,8 @@ export function CreateServerDialog({
   const proxy = serverType(form.type).proxy
   const fromModpack = form.type === modpack
   const fromArchive = form.source === "archive"
-  const chooseModpack = useCallback((choice?: ModpackChoice) => setForm((f) => ({ ...f, modpack: choice })), [])
+  // The picker only shows once a modpack was chosen as the software.
+  const chooseModpack = useCallback((choice?: ModpackChoice) => setForm((f) => f && { ...f, modpack: choice }), [])
   const port =
     form.port ??
     suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined)
@@ -154,40 +175,41 @@ export function CreateServerDialog({
     if (!next) {
       create.reset()
       operation.reset()
-      setForm(blank(fixedTemplate))
+      setForm(undefined)
     }
   }
 
   // Switching between game server and proxy updates the memory unless it was changed.
   function changeType(type: string) {
-    const before = defaults(form.type).memoryMb
-    setForm({ ...form, type, memoryMb: form.memoryMb === before ? defaults(type).memoryMb : form.memoryMb })
+    const before = defaults(form.type, settings).memoryMb
+    setForm({ ...form, type, memoryMb: form.memoryMb === before ? defaults(type, settings).memoryMb : form.memoryMb })
   }
 
   // An archive brings its own data, so neither a template nor a modpack applies.
   function chooseSource(source: Form["source"]) {
-    setForm({ ...form, source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? "paper" : form.type })
+    setForm({ ...form, source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? (settings?.type ?? "paper") : form.type })
   }
 
   function chooseTemplate(id: string) {
     const chosen = templates.find((candidate) => candidate.id === id)
-    setForm({ ...blank(chosen), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
+    setForm({ ...blank(chosen, settings), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
   }
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (!nodeId) return
+    if (me) rememberNode(me.id, nodeId)
     const { name, type, memoryMb, acceptEula, stopTimeout, timeZone } = form
-    const version = proxy ? "" : form.version.trim()
-    const server: NewServer = { name, type, memoryMb, acceptEula, port, storage, version, stopTimeout, timeZone }
+    const [version, java] = proxy ? ["", ""] : [form.version.trim(), form.java]
+    const server: NewServer = { name, type, memoryMb, acceptEula, port, storage, version, java, stopTimeout, timeZone }
     if (fromArchive) {
       if (form.archive) void createFromArchive(nodeId, server, form.archive)
       return
     }
     if (fromModpack) Object.assign(server, { type: "", version: "", modpack: form.modpack })
     if (template) {
-      const { java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties } = template
-      Object.assign(server, { java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, versions: keptVersions(template.plugins) })
+      const { restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties } = template
+      Object.assign(server, { restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, versions: keptVersions(template.plugins) })
       if (tagsAllowed) server.tags = tags
     }
     if (!proxy) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }
@@ -220,7 +242,7 @@ export function CreateServerDialog({
       })
       setOpen(false)
       onShownChange?.(false)
-      setForm(blank(fixedTemplate))
+      setForm(undefined)
       void navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: created.id } })
     } catch (e) {
       setImportError((e as Error).message)
@@ -435,9 +457,10 @@ export function CreateServerDialog({
               )}
               {!proxy && !fromArchive && <WorldFields value={form.world} onChange={(world) => setForm({ ...form, world })} />}
               <Fold
-                title={t("Stop timeout and time zone")}
-                summary={`${formatSeconds(form.stopTimeout)} · ${formatTimeZone(form.timeZone)}`}
+                title={proxy ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
+                summary={[!proxy && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
               >
+                {!proxy && <JavaField id="server-java" value={form.java} onChange={(java) => setForm({ ...form, java })} />}
                 <StopTimeoutField
                   id="server-stop-timeout"
                   value={form.stopTimeout}

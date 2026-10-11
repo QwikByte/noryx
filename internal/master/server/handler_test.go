@@ -28,7 +28,7 @@ import (
 // the request is cancelled, and the deletion succeeds.
 func TestDeleteForgetsEverything(t *testing.T) {
 	failing, other := &fakeRefs{err: errors.New("database is locked")}, &fakeRefs{}
-	h := NewHandler(fakeNodes{}, fakeNetworks{}, nil, nil, nil, nil, NewMoves(), nil, failing, other)
+	h := NewHandler(fakeNodes{}, fakeNetworks{}, nil, nil, nil, nil, NewMoves(), nil, nil, failing, other)
 	mux := http.NewServeMux()
 	mux.HandleFunc("DELETE /api/nodes/{node}/servers/{id}", h.delete)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -48,7 +48,7 @@ func TestDeleteForgetsEverything(t *testing.T) {
 // An agent that doesn't know the stop timeout and the time zone yet leaves them out of its
 // answer when a server is created or changed, which the panel then shows as a warning.
 func TestWarnsOfOlderAgents(t *testing.T) {
-	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, nil, nil, nil, operation.New(time.Second), NewMoves(), nil)
+	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, nil, nil, nil, operation.New(time.Second), NewMoves(), nil, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/nodes/{node}/servers", h.create)
 	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}", h.update)
@@ -85,7 +85,7 @@ func TestWarnsOfOlderAgents(t *testing.T) {
 func TestStopAndRestartAreOperations(t *testing.T) {
 	for _, quick := range []time.Duration{time.Minute, 0} {
 		ops := operation.New(quick)
-		h := NewHandler(fakeNodes{}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil)
+		h := NewHandler(fakeNodes{}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil, nil)
 		mux := http.NewServeMux()
 		for _, action := range []string{"stop", "restart"} {
 			mux.HandleFunc("POST /api/nodes/{node}/servers/{id}/"+action, h.power(action))
@@ -115,7 +115,7 @@ func TestSetNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := tag.NewStore(db)
-	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, tags, nil, nil, nil, NewMoves(), nil)
+	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, tags, nil, nil, nil, NewMoves(), nil, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}/notes", h.setNotes)
 	for _, tc := range []struct {
@@ -150,7 +150,7 @@ func TestCreateWithTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := tag.NewStore(db)
-	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, tags, nil, nil, operation.New(time.Second), NewMoves(), nil)
+	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, tags, nil, nil, operation.New(time.Second), NewMoves(), nil, nil)
 	for _, tc := range []struct {
 		grants access.Grants
 		tags   string

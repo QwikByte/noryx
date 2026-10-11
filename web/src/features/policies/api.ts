@@ -21,7 +21,7 @@ export interface PolicySettings {
   action: PolicyAction
   /** Minutes before a restart or stop at which players are warned. */
   warnings: number[]
-  /** The warning; {minutes} is replaced by the minutes left. */
+  /** The warning; {minutes} is replaced by the minutes left. Empty is the text of the settings when the schedule runs. */
   message: string
   /** The console commands of the command action, sent one after the other. */
   commands?: string[]

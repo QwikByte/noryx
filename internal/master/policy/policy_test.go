@@ -18,11 +18,12 @@ import (
 	"github.com/QwikByte/noryx/internal/master/network"
 	"github.com/QwikByte/noryx/internal/master/plugin"
 	"github.com/QwikByte/noryx/internal/master/schedule"
+	"github.com/QwikByte/noryx/internal/master/server"
 )
 
 func TestCheck(t *testing.T) {
 	got, err := Policies{}.Check(json.RawMessage(`{"action":"restart","warnings":[1,10,5,10],"command":"op me"}`))
-	if want := `{"action":"restart","warnings":[10,5,1],"message":"The server restarts in {minutes} min.","commands":[]}`; err != nil || string(got) != want {
+	if want := `{"action":"restart","warnings":[10,5,1],"message":"","commands":[]}`; err != nil || string(got) != want {
 		t.Fatalf("checked settings = %s, %v; want %s", got, err, want)
 	}
 	if lead := (Policies{}).Lead(got); lead != 10*time.Minute {
@@ -31,7 +32,7 @@ func TestCheck(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		// Only restarts go server by server.
 		{`{"action":"stop","rolling":2,"message":"  Bye in {minutes} min "}`, `{"action":"stop","warnings":[],"message":"Bye in {minutes} min","commands":[]}`},
-		{`{"action":"restart","rolling":2}`, `{"action":"restart","warnings":[],"message":"The server restarts in {minutes} min.","commands":[],"rolling":2}`},
+		{`{"action":"restart","rolling":2}`, `{"action":"restart","warnings":[],"message":"","commands":[],"rolling":2}`},
 		// A policy saved with one command gets a list of them.
 		{`{"action":"command","command":" say hi "}`, `{"action":"command","warnings":[],"message":"","commands":["say hi"]}`},
 		{`{"action":"command","commands":["say hi","save-all"]}`, `{"action":"command","warnings":[],"message":"","commands":["say hi","save-all"]}`},
@@ -203,8 +204,13 @@ func policies(a *agent, u *usage, list ...network.Network) Policies {
 	if u == nil {
 		u = &usage{players: map[string]*noryxv1.Players{}}
 	}
-	return New(a, networks{a, list}, u, fakeBackups{a}, fakePlugins{a})
+	return New(a, networks{a, list}, u, fakeBackups{a}, fakePlugins{a}, config(server.DefaultWarnings()))
 }
+
+// config gives policies the warnings of the settings.
+type config server.Warnings
+
+func (c config) Warnings() server.Warnings { return server.Warnings(c) }
 
 func listed(servers ...schedule.Server) schedule.Servers {
 	return func(context.Context) ([]schedule.Server, error) { return servers, nil }
@@ -222,6 +228,7 @@ func TestRun(t *testing.T) {
 		// The 5 minute warning is too late, the 1 minute warning is sent right away.
 		{`{"action":"restart","warnings":[5,1],"message":"Restart in {minutes} min"}`,
 			[]string{"SendCommand say Restart in 1 min", "RestartServer lobby", "RestartServer proxy"}},
+		{`{"action":"stop","warnings":[1]}`, []string{"SendCommand say The server stops in 1 min.", "StopServer lobby", "StopServer proxy"}},
 		{`{"action":"start"}`, []string{"StartServer old"}},
 		{`{"action":"command","commands":["say bye","save-all"]}`, []string{"SendCommand say bye", "SendCommand save-all"}},
 		// Images are updated on all servers, plugins on those that can have some.
@@ -239,6 +246,28 @@ func TestRun(t *testing.T) {
 		}
 		if err == nil || err.Error() != "node-2: unreachable" || !slices.Equal(calls, tc.want) {
 			t.Errorf("%s: calls %q, %v; want %q", tc.settings, calls, err, tc.want)
+		}
+	}
+}
+
+// A policy without a warning of its own warns with the text of the settings when it runs, and
+// the warning shows as they say then. One whose own warning doesn't fit them any more acts
+// without warning, and the run tells why.
+func TestRunWarnings(t *testing.T) {
+	for _, tc := range []struct {
+		settings string
+		want     []string
+		err      string
+	}{
+		{`{"action":"restart","warnings":[1]}`, []string{`SendCommand minecraft:title @a title {"text":"Neustart in 1 Minute"}`, "RestartServer lobby"}, ""},
+		{`{"action":"restart","warnings":[1],"message":"` + strings.Repeat("<", 200) + `"}`, []string{"RestartServer lobby"}, "too long"},
+	} {
+		a := &agent{}
+		p := policies(a, nil)
+		p.config = config{Restart: "Neustart in {minutes} Minute", Stop: "Stopp", MaxMinutes: 10, Kind: "title"}
+		err := p.Run(t.Context(), schedule.Task{Settings: json.RawMessage(tc.settings)}, listed(target("lobby", paper, running)), time.Now().Add(50*time.Millisecond))
+		if tc.err == "" && err != nil || tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)) || !slices.Equal(a.recorded(), tc.want) {
+			t.Errorf("%s: calls %q, %v; want %q", tc.settings, a.recorded(), err, tc.want)
 		}
 	}
 }

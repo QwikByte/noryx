@@ -15,6 +15,7 @@ import { networksQuery } from "@/features/networks/api"
 import { nodesQuery } from "@/features/nodes/api"
 import { notificationsQuery } from "@/features/notify/api"
 import { TaskTargetsField } from "@/features/schedules/targets"
+import { warningsQuery } from "@/features/servers/api"
 import type { Header, Servers, Settings, Step } from "./api"
 import { workflowsQuery } from "./api"
 import { waitUnits } from "./catalog"
@@ -175,8 +176,9 @@ function Lines({ label, values, onChange, placeholder, max }: { label: string; v
   )
 }
 
-/** The minutes before at which the players are warned, and the warning. */
-function Warnings({ value, onChange }: { value: Settings; onChange: Set }) {
+/** The minutes before at which the players are warned of a restart or stop, and the warning. */
+function Warnings({ action, value, onChange }: { action: "restart" | "stop"; value: Settings; onChange: Set }) {
+  const { data: how } = useQuery(warningsQuery)
   return (
     <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
       <Row id="step-warnings" label={t("Warn the players")} description={t("Minutes before, up to 60.")}>
@@ -191,7 +193,7 @@ function Warnings({ value, onChange }: { value: Settings; onChange: Set }) {
         />
       </Row>
       <Row id="step-warning" label={t("Warning")} description={t("{minutes} becomes the minutes left. A warning of your own is a console command.")}>
-        <Input id="step-warning" maxLength={200} value={value.message ?? ""} placeholder={t("The server restarts in {minutes} min.")} onChange={(e) => onChange({ message: e.target.value })} />
+        <Input id="step-warning" maxLength={200} value={value.message ?? ""} placeholder={how?.[action]} onChange={(e) => onChange({ message: e.target.value })} />
       </Row>
     </div>
   )
@@ -405,7 +407,7 @@ export function StepFields({ step, onChange, workflowId, finds }: { step: Step; 
       return (
         <>
           {servers}
-          <Warnings value={w} onChange={set} />
+          <Warnings action={step.kind} value={w} onChange={set} />
         </>
       )
     case "command":

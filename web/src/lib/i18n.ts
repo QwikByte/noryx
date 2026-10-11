@@ -17,26 +17,31 @@ export function languageName(code: string) {
 
 // The language chosen in this browser, so that the panel shows it before anyone signs in. The
 // panel also stores the choice of the signed-in user, which then applies in every browser.
+// Without a choice, the default of the panel's settings applies, which the browser keeps too.
 const storageKey = "noryx-language"
+const defaultKey = "noryx-default-language"
 
-/** The language chosen in this browser, or "" to follow the browser's languages. */
-export function chosenLanguage() {
+function stored(key: string) {
   try {
-    return localStorage.getItem(storageKey) ?? ""
+    return localStorage.getItem(key) ?? ""
   } catch {
     return "" // e.g. with site data blocked
   }
 }
 
+/** The language chosen in this browser, or "" to follow the panel's default, else the browser's languages. */
+export const chosenLanguage = () => stored(storageKey)
+
 /** The language of a tag without its script or region, e.g. pt for pt-BR. */
 const base = (tag: string) => tag.split("-")[0].toLowerCase()
 
 /**
- * The language the panel shows for a choice: the chosen one, else the first of the browser's
- * languages the panel has, fully (pt-BR) or by its language alone (pt, then pt-PT), else English.
+ * The language the panel shows for a choice: the chosen one, else the panel's default, else the first of the
+ * browser's languages the panel has, fully (pt-BR) or by its language alone (pt, then pt-PT), else English.
  */
 function resolve(choice: string) {
-  if (languages.includes(choice)) return choice
+  const chosen = [choice, stored(defaultKey)].find((l) => languages.includes(l))
+  if (chosen) return chosen
   for (const tag of navigator.languages) {
     const match =
       languages.find((l) => l.toLowerCase() === tag.toLowerCase()) ??
@@ -47,7 +52,7 @@ function resolve(choice: string) {
   return "en"
 }
 
-/** Chooses a language, "" for the browser's, and reloads the panel if it shows another one. */
+/** Chooses a language, "" for the panel's default or the browser's, and reloads the panel if it shows another one. */
 export function chooseLanguage(choice: string) {
   try {
     if (choice) localStorage.setItem(storageKey, choice)
@@ -56,6 +61,18 @@ export function chooseLanguage(choice: string) {
     return // the panel would show the same after reloading, again and again for a signed-in user
   }
   if (resolve(choice) !== language) location.reload()
+}
+
+/** Keeps the panel's default language, "" for none, and reloads the panel if it shows another one then. */
+export function setDefaultLanguage(code: string) {
+  if (code === stored(defaultKey)) return
+  try {
+    if (code) localStorage.setItem(defaultKey, code)
+    else localStorage.removeItem(defaultKey)
+  } catch {
+    return
+  }
+  if (resolve(chosenLanguage()) !== language) location.reload()
 }
 
 // The language the panel shows, chosen before anything renders.

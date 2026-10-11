@@ -51,6 +51,12 @@ export function fromWallClock(value: string) {
   return new Date(wall - zoneOffset(wall - zoneOffset(wall)))
 }
 
+/** The date and time of a datetime-local input, e.g. 2026-10-08T14:30, that a time is in the viewer's time zone. */
+export function toWallClock(iso: string) {
+  const time = Date.parse(iso)
+  return new Date(time + zoneOffset(time)).toISOString().slice(0, 16)
+}
+
 /** Formats seconds in the viewer's locale, as minutes if they are whole ones, e.g. "30 seconds" or "2 minutes". */
 export function formatSeconds(seconds: number): string {
   const [unit, value] = seconds % 60 === 0 ? ["minute", seconds / 60] : ["second", seconds]

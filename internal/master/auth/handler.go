@@ -26,11 +26,18 @@ type userKey struct{}
 // budget of signed-in users.
 type Handler struct {
 	svc         *Service
-	sessionTTL  func() time.Duration
+	conf        Config
 	mfaRequired MFARequired
 	clients     *ratelimit.Limiter
 	usernames   *ratelimit.Limiter
 	users       *ratelimit.Limiter
+}
+
+// Config tells how long new sessions last, and the name of the panel, which authenticator
+// apps show for the secrets set up from now on.
+type Config interface {
+	SessionTTL() time.Duration
+	PanelName() string
 }
 
 // MFARequired tells whether the settings require a user to use two-factor authentication.
@@ -43,10 +50,10 @@ var ErrSetUpMFA error = &httpapi.Error{
 	Message: "Set up two-factor authentication first: it is required for your account.",
 }
 
-// NewHandler returns the handler of the sign-in. sessionTTL tells how long new sessions last.
-func NewHandler(svc *Service, sessionTTL func() time.Duration, mfaRequired MFARequired) *Handler {
+// NewHandler returns the handler of the sign-in.
+func NewHandler(svc *Service, conf Config, mfaRequired MFARequired) *Handler {
 	return &Handler{
-		svc: svc, sessionTTL: sessionTTL, mfaRequired: mfaRequired, clients: ratelimit.New(clientBurst, clientEvery),
+		svc: svc, conf: conf, mfaRequired: mfaRequired, clients: ratelimit.New(clientBurst, clientEvery),
 		usernames: ratelimit.New(usernameBurst, usernameEvery), users: ratelimit.New(clientBurst, clientEvery),
 	}
 }
@@ -145,7 +152,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		tooManyAttempts(w, r, logging.KeyUser, req.Username)
 		return
 	}
-	ttl := h.sessionTTL()
+	ttl := h.conf.SessionTTL()
 	user, token, err := h.svc.Login(r.Context(), req.Username, req.Password, req.Code, ttl, clientOf(r))
 	switch {
 	case errors.Is(err, ErrCodeRequired):
@@ -193,7 +200,7 @@ func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	ttl := h.sessionTTL()
+	ttl := h.conf.SessionTTL()
 	user, token, err := h.svc.Setup(r.Context(), req.Token, req.Password, ttl, clientOf(r))
 	if errors.Is(err, errInvalidSetup) {
 		slog.Warn("Set password with setup link failed", logging.Auth, "ip", ClientIP(r), "err", err)
@@ -243,7 +250,7 @@ func (h *Handler) mfa(w http.ResponseWriter, r *http.Request) {
 // setUpMFA returns a new secret for the user's authenticator app.
 func (h *Handler) setUpMFA(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFrom(r.Context())
-	setup, err := h.svc.SetUpMFA(r.Context(), user)
+	setup, err := h.svc.SetUpMFA(r.Context(), user, h.conf.PanelName())
 	reply(w, r, "", setup, err)
 }
 

@@ -138,8 +138,9 @@ The nodes keep working with the restored master. If its IP address changed, allo
 
 Schedules rule servers at set times, on the same [targets](#targets-and-times) as backup jobs:
 
-- **Restart**, e.g. every night at 4:00. Players are warned in the chat beforehand (10, 5 and 1 minutes before by
-  default, with an editable message) and the servers restart at the scheduled time. **Server by server in networks**
+- **Restart**, e.g. every night at 4:00. Players are warned beforehand (10, 5 and 1 minutes before by default, up to
+  an hour, with a message of the schedule's own or else the text of the [settings](administration.md#general), and
+  where these show it) and the servers restart at the scheduled time. **Server by server in networks**
   restarts the running game servers of each network a few at a time instead (1, 2, 5 or 10), like
   [Restart server by server](networks.md#restart-server-by-server): their players move to another server of the
   network instead of being kicked, and the network's proxy restarts after them, if it is among the servers. Other

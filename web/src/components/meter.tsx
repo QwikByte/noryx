@@ -1,10 +1,10 @@
-import { motion, useReducedMotion } from "motion/react"
+import { motion, useReducedMotionConfig } from "motion/react"
 import { cn } from "@/lib/utils"
 
 /** A bar for how much of something is used; it fills up when it shows and turns amber and then red as it fills up. */
 export function Meter({ value, label, className }: { value: number; label: string; className?: string }) {
   const used = Math.min(Math.max(value, 0), 1)
-  const reduced = useReducedMotion()
+  const reduced = useReducedMotionConfig()
   return (
     <div
       role="meter"

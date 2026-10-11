@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect } from "react"
 import { useAccess } from "@/features/access/use-access"
 import { datastoresQuery } from "@/features/datastores/api"
 import { networksQuery } from "@/features/networks/api"
@@ -6,10 +7,12 @@ import { useNetworkOf } from "@/features/networks/servers"
 import { playersOnline } from "@/features/networks/usage"
 import { nodesQuery } from "@/features/nodes/api"
 import { overlayQuery } from "@/features/overlay/api"
+import { preferencesQuery, useHidden } from "@/features/preferences/api"
 import { allServersQuery, type NodeServer } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
 import { useUsages, warningsQuery } from "@/features/usage/api"
-import { problemsOf } from "./attention"
+import { useNow } from "@/lib/use-now"
+import { isOf, type Problem, problemsOf } from "./attention"
 import { useAutomationTasks } from "./tasks"
 
 /** What the widgets of the overview show. Each widget loads it; the queries are shared. */
@@ -35,7 +38,7 @@ export function useOverview() {
   return { servers, nodes, online, networks, usages, usage, ref, gameServers, players, load }
 }
 
-/** What needs an operator, the most urgent first. */
+/** What needs an operator, the most urgent first: all of it, what the user hid for now, and the other problems. */
 export function useProblems() {
   const access = useAccess()
   const { nodes, servers = [], networks, usages } = useOverview()
@@ -43,5 +46,33 @@ export function useProblems() {
   const { data: datastores } = useQuery({ ...datastoresQuery, enabled: access.can("datastores.view") })
   const tasks = useAutomationTasks()
   const { data: warnings } = useQuery(warningsQuery)
-  return problemsOf(nodes, servers, networks, usages, overlay, datastores, tasks, warnings)
+  const { hidden: items } = useHidden()
+  // Renders again now and then, so that what was hidden for a while shows again on time.
+  const now = useNow(true, 30_000)
+  const all = problemsOf(nodes, servers, networks, usages, overlay, datastores, tasks, warnings)
+  const isHidden = (p: Problem) => items.some((h) => isOf(h, p) && Date.parse(h.until) > now)
+  return { all, hidden: all.filter(isHidden), problems: all.filter((p) => !isHidden(p)) }
+}
+
+/**
+ * Forgets the items hidden until they change once they are gone from all problems or changed, e.g. a node that is back
+ * online, so that they show when they come back. What is still loading would seem gone, so it waits until all the panel
+ * shows has loaded.
+ */
+export function useForgetChanged(all: Problem[]) {
+  const queryClient = useQueryClient()
+  const { hidden, set } = useHidden()
+  const changed = hidden.filter((h) => h.state && !all.some((p) => isOf(h, p)))
+  const gone = changed.map((h) => `${h.key}:${h.state}`).join(" ")
+  useEffect(() => {
+    if (!gone) return
+    const timer = setInterval(() => {
+      if (queryClient.getQueryCache().findAll({ type: "active" }).some((q) => q.state.status === "pending")) return
+      clearInterval(timer)
+      // What the user hid in the meantime stays.
+      const current = queryClient.getQueryData(preferencesQuery.queryKey)?.hidden ?? []
+      set(current.filter((h) => !gone.split(" ").includes(`${h.key}:${h.state}`)))
+    }, 5_000)
+    return () => clearInterval(timer)
+  }, [gone, queryClient, set])
 }

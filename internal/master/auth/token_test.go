@@ -127,7 +127,7 @@ func TestTokens(t *testing.T) {
 	}
 
 	// With two-factor authentication, creating a token needs a code too.
-	setup, err := svc.SetUpMFA(ctx, bob)
+	setup, err := svc.SetUpMFA(ctx, bob, "Noryx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestRequireToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(svc, func() time.Duration { return time.Hour }, notRequired)
+	h := NewHandler(svc, config{}, notRequired)
 	h.clients = ratelimit.New(clientBurst, time.Hour)
 	mux := http.NewServeMux()
 	h.Register(mux)

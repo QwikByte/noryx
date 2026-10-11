@@ -64,7 +64,7 @@ func TestPublic(t *testing.T) {
 func TestDialRefusesPrivateAddresses(t *testing.T) {
 	var reached atomic.Bool
 	target, roots := localServer(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached.Store(true) }))
-	s := New(nil, nil, Options{Roots: roots})
+	s := New(nil, nil, panel("Noryx"), Options{Roots: roots})
 	for _, url := range []string{target + "/hook/secret-token", strings.Replace(target, "localhost", "127.0.0.1", 1) + "/hook/secret-token"} {
 		err := s.post(t.Context(), url, map[string]string{})
 		if err == nil || !strings.Contains(err.Error(), "isn't a public address") || strings.Contains(err.Error(), "secret-token") {
@@ -78,7 +78,7 @@ func TestDialRefusesPrivateAddresses(t *testing.T) {
 		t.Error("the server was reached")
 	}
 	// Tests may allow addresses.
-	s = New(nil, nil, Options{Roots: roots, Allow: loopback})
+	s = New(nil, nil, panel("Noryx"), Options{Roots: roots, Allow: loopback})
 	if err := s.post(t.Context(), target+"/hook", map[string]string{}); err != nil || !reached.Load() {
 		t.Errorf("allowed: %v", err)
 	}

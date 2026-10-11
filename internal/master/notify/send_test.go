@@ -67,6 +67,11 @@ func localServer(t *testing.T, h http.Handler) (url string, roots *x509.CertPool
 
 func loopback(ip netip.Addr) bool { return ip.IsLoopback() }
 
+// panel is the name of the panel in tests.
+type panel string
+
+func (p panel) PanelName() string { return string(p) }
+
 func entry(level slog.Level, message string) logs.Entry {
 	return logs.Entry{
 		ID: 1, Time: time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC), Level: level, Category: "servers", Message: message,
@@ -98,7 +103,7 @@ func TestChatsShowEntriesAsText(t *testing.T) {
 		t.Errorf("discord = %s", data)
 	}
 
-	data, _ = json.Marshal(slack(m))
+	data, _ = json.Marshal(slack(m, "<!channel> Noryx"))
 	var s struct {
 		Text   string `json:"text"`
 		Blocks []struct {
@@ -114,7 +119,7 @@ func TestChatsShowEntriesAsText(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := s.Blocks[0].Text
-	if strings.Contains(s.Text, "everyone") || text.Type != "plain_text" || text.Emoji || strings.ContainsAny(text.Text, "<>") ||
+	if strings.Contains(s.Text, "everyone") || s.Text != "&lt;!channel&gt; Noryx: new entries of the log" || text.Type != "plain_text" || text.Emoji || strings.ContainsAny(text.Text, "<>") ||
 		!strings.Contains(text.Text, "&lt;@123&gt;") || len(s.Blocks) != 2 {
 		t.Errorf("slack = %s", data)
 	}
@@ -151,24 +156,28 @@ func TestChatsStayWithinLimits(t *testing.T) {
 	if total > 6000 {
 		t.Errorf("embeds of %d characters", total)
 	}
-	for _, b := range slack(m)["blocks"].([]map[string]any) {
+	for _, b := range slack(m, "Noryx")["blocks"].([]map[string]any) {
 		if text, ok := b["text"].(map[string]any); ok && utf8.RuneCountInString(text["text"].(string)) > 3000 {
 			t.Errorf("block of %d characters", utf8.RuneCountInString(text["text"].(string)))
 		}
 	}
 }
 
-// The subject quotes an entry, which can't add headers.
+// The subject quotes an entry, which can't add headers. It and the sender name the panel.
 func TestMailHeadersCantBeInjected(t *testing.T) {
 	cfg := &Mail{From: "noryx@example.com", To: []string{"ops@example.com", "dev@example.com"}}
-	raw := mailMessage(cfg, message{entries: []logs.Entry{entry(slog.LevelError, "Disk full\r\nBcc: evil@example.com\r\n\r\nInjected")}})
+	const name = `Noryx · "Test" <ops@example.com>`
+	raw := mailMessage(cfg, message{entries: []logs.Entry{entry(slog.LevelError, "Disk full\r\nBcc: evil@example.com\r\n\r\nInjected")}}, name)
 	msg, err := mail.ReadMessage(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
 	subject, err := new(mime.WordDecoder).DecodeHeader(msg.Header.Get("Subject"))
-	if err != nil || msg.Header.Get("Bcc") != "" || strings.ContainsAny(subject, "\r\n") || !strings.HasPrefix(subject, "Noryx: Disk full") {
+	if err != nil || msg.Header.Get("Bcc") != "" || strings.ContainsAny(subject, "\r\n") || !strings.HasPrefix(subject, name+": Disk full") {
 		t.Errorf("headers = %v, subject %q", msg.Header, subject)
+	}
+	if from, err := msg.Header.AddressList("From"); err != nil || len(from) != 1 || from[0].Name != name || from[0].Address != cfg.From {
+		t.Errorf("from = %v, %v", from, err)
 	}
 	if to, err := msg.Header.AddressList("To"); err != nil || len(to) != 2 {
 		t.Errorf("to = %v, %v", to, err)
@@ -185,13 +194,13 @@ func TestPostFollowsNoRedirect(t *testing.T) {
 		}
 		http.Redirect(w, r, "/elsewhere", http.StatusFound)
 	}))
-	s := New(nil, nil, Options{Allow: loopback, Roots: roots})
+	s := New(nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
 	err := s.post(t.Context(), target+"/hook/secret-token", map[string]string{})
 	if err == nil || !strings.Contains(err.Error(), "302") || strings.Contains(err.Error(), "secret-token") || redirected.Load() {
 		t.Errorf("post = %v, redirected %v", err, redirected.Load())
 	}
 	// A certificate that isn't trusted is refused.
-	s = New(nil, nil, Options{Allow: loopback})
+	s = New(nil, nil, panel("Noryx"), Options{Allow: loopback})
 	if err := s.post(t.Context(), target+"/hook/secret-token", map[string]string{}); err == nil || strings.Contains(err.Error(), "secret-token") {
 		t.Errorf("untrusted: %v", err)
 	}
@@ -290,7 +299,7 @@ func (f *fakeSMTP) serve(conn net.Conn) {
 // Mails go over TLS from the start or after STARTTLS, and never sign in without it.
 func TestMailNeedsTLS(t *testing.T) {
 	cfg, roots := localTLS(t)
-	s := New(nil, nil, Options{Allow: loopback, Roots: roots})
+	s := New(nil, nil, panel("Noryx"), Options{Allow: loopback, Roots: roots})
 	m := message{entries: []logs.Entry{entry(slog.LevelError, "A server crashed")}}
 	send := func(f *fakeSMTP, security string) error {
 		port, _ := net.LookupPort("tcp", f.port)
@@ -320,7 +329,7 @@ func TestMailNeedsTLS(t *testing.T) {
 		t.Errorf("without STARTTLS: %v, the server got %s", err, f.got())
 	}
 	// A mail server at a private address is refused.
-	s = New(nil, nil, Options{Roots: roots})
+	s = New(nil, nil, panel("Noryx"), Options{Roots: roots})
 	if err := send(startSMTP(t, cfg, true, false), ImplicitTLS); err == nil || !strings.Contains(err.Error(), "public address") {
 		t.Errorf("private: %v", err)
 	}

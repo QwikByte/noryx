@@ -27,7 +27,7 @@ func TestReferencesFollowDeletions(t *testing.T) {
 	lobby := m.createServer(t, a1, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
 	_, url, roots := m.startWebhook(t)
 	svc := m.services(t)
-	svc.Notify = notify.New(m.db, m.logs, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots})
+	svc.Notify = notify.New(m.db, m.logs, m.settings, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots})
 	srv := httptest.NewTLSServer(masterapp.Handler(svc))
 	t.Cleanup(srv.Close)
 	admin, err := svc.Users.CreateUser(t.Context(), "admin", "the-admins-password")

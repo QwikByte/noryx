@@ -31,7 +31,11 @@ func TestTOTP(t *testing.T) {
 	if _, ok := matchTOTP(secret, totp(key, step), now, step); ok {
 		t.Error("used code accepted again")
 	}
-	if uri := totpURI("alice", secret); uri != "otpauth://totp/Noryx:alice?issuer=Noryx&secret="+secret {
+	if uri := totpURI("Noryx", "alice", secret); uri != "otpauth://totp/Noryx:alice?issuer=Noryx&secret="+secret {
+		t.Errorf("uri = %s", uri)
+	}
+	// The name of the panel is escaped, and only the issuer keeps its colons.
+	if uri := totpURI("Test: Noryx · 50% & more?#", "alice", secret); uri != "otpauth://totp/Test%20Noryx%20%C2%B7%2050%25%20&%20more%3F%23:alice?issuer=Test%3A%20Noryx%20%C2%B7%2050%25%20%26%20more%3F%23&secret="+secret {
 		t.Errorf("uri = %s", uri)
 	}
 }
@@ -62,7 +66,7 @@ func TestMFA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setup, err := svc.SetUpMFA(ctx, user)
+	setup, err := svc.SetUpMFA(ctx, user, "Noryx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +94,7 @@ func TestMFA(t *testing.T) {
 	if _, err := svc.Authenticate(ctx, keep, Client{}); err != nil {
 		t.Fatalf("current session ended: %v", err)
 	}
-	if _, err := svc.SetUpMFA(ctx, user); !errors.Is(err, errMFAOn) {
+	if _, err := svc.SetUpMFA(ctx, user, "Noryx"); !errors.Is(err, errMFAOn) {
 		t.Fatalf("setup replaced the secret in use: %v", err)
 	}
 

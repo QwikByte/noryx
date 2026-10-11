@@ -46,7 +46,10 @@ export const isPaper = (type: string) => ["paper", "purpur", "folia", "leaf"].in
 /** Fabric and Quilt load Fabric mods. */
 export const isFabric = (type: string) => type === "fabric" || type === "quilt"
 
+/** The usual memory of servers; any other from minMemoryMb to maxMemoryMb, which agents allow, can be entered. */
 export const memoryOptionsMb = [512, 1024, 2048, 4096, 6144, 8192, 12288, 16384]
+export const minMemoryMb = 512
+export const maxMemoryMb = 65536
 
 /** The limit of a server's container, which nodes count: its memory, a quarter more and 256 MB for what Java needs besides. */
 export const containerMemoryMb = (memoryMb: number) => Math.floor((memoryMb * 5) / 4) + 256
@@ -58,14 +61,20 @@ export const memoryTitle = (s: { memoryMb: number; memoryLimitMb: number }) =>
     limit: formatMegabytes(s.memoryLimitMb),
   })
 
+/** Tells the Java version of a game server, e.g. Java 21; empty is the newest. */
+export const javaLabel = (java: string) => (java ? t("Java {{version}}", { version: java }) : t("Newest Java"))
+
 export function serverType(value: string): ServerType {
   return serverTypes.find((type) => type.value === value) ?? { value, label: value, proxy: false }
 }
 
-/** Sensible defaults: proxies listen on 25577 and need far less memory than game servers, modpacks more. */
-export function defaults(type: string) {
-  if (type === modpack) return { port: 25565, memoryMb: 4096 }
-  return serverType(type).proxy ? { port: 25577, memoryMb: 512 } : { port: 25565, memoryMb: 2048 }
+/**
+ * Sensible defaults: proxies listen on 25577 and need far less memory than game servers, modpacks at least 4 GiB. The
+ * settings of new servers decide the memory of game servers and proxies.
+ */
+export function defaults(type: string, settings = { memoryMb: 2048, proxyMemoryMb: 512 }) {
+  if (type === modpack) return { port: 25565, memoryMb: Math.max(4096, settings.memoryMb) }
+  return serverType(type).proxy ? { port: 25577, memoryMb: settings.proxyMemoryMb } : { port: 25565, memoryMb: settings.memoryMb }
 }
 
 /** Chosen as the software of a new server, a Modrinth modpack decides it. */

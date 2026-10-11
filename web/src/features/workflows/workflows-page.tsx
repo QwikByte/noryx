@@ -1,6 +1,6 @@
 import { CaretDownIcon, FlowArrowIcon, LightningIcon, PencilSimpleIcon, PlayIcon, PlusIcon, SparkleIcon, TrashIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import { t } from "i18next"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -10,18 +10,22 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { EmptyState } from "@/components/empty-state"
 import { TabIntro } from "@/components/hub-layout"
 import { IconTile } from "@/components/icon-tile"
+import { NoMatch, SearchField } from "@/components/list-toolbar"
 import { StatusBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { formatDateTime } from "@/lib/format"
+import { matches } from "@/lib/search"
 import { useDeleteWorkflow, useRunWorkflow, type Workflow, workflowsQuery } from "./api"
 import { describeTrigger, triggers } from "./catalog"
 import { examples } from "./examples"
 import { RunNowDialog } from "./runs"
 import { workflowStatus } from "./status"
 import { walk } from "./tree"
+
+const route = getRouteApi("/_app/_automation/workflows")
 
 /** Creates a workflow, empty or from an example. */
 function NewWorkflow() {
@@ -58,9 +62,13 @@ function NewWorkflow() {
   )
 }
 
+/** The workflows, searched by the address, or examples to start from while there are none. */
 export function WorkflowsPage() {
   const manage = useAccess().can("workflows.manage")
   const { data: list, isPending, error } = useQuery(workflowsQuery)
+  const { q } = route.useSearch()
+  const navigate = route.useNavigate()
+  const shown = (list ?? []).filter((w) => matches(q, w.name, w.description, ...w.triggers.map(describeTrigger)))
   return (
     <>
       <TabIntro actions={manage && <NewWorkflow />}>
@@ -108,11 +116,23 @@ export function WorkflowsPage() {
           )}
         </>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {list.map((w) => (
-            <WorkflowCard key={w.id} workflow={w} manage={manage} />
-          ))}
-        </ul>
+        <>
+          <SearchField
+            label={t("Search workflows")}
+            value={q}
+            onChange={(q) => navigate({ search: { q }, replace: true })}
+            className="mb-5 sm:max-w-xs"
+          />
+          {shown.length === 0 ? (
+            <NoMatch>{t("Nothing matches your search.")}</NoMatch>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {shown.map((w) => (
+                <WorkflowCard key={w.id} workflow={w} manage={manage} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </>
   )

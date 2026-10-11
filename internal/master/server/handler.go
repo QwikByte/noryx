@@ -99,6 +99,12 @@ type References interface {
 	Move(ctx context.Context, serverID, from, to string) error
 }
 
+// Config holds the settings of the master that concern servers. They can change at any time.
+type Config interface {
+	NewServers() NewServers
+	Warnings() Warnings
+}
+
 type Handler struct {
 	nodes    Nodes
 	networks Networks
@@ -108,12 +114,13 @@ type Handler struct {
 	ops      *operation.Operations
 	moves    *Moves
 	sets     FileSets
+	conf     Config
 	refs     []References
 	reserved reservations
 }
 
-func NewHandler(nodes Nodes, networks Networks, tags Tags, plugins Plugins, modpacks Modpacks, ops *operation.Operations, moves *Moves, sets FileSets, refs ...References) *Handler {
-	return &Handler{nodes: nodes, networks: networks, tags: tags, plugins: plugins, modpacks: modpacks, ops: ops, moves: moves, sets: sets, refs: refs}
+func NewHandler(nodes Nodes, networks Networks, tags Tags, plugins Plugins, modpacks Modpacks, ops *operation.Operations, moves *Moves, sets FileSets, conf Config, refs ...References) *Handler {
+	return &Handler{nodes: nodes, networks: networks, tags: tags, plugins: plugins, modpacks: modpacks, ops: ops, moves: moves, sets: sets, conf: conf, refs: refs}
 }
 
 // What creating a server and copying one need, also to cancel them. The copy contains all
@@ -130,6 +137,8 @@ func (h *Handler) Register(mux access.Mux) {
 	// Bulk requests check the permission for each server they name.
 	mux.Handle("POST /api/servers/actions", access.SignedIn, h.bulk)
 	mux.Handle("POST /api/servers/tags", access.SignedIn, h.changeTags)
+	mux.Handle("GET /api/servers/defaults", creates, h.newServers)
+	mux.Handle("GET /api/servers/warnings", warns, h.warnings)
 	mux.Handle("POST /api/nodes/{node}/servers", createNeed, h.create)
 	mux.Handle("POST /api/nodes/{node}/servers/import", createNeed, h.importServer)
 	mux.Handle("POST /api/nodes/{node}/servers/{id}/start", access.OnServer(access.ServersStart), h.startServer)
@@ -753,7 +762,7 @@ func (h *Handler) power(action string) http.HandlerFunc {
 			err = httpapi.ReadJSON(w, r, &req)
 		}
 		if err == nil {
-			err = req.Warning.check(r, action, servers)
+			err = req.Warning.check(r, action, servers, h.conf)
 		}
 		if err != nil {
 			httpapi.WriteError(w, r, err)

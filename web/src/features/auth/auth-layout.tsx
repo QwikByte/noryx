@@ -6,14 +6,16 @@ import { Callout } from "@/components/callout"
 import { LanguageMenu } from "@/components/language-menu"
 import { Logo } from "@/components/logo"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useApplyDefaults, usePanelName } from "@/features/settings/public"
 import { chosenLanguage } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
  * The frame of the pages before signing in: on large screens a dark panel with the logo beside
- * the form, which has a title.
+ * the form, which has a title. They follow the panel's defaults where this browser has no choice.
  */
 export function AuthLayout({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
+  useApplyDefaults()
   return (
     <div className="grid min-h-svh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <BrandPanel />
@@ -43,13 +45,14 @@ const field = Array.from({ length: 96 }, (_, i) => {
   return r < 0.24 ? "running" : r < 0.27 ? "starting" : r < 0.55 ? "stopped" : "empty"
 })
 
-/** The dark side of the sign-in page: the logo, a field of servers as blocks, and what Noryx is for. */
+/** The dark side of the sign-in page: the logo with the name of the panel, a field of servers as blocks, and what Noryx is for. */
 function BrandPanel() {
+  const name = usePanelName()
   return (
     <div className="dark relative hidden flex-col justify-between overflow-hidden border-r bg-sidebar p-12 text-foreground lg:flex">
       <div className="flex items-center gap-3">
         <Logo className="size-9" />
-        <span className="heading text-xl">{t("Noryx")}</span>
+        <span className="heading min-w-0 text-xl break-words">{name}</span>
       </div>
       <div aria-hidden className="grid w-fit grid-cols-12 gap-2 [mask-image:radial-gradient(ellipse_at_30%_50%,black_30%,transparent_75%)]">
         {field.map((state, i) => (

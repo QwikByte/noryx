@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button"
 import type { Widget } from "@/features/preferences/api"
 import { msg } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
-import { widgetOf } from "./widgets"
+import { WidgetOptions } from "./options-menu"
+import { defaultOptions, widgetOf } from "./widgets"
 
 /** One column on small screens, two on medium ones and three on large ones. */
 const spans = { 1: "", 2: "md:col-span-2", 3: "md:col-span-2 lg:col-span-3" }
@@ -116,6 +117,13 @@ function Frame({
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, isOver } = useSortable({ id: widget.id, disabled: !editing })
   if (!def) return null
   const title = t(def.title)
+  const defaults = defaultOptions(def)
+  const options = { ...defaults, ...widget.options }
+  const setOption = (key: string, value: string | undefined) => {
+    const next = { ...widget.options, [key]: value ?? "" }
+    if (!value || value === defaults[key]) delete next[key] // back to the widget's default
+    onChange({ options: next })
+  }
   return (
     <motion.div
       ref={setNodeRef}
@@ -166,6 +174,7 @@ function Frame({
               </button>
             ))}
           </div>
+          {def.options && <WidgetOptions title={title} defs={def.options} options={options} setOption={setOption} />}
           <Button
             variant="ghost"
             size="icon-xs"
@@ -180,7 +189,7 @@ function Frame({
       )}
       {/* While editing, the widget can't be used, so that dragging it doesn't open anything. */}
       <div inert={editing} className={cn("h-full transition-opacity", editing && "pointer-events-none select-none", isDragging && "opacity-30")}>
-        <def.Component title={title} />
+        <def.Component title={title} options={options} setOption={setOption} />
       </div>
     </motion.div>
   )

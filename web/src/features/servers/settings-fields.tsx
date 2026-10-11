@@ -1,8 +1,13 @@
+import { CaretUpDownIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
+import { useState } from "react"
 import { TimeZonePicker } from "@/components/time-zone-picker"
+import { Button } from "@/components/ui/button"
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -11,7 +16,7 @@ import { gameVersionsQuery } from "@/features/plugins/api"
 import { formatMegabytes, formatSeconds } from "@/lib/format"
 import { msg } from "@/lib/i18n"
 import type { RestartPolicy } from "./api"
-import { containerMemoryMb, memoryOptionsMb } from "./server-types"
+import { containerMemoryMb, maxMemoryMb, memoryOptionsMb, minMemoryMb } from "./server-types"
 
 // Fields shared by the settings of a server and the templates for new servers.
 
@@ -53,37 +58,71 @@ export function VersionField({ id, value, onChange }: { id: string; value: strin
   )
 }
 
-/** Chooses the memory of a server. freeMb, if the node limits it, leaves out what doesn't fit. */
+/**
+ * Chooses the memory of a server: one of the usual steps, or any other amount from 512 MiB to 64 GiB that is entered.
+ * freeMb, if the node limits it, leaves out what doesn't fit.
+ */
 export function MemoryField({
   id,
+  label = t("Memory"),
   value,
   onChange,
   freeMb,
 }: {
   id: string
+  label?: string
   value: number
   onChange: (mb: number) => void
   freeMb?: number
 }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
   const fits = (mb: number) => freeMb === undefined || containerMemoryMb(mb) <= freeMb
+  const entered = Number(search)
+  const other = Number.isInteger(entered) && entered >= minMemoryMb && entered <= maxMemoryMb ? [entered] : []
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{t("Memory")}</FieldLabel>
-      <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {[...new Set([...memoryOptionsMb, value])]
-            .sort((a, b) => a - b)
-            .map((mb) => (
-              <SelectItem key={mb} value={String(mb)} disabled={!fits(mb)}>
-                {formatMegabytes(mb)}
-                {!fits(mb) && <span className="text-muted-foreground">{t("More than the node has left")}</span>}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Popover
+        open={open}
+        onOpenChange={(open) => {
+          setOpen(open)
+          setSearch("")
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button id={id} type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
+            {formatMegabytes(value)}
+            <CaretUpDownIcon className="text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-60 p-0">
+          <Command label={label}>
+            <CommandInput inputMode="numeric" placeholder={t("Other amount in MiB")} value={search} onValueChange={setSearch} />
+            <CommandList>
+              <CommandEmpty>{t("Enter 512 to 65536 MiB.")}</CommandEmpty>
+              {[...new Set([...memoryOptionsMb, value, ...other])]
+                .sort((a, b) => a - b)
+                .map((mb) => (
+                  <CommandItem
+                    key={mb}
+                    value={String(mb)}
+                    keywords={[formatMegabytes(mb)]}
+                    disabled={!fits(mb)}
+                    data-checked={mb === value}
+                    onSelect={() => {
+                      onChange(mb)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="flex-1">{formatMegabytes(mb)}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{fits(mb) ? `${mb} MiB` : t("More than the node has left")}</span>
+                  </CommandItem>
+                ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
       {freeMb !== undefined && (
         <FieldDescription>
           {t("{{free}} left on the node for the server and Java's overhead", { free: formatMegabytes(Math.max(0, freeMb)) })}
@@ -116,6 +155,30 @@ export function RestartPolicyField({ value, onChange }: { value: RestartPolicy; 
   )
 }
 
+/** The Java version of a game server; empty is the newest. */
+export function JavaField({ id = "settings-java", value, onChange }: { id?: string; value: string; onChange: (java: string) => void }) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{t("Java version")}</FieldLabel>
+      <Select value={value || "newest"} onValueChange={(v) => onChange(v === "newest" ? "" : v)}>
+        <SelectTrigger id={id} className="w-full sm:w-64">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {javaVersions.map(([value, label]) => (
+            <SelectItem key={label} value={value || "newest"}>
+              {t(label)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>
+        {t("Minecraft 1.20.5 and newer needs Java 21 or newer, 1.18 to 1.20.4 Java 17, and versions up to 1.16 run best on Java 8 or 11.")}
+      </FieldDescription>
+    </Field>
+  )
+}
+
 /** Java version and Aikar's flags, which only game servers have. */
 export function JavaFields({
   java,
@@ -128,26 +191,7 @@ export function JavaFields({
 }) {
   return (
     <>
-      <Field>
-        <FieldLabel htmlFor="settings-java">{t("Java version")}</FieldLabel>
-        <Select value={java || "newest"} onValueChange={(v) => onChange({ java: v === "newest" ? "" : v })}>
-          <SelectTrigger id="settings-java" className="w-full sm:w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {javaVersions.map(([value, label]) => (
-              <SelectItem key={label} value={value || "newest"}>
-                {t(label)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <FieldDescription>
-          {t(
-            "Minecraft 1.20.5 and newer needs Java 21 or newer, 1.18 to 1.20.4 Java 17, and versions up to 1.16 run best on Java 8 or 11.",
-          )}
-        </FieldDescription>
-      </Field>
+      <JavaField value={java} onChange={(java) => onChange({ java })} />
       <Field orientation="horizontal">
         <Switch id="settings-aikar" checked={aikarFlags} onCheckedChange={(on) => onChange({ aikarFlags: on })} />
         <FieldContent>

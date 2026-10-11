@@ -37,12 +37,10 @@ import (
 )
 
 const (
-	minMemoryMB = 512
-	maxMemoryMB = 64 * 1024
-	minPort     = 1024
-	maxPort     = 65535
-	maxTail     = 1000
-	maxCommand  = 1000
+	minPort    = 1024
+	maxPort    = 65535
+	maxTail    = 1000
+	maxCommand = 1000
 	// Limits of the configuration of a network.
 	maxBackends    = 256
 	maxForcedHosts = 256
@@ -81,7 +79,6 @@ var (
 	// log4j2.configurationFile; except safeProperties.
 	codeProperty   = regexp.MustCompile(`(?i)^(log4j|(java|javax|jdk|sun|com\.sun|jvmci|jna|logback|org\.apache\.logging)\.)`)
 	safeProperties = []string{"java.awt.headless", "java.net.preferIPv4Stack", "java.net.preferIPv6Addresses", "sun.stdout.encoding", "sun.stderr.encoding", "log4j2.formatMsgNoLookups"}
-	javaVersions   = []string{"", "8", "11", "17", "21", "25"}
 )
 
 type Service struct {
@@ -754,11 +751,11 @@ func checkSettings(spec runtime.Spec, cpus uint32) string {
 		return "Only Fabric, Quilt, Forge and NeoForge servers have a mod loader."
 	case spec.LoaderVersion != "" && !loaderVersionPattern.MatchString(spec.LoaderVersion):
 		return "Enter the version of the mod loader like 0.16.10, or leave it empty for the newest."
-	case spec.MemoryMB < minMemoryMB || spec.MemoryMB > maxMemoryMB:
-		return fmt.Sprintf("Memory must be between %d and %d MB.", minMemoryMB, maxMemoryMB)
+	case spec.MemoryMB < noryxv1.MinMemoryMB || spec.MemoryMB > noryxv1.MaxMemoryMB:
+		return fmt.Sprintf("Memory must be between %d and %d MB.", noryxv1.MinMemoryMB, noryxv1.MaxMemoryMB)
 	case spec.Port < minPort || spec.Port > maxPort:
 		return fmt.Sprintf("Port must be between %d and %d.", minPort, maxPort)
-	case !slices.Contains(javaVersions, spec.Java):
+	case !noryxv1.ValidJava(spec.Java):
 		return "Choose Java 8, 11, 17, 21 or 25, or the newest."
 	case spec.Type.Proxy() && (spec.Java != "" || spec.AikarFlags):
 		return "The Java version and Aikar's flags can only be set for game servers."

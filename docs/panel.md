@@ -4,7 +4,7 @@ How the admin panel is organised, and what works the same on all of its pages.
 
 ## Overview
 
-The **Overview** is the panel's start page. Below its title it says whether everything runs or how many things need
+The **Overview** is the panel's start page, unless a user chooses another one. Below its title it says whether everything runs or how many things need
 attention, and then shows the players online, the servers by state, the nodes with what they use, the networks, the
 servers with the most players, and what needs attention: crashing and unhealthy servers, offline nodes,
 nodes with more memory assigned than they can give, servers and nodes beyond a threshold of their usage, e.g. almost
@@ -29,6 +29,23 @@ browsers. The players online and the CPU load of the key figures show how they w
 server map shows each node in a row with its servers as blocks in the colour of their state, solid while they run and
 hollow while they are stopped; a block names its server when pointed at and opens it.
 
+While customizing, the gear of a widget holds its options, which apply right away: how many servers **Most players**
+lists, how many entries **Recent activity** shows and from which level, and how many next runs **Schedules** lists (5,
+10 or 20, the latter two also 8 as they do unless chosen), the measure and range of **Node load** (24 hours or 7 days),
+and the nodes that the server map, **Nodes** and **Node load** show and the networks that **Networks** shows, all unless
+some are chosen. **Node load** also keeps the measure chosen in its header. A widget whose chosen nodes or networks are
+all gone shows all of them again. The master keeps the options with the layout and refuses options and values a widget
+doesn't have; **Reset** takes them back too.
+
+An item of **Needs attention** is hidden with the eye at its end, for the user only but in all their browsers: for an
+hour, for a day, or until it changes, e.g. a node in maintenance. One hidden until it changes shows again once it
+differs, e.g. a crashing server with another exit code, or once it is gone and comes back, e.g. a node that is offline
+again after it was online; the panel notices that it is gone while the overview is open in one of the user's browsers,
+and it shows again after a week in any case. The widget and the line below the title count what isn't hidden; **2
+hidden** lists the hidden items with how long they stay hidden, and shows each or all of them again. The master keeps
+up to 100 hidden items for each user, as what they are about, e.g. `offline/<node ID>`, until when, and a fingerprint of
+how they were rather than their texts, and drops those whose time has passed; `PUT /api/preferences/hidden` sets them.
+
 ## Navigation and pinned servers
 
 Servers are pinned with the pin on their card, in the table or on their page. Pinned servers are listed with their state
@@ -39,7 +56,7 @@ jobs, schedules and workflows), each with its parts as tabs, the log and setting
 them, whose menu holds their account, the colour theme, the language and signing out. The sidebar is dark in both colour
 themes and folds to its icons, which each browser remembers. The bar above each page shows where it is, e.g.
 **Servers › lobby › Files**, with links to the parts above it, and holds the search, the operations and the bell of
-warnings and errors. On small screens, the bar's menu holds the sidebar. Lists, figures, charts, tabs and pages are animated, unless the operating system asks for less motion.
+warnings and errors. On small screens, the bar's menu holds the sidebar. Lists, figures, charts, tabs and pages are animated, unless the operating system or the user asks for less motion.
 
 ## Settings of each user
 
@@ -48,6 +65,16 @@ the language of the panel; the menu itself offers the colour theme and the langu
 and highlights their colour: emerald, blue, violet or graphite, each readable in both themes (WCAG AA), while the colours
 of states, such as running or failed, stay. The compact density tightens all spacing, e.g. for long lists of servers, on
 screens used with a mouse or touchpad; touch screens keep the comfortable one.
+
+**Navigation and layout** chooses the start page, one of the pages of the sidebar the user may see, where the panel opens
+when it is loaded at its address and after signing in, while the sidebar's **Overview** stays the overview. It chooses
+the tab a server opens on from lists, the search and other pages: its console, usage, files or settings, or else the
+first tab the user may see; the **Console** tab and `console lobby` in the search still open the console. Pages keep a
+width that reads well unless they fill wide screens, and move less if the user asks for it, whatever the operating
+system says. Shortcuts of single keys can be turned off, see [Keyboard shortcuts](#keyboard-shortcuts).
+
+**Servers** chooses whether **Stop** and **Restart** of a single server act right away, ask first or warn its players,
+also only for servers with players; see [Settings and images](servers.md#settings-and-images).
 
 **Times and dates** chooses whether times have 24 or 12 hours, their time zone (the browser's, or one chosen for all
 browsers, e.g. UTC), whether times that tell how long ago something was, e.g. "5 minutes ago", show that or the date and
@@ -65,13 +92,21 @@ the log separate their cells with commas or semicolons, which spreadsheets in la
 German, expect and which the language chooses unless the user does, and whether they start with a byte order mark,
 which Excel needs to read umlauts.
 
-The master keeps these choices for each user, as well as the view, sort and grouping of server lists chosen last, so
-that they apply in all their browsers. Each browser remembers the look and the formats of times it showed last and uses
-them until someone signs in; what a user never chose follows the browser. `GET /api/preferences` returns a user's
+The master keeps these choices for each user, as well as what they chose last of lists where the address doesn't say,
+e.g. the view, sort and grouping of server lists, the tab of [players](players.md), the sort of plugins and the range of
+[usage](monitoring.md#history), and the default level of the [log](monitoring.md#logs-page), so that they apply in all
+their browsers. Each browser remembers the look and the formats of times it showed last and uses them until someone
+signs in; what a user never chose follows the browser, or the language, colour theme, accent colour, density and time
+format that the settings give users as defaults ([Settings](administration.md#general)). `GET /api/preferences` returns a user's
 settings with the layout of their overview, their pinned servers and what pops up for them; `PATCH
 /api/preferences/settings` changes some of the settings, e.g. `{"theme": "dark"}` or `{"timeZone": "Europe/Berlin"}`, or
 takes one back to the browser's with `null`, and `PUT /api/preferences/alerts` sets what pops up. The master refuses
 settings and values it doesn't know.
+
+The master also keeps the columns of each user's tables of servers, the groups of server lists they folded away and
+the views of the **Servers** page they saved ([Lists, tags and bulk actions](servers.md#lists-tags-and-bulk-actions)).
+`PUT /api/preferences/folded` replaces the groups, up to 100, and `PUT /api/preferences/views` the views, up to 20 with
+names of up to 48 characters; the master checks every value of their searches as the panel checks the address.
 
 ## Search
 
@@ -79,13 +114,29 @@ settings and values it doesn't know.
 in the panel, and, once something is typed, players seen before, templates, file sets, backup jobs, schedules and users;
 each only for those who may see them. Before anything is typed, it offers what was opened last: servers, networks,
 nodes, templates, file sets, backup jobs and schedules, wherever they were opened. Each browser remembers them for each user, and only those the user
-may still see are offered. A search that starts with an action, e.g. `restart lobby`, starts, restarts or stops a server
-or opens its console. **Create server**, **Create network** and **Add node** open their dialogs from the search too.
+may still see are offered. A search that starts with an action, e.g. `restart lobby`, starts, restarts or stops a server,
+asking first or warning its players if the user chose so, or opens its console. **Create server**, **Create network** and
+**Add node** open their dialogs from the search too. The views of the **Servers** page that the user saved show there as
+well.
+
+## Lists
+
+Other lists are searched and sorted like those of [servers](servers.md#lists-tags-and-bulk-actions). The **Nodes** page
+shows nodes as cards or as a table, the table from 13 nodes on until one is chosen, searches them by name, address, host
+name, system and version of the agent, and sorts them by name, state, servers, or the share of their CPU and memory in
+use, either way round; **Export CSV** downloads them as listed. **Networks** are searched by their names and those of
+their proxies and servers, and sorted by name, players or servers. The **Users** tab searches users by name and group,
+filters them by group and state, active, invited, disabled or without two-factor authentication, and sorts them by name
+or by when they were added. Templates, file sets, backup jobs, schedules and workflows have a search. The address keeps
+the search, filters, sort and view of each list, so that it can be shared or bookmarked; where it doesn't say, the view
+and sort a user chose last apply, in all their browsers.
 
 ## Keyboard shortcuts
 
 Shortcuts are keys typed one after the other, e.g. `g` and then `s` for the servers. `?` lists those the user may use.
 They do nothing while the focus is in a field or the editor, or while a dialog is open; only **Ctrl+K** works there too.
+Users who don't want shortcuts of single keys, e.g. as they get in the way of speech input (WCAG 2.1.4), turn them off on
+their account page; **Ctrl+K** still searches then, and the list of shortcuts in the search says how to turn them on.
 
 | Keys                              | Opens                                                  |
 | --------------------------------- | ------------------------------------------------------ |
@@ -128,15 +179,17 @@ and on many servers at once. **Retry the failed ones** tries the same again on t
 
 ## Languages
 
-The panel speaks English and German. It follows the browser until someone chooses a language in the menu of their name
-or on their account page, which the panel stores for the signed-in user, so that it applies in all their browsers; on
-the sign-in page, the button next to the colour theme chooses it for the browser. Dates, times and numbers follow the
+The panel speaks English and German. It follows the browser, or the default language of the settings, until someone
+chooses a language in the menu of their name or on their account page, which the panel stores for the signed-in user, so
+that it applies in all their browsers; on the sign-in page, the button next to the colour theme chooses it for the
+browser. Dates, times and numbers follow the
 language too. What the master and the agents send, such as errors, the log and the descriptions of permissions, stays
 English.
 
 ## Keyboard and screen readers
 
-Each page names itself in the title of the browser's tab, e.g. `Files · lobby · Servers · Noryx`. The first press of
+Each page names itself in the title of the browser's tab, e.g. `Files · lobby · Servers · Noryx`, which ends with the
+name the settings give the panel ([Settings](administration.md#general)). The first press of
 Tab shows **Skip to content**, which jumps past the navigation. Opening another page moves the focus to its heading, so
 that screen readers announce it; switching the tabs of a page or changing its search leaves the focus where it is.
 Choices in a row, such as the time range of charts, the view and state filter of servers or the colour theme, are one

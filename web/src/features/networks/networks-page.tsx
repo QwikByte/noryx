@@ -1,32 +1,43 @@
 import { ArrowRightIcon, GraphIcon, ShieldCheckIcon, ShieldWarningIcon, UsersThreeIcon, WrenchIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import { t } from "i18next"
 import { motion } from "motion/react"
 import { ErrorCallout } from "@/components/callout"
 import { Chip } from "@/components/chip"
 import { EmptyState } from "@/components/empty-state"
 import { IconTile } from "@/components/icon-tile"
+import { ListToolbar, NoMatch, SearchField, SortMenu } from "@/components/list-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { Pill, StatusDot } from "@/components/status"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
+import { useSorting } from "@/features/preferences/sorting"
 import { allServersQuery, type NodeServer } from "@/features/servers/api"
 import { StateBar } from "@/features/servers/server-state"
 import { serverType, statusOf } from "@/features/servers/server-types"
 import type { ServerUsage } from "@/features/usage/api"
 import { rise } from "@/lib/motion"
 import { maintenanceQuery, type Network, networksQuery, type ServerRef } from "./api"
+import { browseNetworks, type NetworkSearch, networkSortOrders, networkSorts } from "./browse"
 import { CreateNetworkDialog } from "./create-network-dialog"
 import { ServerLabel } from "./server-label"
 import { findServer, key } from "./servers"
 import { playersOnline, useNetworkUsage } from "./usage"
 
+const route = getRouteApi("/_app/networks")
+
+/** The networks, searched and sorted by the address; where it doesn't say, the sort chosen last applies. */
 export function NetworksPage() {
   const manage = useAccess().can("networks.manage")
   const { data: networks, isPending, error } = useQuery(networksQuery)
   const { data: servers } = useQuery(allServersQuery)
   const usage = useNetworkUsage(networks)
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+  const set = (c: Partial<NetworkSearch>) => void navigate({ search: (s) => ({ ...s, ...c }), replace: true })
+  const sorting = useSorting(search, networkSortOrders, { sort: "networkSort", order: "networkOrder" }, set)
+  const shown = browseNetworks(networks ?? [], search.q, sorting.by, sorting.order, servers, usage)
 
   return (
     <>
@@ -49,13 +60,25 @@ export function NetworksPage() {
           {manage && <CreateNetworkDialog />}
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {networks.map((network, i) => (
-            <motion.li key={network.id} {...rise(i)}>
-              <NetworkCard network={network} servers={servers} usage={usage} />
-            </motion.li>
-          ))}
-        </ul>
+        <>
+          <ListToolbar
+            className="mb-5"
+            search={<SearchField label={t("Search networks")} value={search.q} onChange={(q) => set({ q })} className="min-w-0 flex-1" />}
+          >
+            <SortMenu sorting={sorting} sorts={networkSorts} />
+          </ListToolbar>
+          {shown.length === 0 ? (
+            <NoMatch>{t("Nothing matches your search.")}</NoMatch>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {shown.map((network, i) => (
+                <motion.li key={network.id} {...rise(i)}>
+                  <NetworkCard network={network} servers={servers} usage={usage} />
+                </motion.li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </>
   )

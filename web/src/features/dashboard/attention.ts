@@ -4,6 +4,7 @@ import type { Datastore } from "@/features/datastores/api"
 import type { Network } from "@/features/networks/api"
 import { type Node, memoryCapacityMb } from "@/features/nodes/api"
 import type { Overlay } from "@/features/overlay/api"
+import type { HiddenItem } from "@/features/preferences/api"
 import { assignedMemoryMb, type NodeServer } from "@/features/servers/api"
 import type { UsageWarning, useUsages } from "@/features/usage/api"
 import { formatNumber } from "@/features/usage/format"
@@ -12,7 +13,10 @@ import { type AutomationTask, failed } from "./tasks"
 
 /** Something that needs an operator, with where to look into it. */
 export interface Problem {
+  /** What it is about, e.g. offline/<node ID>; the master takes the same pattern of the items users hide. */
   key: string
+  /** How it is now, apart from its texts; hiding it until it changes ends when this does. */
+  state?: string
   tone: Extract<Tone, "destructive" | "warning">
   title: string
   detail: string
@@ -49,6 +53,7 @@ export function problemsOf(
     if (s.state === "crashing") {
       add({
         key: `crash/${s.id}`,
+        state: String(s.exitCode),
         tone: "destructive",
         title: t("{{name}} keeps crashing", { name: s.name }),
         detail: [s.nodeName, exit].filter(Boolean).join(" · "),
@@ -57,6 +62,7 @@ export function problemsOf(
     } else if (s.state === "stopped" && s.crashes > 0) {
       add({
         key: `crashed/${s.id}`,
+        state: String(s.exitCode),
         tone: "warning",
         title: t("{{name}} stopped after crashing", { name: s.name }),
         detail: [s.nodeName, exit].filter(Boolean).join(" · "),
@@ -74,6 +80,7 @@ export function problemsOf(
     if (s.refusedJvmOptions?.length) {
       add({
         key: `jvm-options/${s.id}`,
+        state: s.refusedJvmOptions.join(" "),
         tone: "warning",
         title: t("{{name}} starts with JVM options that are no longer allowed", { name: s.name }),
         detail: t("Remove {{options}} in its settings.", { options: s.refusedJvmOptions.join(" ") }),
@@ -98,6 +105,7 @@ export function problemsOf(
     if (left < expiring) {
       add({
         key: `certificate/${n.id}`,
+        state: left < 0 ? "expired" : n.status,
         tone: left < 0 || n.status === "offline" ? "destructive" : "warning",
         title:
           left < 0
@@ -139,6 +147,7 @@ export function problemsOf(
     if (capacity !== undefined && assigned > capacity) {
       add({
         key: `assigned/${n.id}`,
+        state: `${assigned}/${capacity}`,
         tone: "warning",
         title: t("{{name}} has more memory assigned than it can give", { name: n.name }),
         detail: t("{{used}} of {{total}}", { used: formatMegabytes(assigned), total: formatMegabytes(capacity) }),
@@ -164,6 +173,7 @@ export function problemsOf(
         : t("{{percent}} % in use", { percent: Math.round(w.value) })
     add({
       key: `usage/${w.nodeId}/${w.serverId ?? ""}/${w.measure}/${w.storage ?? ""}`,
+      state: w.since,
       tone: "warning",
       title: titles[w.measure](),
       detail: [
@@ -195,6 +205,7 @@ export function problemsOf(
     if (network.applyError) {
       add({
         key: `apply/${network.id}`,
+        state: network.applyError,
         tone: "warning",
         title: t("The proxy of {{name}} may send players to the wrong address", { name: network.name }),
         detail: t("Its servers couldn't be configured. Apply the network again."),
@@ -211,6 +222,7 @@ export function problemsOf(
     if (ds.state === "unhealthy") {
       add({
         key: `datastore/${ds.id}`,
+        state: ds.state,
         tone: "destructive",
         title: t("The datastore {{name}} is unhealthy", { name: ds.name }),
         detail: [network?.name, ds.nodeName].filter(Boolean).join(" · "),
@@ -219,6 +231,7 @@ export function problemsOf(
     } else if (ds.state === "stopped" && running) {
       add({
         key: `datastore/${ds.id}`,
+        state: ds.state,
         tone: "warning",
         title: t("The datastore {{name}} is stopped", { name: ds.name }),
         detail: t("The servers of {{network}} run without its databases.", { network: network?.name ?? "…" }),
@@ -228,7 +241,8 @@ export function problemsOf(
   }
   for (const { task, link } of tasks.filter((a) => failed(a.task))) {
     add({
-      key: `task/${link.to}/${task.id}`,
+      key: `task/${task.id}`,
+      state: task.lastRun!.error,
       tone: "warning",
       title: t("The last run of {{name}} failed", { name: task.name }),
       detail: [formatAgo(task.lastRun!.endedAt), task.lastRun!.error].join(" · "),
@@ -243,6 +257,7 @@ export function problemsOf(
     if (m.problem) {
       add({
         key: `overlay/${m.nodeId}`,
+        state: m.problem,
         tone: "warning",
         title: t("{{name}} isn't configured in the private network", { name: nameOf(m.nodeId) }),
         detail: m.problem,
@@ -251,6 +266,7 @@ export function problemsOf(
     } else if (m.unreached?.length) {
       add({
         key: `overlay-unreached/${m.nodeId}`,
+        state: m.unreached.join(" "),
         tone: "warning",
         title: t("{{name}} doesn't reach {{nodes}} over the private network", { name: nameOf(m.nodeId), nodes: m.unreached.map(nameOf).join(", ") }),
         detail: t("No handshake for 5 minutes, e.g. as UDP port {{port}} is closed between them.", { port: overlay?.port }),
@@ -260,3 +276,13 @@ export function problemsOf(
   }
   return problems.sort((a, b) => Number(a.tone !== "destructive") - Number(b.tone !== "destructive"))
 }
+
+/** A short fingerprint of how a problem is, which the master keeps rather than what it says. */
+export function fingerprint(p: Problem) {
+  let hash = 0x811c9dc5
+  for (const c of p.state ?? "") hash = Math.imul(hash ^ c.charCodeAt(0), 0x01000193)
+  return (hash >>> 0).toString(36)
+}
+
+/** Whether a hidden item is of a problem: the same, and as it was if it is hidden until that changes. */
+export const isOf = (h: HiddenItem, p: Problem) => h.key === p.key && (!h.state || h.state === fingerprint(p))

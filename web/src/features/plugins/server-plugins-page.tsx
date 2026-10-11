@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import type { ServerRef } from "@/features/networks/api"
+import { useChoice } from "@/features/preferences/api"
 import { type Server, useServer } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
 import { formatBytes } from "@/lib/format"
@@ -110,7 +111,7 @@ export function ServerPluginsPage() {
   const { data, isPending, error } = useQuery(pluginsQuery(ref))
   const [input, setInput] = useState("")
   const [show, setShow] = useState<Show>("all")
-  const [sort, setSort] = useState<"name" | "size">("name")
+  const [sort, setSort] = useChoice("serverPluginSort", "name")
 
   if (!server || isPending) return <Skeleton className="h-64 rounded-xl" />
   if (error) return <ErrorCallout error={error} />

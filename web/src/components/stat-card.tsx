@@ -35,8 +35,8 @@ export function StatCard({
   value: ReactNode
   children?: ReactNode
   to?: "/servers" | "/nodes" | "/players"
-  /** The search of the page it opens, e.g. the players of one network. */
-  search?: { network: string }
+  /** The search of the page it opens, e.g. the players online of one network. */
+  search?: { network?: string; tab?: "online" }
 }) {
   // The hairlines to the right and below; those at the edges of the strip are cut off.
   const className = "flex min-w-0 flex-col gap-2.5 bg-card p-3.5 shadow-[1px_0_0_0_var(--border),0_1px_0_0_var(--border)] sm:p-5"

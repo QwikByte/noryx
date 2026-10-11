@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
-import { useState } from "react"
 import { ErrorCallout } from "@/components/callout"
 import { Section } from "@/components/section"
 import { Segmented } from "@/components/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useChoice } from "@/features/preferences/api"
 import { cn } from "@/lib/utils"
 import { type HistoryPoint, type HistoryQuery, type UsagePoint, type UsageRange, ranges } from "./api"
 import { type ChartSeries, TimeChart } from "./time-chart"
@@ -23,7 +23,8 @@ export interface ChartSpec<P extends HistoryPoint = UsagePoint> {
 
 /**
  * The history of a node, of one of its servers or of a datastore, as charts or a table. The
- * range applies to all of them.
+ * range applies to all of them; the range and the view chosen last apply again, also to other nodes, servers and
+ * datastores.
  */
 export function UsageHistory<P extends HistoryPoint>({
   history,
@@ -34,8 +35,8 @@ export function UsageHistory<P extends HistoryPoint>({
   charts: ChartSpec<P>[]
   className?: string
 }) {
-  const [range, setRange] = useState<UsageRange>("day")
-  const [view, setView] = useState<"charts" | "table">("charts")
+  const [range, setRange] = useChoice("usageRange", "day")
+  const [view, setView] = useChoice("usageView", "charts")
   const { data, error, isPlaceholderData, dataUpdatedAt } = useQuery(history(range))
 
   return (

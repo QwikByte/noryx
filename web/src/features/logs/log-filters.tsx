@@ -8,15 +8,25 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { SelectItem } from "@/components/ui/select"
 import { nodesQuery } from "@/features/nodes/api"
+import { useSettings } from "@/features/preferences/api"
 import { serversQuery } from "@/features/servers/api"
+import { msg } from "@/lib/i18n"
 import { categories } from "./meta"
-import { type LogSearch, ranges } from "./search"
-import { formatDateTime } from "@/lib/format"
+import { type LogSearch, ranges, timeOf } from "./search"
+import { fromWallClock, toWallClock } from "@/lib/format"
 
-/** The filters of the log page in one row, and the narrower ones as removable chips below it. */
+const levelLabels = { info: msg("Info and above"), warn: msg("Warnings and errors"), error: msg("Errors only") }
+
+/**
+ * The filters of the log page in one row, and the narrower ones as removable chips below it. The user's default level
+ * shows as a chip while it applies, and a level chosen here can become the default.
+ */
 export function LogFilters({ search, onChange }: { search: LogSearch; onChange: (change: Partial<LogSearch>) => void }) {
   const [text, setText] = useState(search.search ?? "")
+  // A time from one to another, also while both its ends are empty.
+  const [custom, setCustom] = useState(!!(search.from || search.to))
   const typing = useRef(0)
+  const { settings, change } = useSettings()
   const { data: nodes = [] } = useQuery(nodesQuery)
   const { data: servers } = useQuery({ ...serversQuery(search.node ?? ""), enabled: !!search.node && !!search.server })
   useEffect(() => () => clearTimeout(typing.current), [])
@@ -29,12 +39,12 @@ export function LogFilters({ search, onChange }: { search: LogSearch; onChange: 
   }
 
   const node = nodes.find((n) => n.id === search.node)
+  const fixed = custom || !!(search.from || search.to)
+  // All levels are those from debug on, which the address names while the default level would apply otherwise.
+  const level = search.level === "debug" ? undefined : (search.level ?? settings.logLevel)
   const chips: [string, Partial<LogSearch>][] = []
-  if (search.hour)
-    chips.push([
-      t("From {{time}}, one hour", { time: formatDateTime(search.hour) }),
-      { hour: undefined },
-    ])
+  if (!search.level && settings.logLevel)
+    chips.push([t("Default level: {{level}}", { level: t(levelLabels[settings.logLevel]) }), { level: "debug" }])
   if (search.user) chips.push([t("User {{user}}", { user: search.user }), { user: undefined }])
   if (search.server)
     chips.push([
@@ -60,26 +70,42 @@ export function LogFilters({ search, onChange }: { search: LogSearch; onChange: 
         </InputGroup>
         <Choice
           label={t("Time")}
-          value={search.hour ? "hour" : search.range}
-          onChange={(range) => onChange({ range: range as LogSearch["range"], hour: undefined })}
+          value={fixed ? "custom" : search.range}
+          onChange={(range) => {
+            setCustom(range === "custom")
+            // A range up to now becomes one from its start on.
+            onChange(
+              range === "custom"
+                ? { range: undefined, from: timeOf(search).since }
+                : { range: range as LogSearch["range"], from: undefined, to: undefined },
+            )
+          }}
           everything={t("All time")}
         >
-          {search.hour && <SelectItem value="hour">{t("Chosen hour")}</SelectItem>}
           {Object.entries(ranges).map(([value, { label }]) => (
             <SelectItem key={value} value={value}>
               {t(label)}
             </SelectItem>
           ))}
+          <SelectItem value="custom">{t("From … until …")}</SelectItem>
         </Choice>
+        {fixed && (
+          <>
+            <TimeField label={t("From")} value={search.from} max={search.to} onChange={(from) => onChange({ from })} />
+            <TimeField label={t("Until")} value={search.to} min={search.from} onChange={(to) => onChange({ to })} />
+          </>
+        )}
         <Choice
           label={t("Level")}
-          value={search.level}
-          onChange={(level) => onChange({ level: level as LogSearch["level"] })}
+          value={level}
+          onChange={(level) => onChange({ level: (level ?? (settings.logLevel && "debug")) as LogSearch["level"] })}
           everything={t("All levels")}
         >
-          <SelectItem value="info">{t("Info and above")}</SelectItem>
-          <SelectItem value="warn">{t("Warnings and errors")}</SelectItem>
-          <SelectItem value="error">{t("Errors only")}</SelectItem>
+          {Object.entries(levelLabels).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {t(label)}
+            </SelectItem>
+          ))}
         </Choice>
         <Choice
           label={t("Category")}
@@ -123,6 +149,18 @@ export function LogFilters({ search, onChange }: { search: LogSearch; onChange: 
           {chips.map(([label, change]) => (
             <FilterChip key={label} label={label} onRemove={() => onChange(change)} />
           ))}
+          {search.level && level !== settings.logLevel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                change({ logLevel: level ?? null })
+                onChange({ level: undefined })
+              }}
+            >
+              {level ? t("Show this level by default") : t("Show all levels by default")}
+            </Button>
+          )}
           {filtered && (
             <Button
               variant="ghost"
@@ -130,6 +168,7 @@ export function LogFilters({ search, onChange }: { search: LogSearch; onChange: 
               onClick={() => {
                 clearTimeout(typing.current)
                 setText("")
+                setCustom(false)
                 onChange(Object.fromEntries(Object.keys(search).map((key) => [key, undefined])))
               }}
             >
@@ -139,5 +178,34 @@ export function LogFilters({ search, onChange }: { search: LogSearch; onChange: 
         </div>
       )}
     </div>
+  )
+}
+
+/** An end of the time from one to another, as a date and time in the user's time zone; empty leaves it open. */
+function TimeField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  value?: string
+  min?: string
+  max?: string
+  onChange: (value: string | undefined) => void
+}) {
+  return (
+    <InputGroup className="w-auto max-sm:w-full">
+      <InputGroupAddon>{label}</InputGroupAddon>
+      <InputGroupInput
+        type="datetime-local"
+        aria-label={label}
+        value={value ? toWallClock(value) : ""}
+        min={min && toWallClock(min)}
+        max={max && toWallClock(max)}
+        onChange={(e) => onChange(e.target.value ? fromWallClock(e.target.value).toISOString() : undefined)}
+      />
+    </InputGroup>
   )
 }

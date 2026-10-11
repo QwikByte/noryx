@@ -26,7 +26,7 @@ import { useScopes } from "./scopes"
 import type { ListSort, PlayerSearch } from "./search"
 import type { Picked, Selection } from "./selection"
 
-export type ListKind = Exclude<NonNullable<PlayerSearch["tab"]>, "seen">
+export type ListKind = Exclude<NonNullable<PlayerSearch["tab"]>, "online" | "seen">
 
 const kinds: Record<
   ListKind,

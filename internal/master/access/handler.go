@@ -26,12 +26,18 @@ var (
 type Handler struct {
 	svc   *Service
 	users *auth.Service
+	conf  Config
 	// changes serialises the changes of users, so that two administrators who disable or
 	// delete each other at once can't leave none.
 	changes sync.Mutex
 }
 
-func NewHandler(svc *Service, users *auth.Service) *Handler { return &Handler{svc: svc, users: users} }
+// Config tells which groups inviting a user preselects, by their IDs.
+type Config interface{ InviteGroups() []string }
+
+func NewHandler(svc *Service, users *auth.Service, conf Config) *Handler {
+	return &Handler{svc: svc, users: users, conf: conf}
+}
 
 func (h *Handler) Register(m Mux) {
 	m.Handle("GET /api/access/me", SignedIn, func(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +61,7 @@ func (h *Handler) Register(m Mux) {
 
 	m.Handle("GET /api/users", Everywhere(UsersView), h.listUsers)
 	m.Handle("POST /api/users", Everywhere(UsersManage), h.invite)
+	m.Handle("GET /api/users/invite", Everywhere(UsersManage), h.inviteGroups)
 	m.Handle("PUT /api/users/{id}", Everywhere(UsersManage), h.updateUser)
 	m.Handle("DELETE /api/users/{id}", Everywhere(UsersManage), h.deleteUser)
 	m.Handle("POST /api/users/{id}/setup-link", Everywhere(UsersManage), h.setupLink)
@@ -176,6 +183,19 @@ func (h *Handler) invite(w http.ResponseWriter, r *http.Request) {
 	}
 	logging.Note(ctx, slog.String("account", user.Username), slog.Any("groups", req.Groups))
 	httpapi.WriteJSON(w, http.StatusCreated, map[string]any{"user": user, "setupLink": link})
+}
+
+// inviteGroups tells which of the groups that the settings name inviting a user preselects:
+// those that exist and that the signed-in user may give. The invitation checks the groups it
+// gets like any other.
+func (h *Handler) inviteGroups(w http.ResponseWriter, r *http.Request) {
+	groups, err := h.svc.Groups(r.Context())
+	actor := From(r.Context())
+	ids := slices.DeleteFunc(h.conf.InviteGroups(), func(id string) bool {
+		i := slices.IndexFunc(groups, func(g Group) bool { return g.ID == id })
+		return i < 0 || !actor.Covers(groups[i].grants())
+	})
+	write(w, r, http.StatusOK, map[string][]string{"groups": ids}, err)
 }
 
 // updateUser changes the groups of a user and whether the user is disabled.

@@ -30,7 +30,8 @@ func TestWarning(t *testing.T) {
 			{Id: "p1", Type: noryxv1.ServerType_SERVER_TYPE_VELOCITY, State: noryxv1.ServerState_SERVER_STATE_RUNNING},
 		}}
 		ops := operation.New(0)
-		h := NewHandler(fakeNodes{conn: agent}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil)
+		conf := &config{warnings: DefaultWarnings()}
+		h := NewHandler(fakeNodes{conn: agent}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil, conf)
 		mux := http.NewServeMux()
 		mux.HandleFunc("POST /api/nodes/{node}/servers/{id}/restart", h.power("restart"))
 		mux.HandleFunc("POST /api/servers/actions", h.bulk)
@@ -81,7 +82,63 @@ func TestWarning(t *testing.T) {
 		post(admin, "/api/nodes/n1/servers/s1/restart", `{"warning": {"minutes": 1, "message": "two\nlines"}}`, http.StatusBadRequest)
 		post(admin, "/api/servers/actions", `{"action": "start", "servers": [{"nodeId": "n1", "serverId": "s1"}], "warning": {"minutes": 1}}`, http.StatusBadRequest)
 		post(t.Context(), "/api/nodes/n1/servers/s1/restart", `{"warning": {"minutes": 1, "message": "op me"}}`, http.StatusForbidden)
+
+		// The settings decide the texts, the steps, the longest lead time and how warnings show,
+		// as they say when a warning is asked for. A text becomes JSON only with an encoder.
+		conf.warnings = Warnings{Restart: `Neustart in {minutes} Minuten, "bald"`, Stop: "Stopp", Steps: []uint32{30, 3}, MaxMinutes: 30, Kind: "title"}
+		post(admin, "/api/nodes/n1/servers/s1/restart", `{"warning": {"minutes": 31}}`, http.StatusBadRequest)
+		post(admin, "/api/nodes/n1/servers/s1/restart", `{"warning": {"minutes": 1, "message": "`+strings.Repeat("<", maxWarningMessage)+`"}}`, http.StatusBadRequest)
+		post(admin, "/api/nodes/n1/servers/s1/restart", `{"warning": {"minutes": 20}}`, http.StatusAccepted)
+		conf.warnings = DefaultWarnings()
+		for _, wait := range []time.Duration{0, 17 * time.Minute, 3 * time.Minute} {
+			time.Sleep(wait)
+			synctest.Wait()
+		}
+		want = []string{"ListServers", `SendCommand s1 minecraft:title @a title {"text":"Neustart in 20 Minuten, \"bald\""}`,
+			`SendCommand s1 minecraft:title @a title {"text":"Neustart in 3 Minuten, \"bald\""}`, "RestartServer s1"}
+		if got := agent.taken(); !slices.Equal(got, want) {
+			t.Fatalf("calls %q, want %q", got, want)
+		}
 	})
+}
+
+// config is the Config of tests, whose warnings they change.
+type config struct{ warnings Warnings }
+
+func (c *config) NewServers() NewServers { return DefaultNewServers() }
+func (c *config) Warnings() Warnings     { return c.warnings }
+
+// The settings of warnings have texts like a warning of one's own, a few steps below the
+// longest lead time of up to an hour, and show in the chat, as a title or above the hotbar.
+func TestValidateWarnings(t *testing.T) {
+	if err := DefaultWarnings().Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, change := range map[string]func(*Warnings){
+		"no text":                 func(w *Warnings) { w.Stop = "" },
+		"two lines":               func(w *Warnings) { w.Restart = "two\nlines" },
+		"a text too long":         func(w *Warnings) { w.Restart = strings.Repeat("x", maxWarningMessage+1) },
+		"a title too long":        func(w *Warnings) { w.Restart, w.Kind = strings.Repeat("&", maxWarningMessage), "title" },
+		"another kind":            func(w *Warnings) { w.Kind = "bossbar" },
+		"no lead time":            func(w *Warnings) { w.MaxMinutes, w.Steps = 0, nil },
+		"more than an hour":       func(w *Warnings) { w.MaxMinutes = 61 },
+		"a step at the lead time": func(w *Warnings) { w.Steps = []uint32{10} },
+		"a step of 0 minutes":     func(w *Warnings) { w.Steps = []uint32{0} },
+		"more than a handful":     func(w *Warnings) { w.MaxMinutes, w.Steps = 60, []uint32{30, 20, 10, 5, 2, 1} },
+	} {
+		w := DefaultWarnings()
+		change(&w)
+		if err := w.Validate(); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	w := Warnings{Restart: "Neustart in {minutes} Minuten", Stop: "Stopp in {minutes} Minuten", Steps: []uint32{30, 10, 5, 2, 1}, MaxMinutes: 60, Kind: "actionbar"}
+	if err := w.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := w.Commands(w.Restart, 5); err != nil || !slices.Equal(got, []string{`minecraft:title @a actionbar {"text":"Neustart in 5 Minuten"}`}) {
+		t.Fatalf("commands %q, %v", got, err)
+	}
 }
 
 // recorder is an agent with servers that records the calls to it.

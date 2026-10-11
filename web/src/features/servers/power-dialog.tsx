@@ -1,4 +1,5 @@
 import { ArrowClockwiseIcon, StopIcon } from "@phosphor-icons/react"
+import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type FormEvent, useState } from "react"
 import { Segmented } from "@/components/segmented"
@@ -7,13 +8,15 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import type { Warning } from "./api"
+import { type Warning, warningsQuery } from "./api"
+import { repeats, warningHint, warningKinds } from "./warnings"
 
-const minutes = ["1", "2", "5", "10"] as const
+/** The usual lead times of warnings up to the longest one of the settings, which is offered too. */
+const leadTimes = (max: number) => [...new Set([...[1, 2, 5, 10, 15, 30, 60].filter((m) => m < max), max])].map(String)
 
 /**
- * Confirms that servers restart or stop, which can warn their players in the chat first: some minutes before, and
- * again 5 minutes and 1 minute before. Proxies get no warning.
+ * Confirms that servers restart or stop, which can warn their players first, as the settings say: some minutes before,
+ * and again at the steps of the settings. Proxies get no warning.
  */
 export function PowerDialog({
   action,
@@ -38,11 +41,12 @@ export function PowerDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const [warn, setWarn] = useState(warnFirst && warnable)
-  const [before, setBefore] = useState<(typeof minutes)[number]>("5")
+  const { data: how } = useQuery(warningsQuery)
+  const [before, setBefore] = useState<string>()
   const [message, setMessage] = useState("")
   const stop = action === "stop"
   const Icon = stop ? StopIcon : ArrowClockwiseIcon
-  const count = Number(before)
+  const count = Number(before ?? Math.min(5, how?.maxMinutes ?? 5))
   const label = stop
     ? warn
       ? t("Stop in {{count}} min", { count })
@@ -72,19 +76,21 @@ export function PowerDialog({
                 <FieldContent>
                   <FieldLabel htmlFor="power-warn">{t("Warn the players first")}</FieldLabel>
                   <FieldDescription>
-                    {t("In the chat, and again 5 minutes and 1 minute before. Until then, it can be cancelled.")}
+                    {[how && t(warningKinds[how.kind].shown), how && repeats(how.steps.filter((m) => m < count)), t("Until then, it can be cancelled.")]
+                      .filter(Boolean)
+                      .join(" ")}
                   </FieldDescription>
                 </FieldContent>
               </Field>
-              {warn && (
+              {warn && how && (
                 <>
                   <div className="flex flex-wrap items-center gap-3 text-sm">
                     <span>{t("Minutes before")}</span>
                     <Segmented
                       label={t("Minutes before")}
-                      value={before}
+                      value={String(count)}
                       onChange={setBefore}
-                      options={minutes.map((m) => ({ value: m, label: m }))}
+                      options={leadTimes(how.maxMinutes).map((m) => ({ value: m, label: m }))}
                     />
                   </div>
                   {canMessage && (
@@ -93,13 +99,11 @@ export function PowerDialog({
                       <Input
                         id="power-message"
                         maxLength={200}
-                        placeholder={stop ? t("The server stops in {minutes} min.") : t("The server restarts in {minutes} min.")}
+                        placeholder={how[action]}
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                       />
-                      <FieldDescription>
-                        {t("Shown in the chat; {minutes} becomes the minutes left. Proxies get no warning.")}
-                      </FieldDescription>
+                      <FieldDescription>{warningHint(how)}</FieldDescription>
                     </Field>
                   )}
                 </>

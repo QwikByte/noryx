@@ -17,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useAccess } from "@/features/access/use-access"
 import type { TaskInput } from "@/features/schedules/api"
+import { warningsQuery } from "@/features/servers/api"
+import { warningHint } from "@/features/servers/warnings"
 import { RunHistory } from "@/features/schedules/run-history"
 import { TaskForm } from "@/features/schedules/task-form"
 import {
@@ -121,6 +123,7 @@ function PolicyForm({
 }) {
   // Kept as typed, so that a comma can be entered before the next number.
   const [warnings, setWarnings] = useState(initial.settings.warnings.join(", "))
+  const { data: how } = useQuery(warningsQuery)
   return (
     <TaskForm
       initial={initial}
@@ -175,13 +178,11 @@ function PolicyForm({
                   <Input
                     id="policy-message"
                     maxLength={200}
-                    placeholder={
-                      settings.action === "restart" ? t("The server restarts in {minutes} min.") : t("The server stops in {minutes} min.")
-                    }
+                    placeholder={how?.[settings.action === "stop" ? "stop" : "restart"]}
                     value={settings.message}
                     onChange={(e) => set({ message: e.target.value })}
                   />
-                  <FieldDescription>{t("Shown in the chat; {minutes} becomes the minutes left. Proxies get no warning.")}</FieldDescription>
+                  <FieldDescription>{warningHint(how)}</FieldDescription>
                 </Field>
               </div>
             )}

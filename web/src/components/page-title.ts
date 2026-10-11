@@ -1,6 +1,7 @@
 import { useMatch, useMatches } from "@tanstack/react-router"
 import { t } from "i18next"
 import { useEffect, useSyncExternalStore } from "react"
+import { usePanelName } from "@/features/settings/public"
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
@@ -54,13 +55,14 @@ export function usePageTrail() {
   return trail
 }
 
-/** Titles the browser's tab after the open page, from the inside out, e.g. "Files · lobby · Servers · Noryx". */
+/** Titles the browser's tab after the open page, from the inside out, and the panel, e.g. "Files · lobby · Servers · Noryx". */
 export function DocumentTitle() {
   useSyncExternalStore(subscribe, () => version)
   const matches = useMatches()
+  const panel = usePanelName()
   const title = [
     ...matches.flatMap((match) => [match.staticData.title && t(match.staticData.title), names.get(match.id)]).reverse(),
-    t("Noryx"),
+    panel,
   ]
     .filter(Boolean)
     .join(" · ")

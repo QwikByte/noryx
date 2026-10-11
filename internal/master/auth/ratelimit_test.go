@@ -27,7 +27,7 @@ func TestSignInLimits(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	h := NewHandler(svc, func() time.Duration { return time.Hour }, notRequired)
+	h := NewHandler(svc, config{}, notRequired)
 	// No attempt comes back during the test, however slow hashing passwords is.
 	h.clients, h.usernames = ratelimit.New(clientBurst, time.Hour), ratelimit.New(usernameBurst, time.Hour)
 	mux := http.NewServeMux()

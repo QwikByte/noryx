@@ -1,4 +1,5 @@
 import { UserPlusIcon } from "@phosphor-icons/react"
+import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type FormEvent, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -14,17 +15,20 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { type Group, useInviteUser } from "./api"
+import { type Group, inviteGroupsQuery, useInviteUser } from "./api"
 import { GroupPicker } from "./group-picker"
 import { SetupLinkView } from "./setup-link-view"
 
-const empty = { username: "", groups: [] as string[] }
+// The groups stay those that the settings preselect until the user chooses others.
+const empty = { username: "", groups: undefined as string[] | undefined }
 
 /** Adds a user, who sets a password with the setup link shown afterwards. */
 export function InviteDialog({ groups }: { groups: Group[] }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
   const invite = useInviteUser()
+  const preselected = useQuery(inviteGroupsQuery).data?.groups
+  const chosen = form.groups ?? preselected ?? []
 
   function onOpenChange(next: boolean) {
     setOpen(next)
@@ -36,7 +40,7 @@ export function InviteDialog({ groups }: { groups: Group[] }) {
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    invite.mutate(form)
+    invite.mutate({ ...form, groups: chosen })
   }
 
   return (
@@ -85,7 +89,7 @@ export function InviteDialog({ groups }: { groups: Group[] }) {
                 <FieldDescription>
                   {t("The user gets the permissions of these groups. You can only choose groups within your own permissions.")}
                 </FieldDescription>
-                <GroupPicker groups={groups} value={form.groups} onChange={(groups) => setForm({ ...form, groups })} />
+                <GroupPicker groups={groups} value={chosen} onChange={(groups) => setForm({ ...form, groups })} />
               </FieldSet>
               {invite.error && <FieldError>{invite.error.message}</FieldError>}
             </FieldGroup>

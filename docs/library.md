@@ -145,14 +145,15 @@ installed from [Modrinth](https://modrinth.com), either on any number of servers
 from the **Plugins**/**Mods** tab of a server. The **Plugins** page switches between plugins and mods, so a project made
 for both only shows the software and servers of the chosen kind. The search filters by software, Minecraft version,
 categories (e.g. economy, management, optimization) and, for mods, those players don't have to install, and sorts by
-relevance, downloads, followers, newest or recently updated. The master picks the newest release for each server's
+relevance, downloads, followers, newest or recently updated. The source, the sort and the software of plugins and of
+mods each user chose last apply again, in all their browsers. The master picks the newest release for each server's
 software and Minecraft version, installs the projects it requires, and replaces an older version of the same project.
 Where no release suits a server, it installs the newest beta or alpha and the panel warns about it. Another version that
 suits the server, betas and alphas included, can be chosen instead, also to downgrade a project. Installed files are
 recognised by their hash, so the tab shows their project, version (marked as beta or alpha) and available updates, also
-for files uploaded by hand; it searches, filters (updates, not from Modrinth) and sorts them, and updates all at once to
-the newest release that suits the server, never to a beta or alpha. Own `.jar` files can be uploaded too. Servers load
-changes when they restart.
+for files uploaded by hand; it searches, filters (updates, not from Modrinth) and sorts them, by name or size as the
+user sorted them last, and updates all at once to the newest release that suits the server, never to a beta or alpha.
+Own `.jar` files can be uploaded too. Servers load changes when they restart.
 
 **What changed** next to an update shows the changelogs of the versions after the installed one up to the update, and in
 the version menu those of the newest suitable versions, as their authors wrote them on Modrinth or Hangar.

@@ -62,7 +62,8 @@ type Settings struct {
 	Action string `json:"action"`
 	// Warnings are the minutes before a restart or stop at which players are warned.
 	Warnings []uint32 `json:"warnings"`
-	// Message warns the players; {minutes} is replaced by the minutes left.
+	// Message warns the players; {minutes} is replaced by the minutes left. Empty is the
+	// text of the settings when the policy runs.
 	Message string `json:"message"`
 	// Commands are the console commands of the command action, sent one after the other.
 	Commands []string `json:"commands"`
@@ -118,6 +119,11 @@ type Plugins interface {
 	Update(ctx context.Context, servers []plugin.Ref, projects []string) []plugin.Result
 }
 
+// Config tells how the players are warned, as the settings say when a policy runs.
+type Config interface {
+	Warnings() server.Warnings
+}
+
 // Policies is the kind of task that runs policies.
 type Policies struct {
 	nodes    Nodes
@@ -125,10 +131,11 @@ type Policies struct {
 	usage    Usage
 	backups  Backups
 	plugins  Plugins
+	config   Config
 }
 
-func New(nodes Nodes, networks Networks, usage Usage, backups Backups, plugins Plugins) Policies {
-	return Policies{nodes: nodes, networks: networks, usage: usage, backups: backups, plugins: plugins}
+func New(nodes Nodes, networks Networks, usage Usage, backups Backups, plugins Plugins, config Config) Policies {
+	return Policies{nodes: nodes, networks: networks, usage: usage, backups: backups, plugins: plugins, config: config}
 }
 
 func (Policies) Check(raw json.RawMessage) (json.RawMessage, error) {
@@ -139,7 +146,9 @@ func (Policies) Check(raw json.RawMessage) (json.RawMessage, error) {
 	if (s.Action == restart || s.Action == stop) && s.Condition == "" {
 		slices.SortFunc(s.Warnings, func(a, b uint32) int { return cmp.Compare(b, a) })
 		s.Warnings = slices.Compact(s.Warnings)
-		s.Message, err = server.WarningMessage(s.Action, s.Message)
+		if s.Message = strings.TrimSpace(s.Message); s.Message != "" {
+			err = server.CheckWarning(s.Message)
+		}
 	} else {
 		s.Warnings, s.Message = []uint32{}, ""
 	}

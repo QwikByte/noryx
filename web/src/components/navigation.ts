@@ -88,5 +88,8 @@ export function pages(access: Access) {
     .filter((page) => page.visible(access))
 }
 
-/** The first section the user may see, where the panel opens. */
+/** The first section the user may see, where the panel opens unless the user chose another. */
 export const home = (access: Access) => pages(access)[0]?.to ?? "/settings"
+
+/** Where the panel opens for the user: the page they chose if they may see it, otherwise the first section they may. */
+export const startPage = (access: Access, chosen?: string) => pages(access).find((page) => page.to === chosen)?.to ?? home(access)

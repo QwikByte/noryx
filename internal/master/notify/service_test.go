@@ -62,7 +62,7 @@ func setup(t *testing.T, h *hook) (*Service, *slog.Logger, *logs.Store, Channel)
 	prev := slog.Default()
 	slog.SetDefault(slog.New(store.Handler(slog.LevelInfo)))
 	target, roots := localServer(t, h)
-	s := New(db, store, Options{Allow: loopback, Roots: roots, Wait: 300 * time.Millisecond})
+	s := New(db, store, panel("Noryx"), Options{Allow: loopback, Roots: roots, Wait: 300 * time.Millisecond})
 	s.retry = 50 * time.Millisecond
 	ch, err := s.CreateChannel(ctx, ChannelInput{Name: "Hook", Kind: Webhook, URL: target + "/hook/secret-token"})
 	if err != nil {

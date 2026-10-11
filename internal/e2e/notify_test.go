@@ -72,7 +72,7 @@ func TestNotifications(t *testing.T) {
 
 	svc := m.services(t)
 	// Tests allow the webhook at localhost, which the master refuses otherwise.
-	svc.Notify = notify.New(m.db, m.logs, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots, Wait: 100 * time.Millisecond})
+	svc.Notify = notify.New(m.db, m.logs, m.settings, notify.Options{Allow: func(ip netip.Addr) bool { return ip.IsLoopback() }, Roots: roots, Wait: 100 * time.Millisecond})
 	go svc.Notify.Run(t.Context())
 	srv := httptest.NewTLSServer(masterapp.Handler(svc))
 	t.Cleanup(srv.Close)

@@ -1,6 +1,7 @@
 import {
   ArchiveIcon,
   ArrowClockwiseIcon,
+  BookmarkSimpleIcon,
   CalendarCheckIcon,
   FilesIcon,
   FlowArrowIcon,
@@ -15,10 +16,9 @@ import {
   UserIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { useLocation, useNavigate } from "@tanstack/react-router"
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router"
 import { t } from "i18next"
 import { type ReactNode, useState } from "react"
-import { toast } from "sonner"
 import { IconTile } from "@/components/icon-tile"
 import { pages as visiblePages } from "@/components/navigation"
 import { type Status, StatusDot } from "@/components/status"
@@ -40,13 +40,17 @@ import { jobs } from "@/features/backups/api"
 import { fileSetsQuery } from "@/features/filesets/api"
 import { networksQuery } from "@/features/networks/api"
 import { nodesQuery } from "@/features/nodes/api"
+import { useOperation } from "@/features/operations/use-operation"
 import { seenPlayersQuery } from "@/features/players/api"
 import { useOnlinePlayers } from "@/features/players/online"
 import { actions as policyActions, policies } from "@/features/policies/api"
+import { preferencesQuery } from "@/features/preferences/api"
 import { workflowsQuery } from "@/features/workflows/api"
 import { describeTrigger } from "@/features/workflows/catalog"
 import { describeSchedule } from "@/features/schedules/describe"
-import { allServersQuery, type NodeServer, serverKey, useBulkAction } from "@/features/servers/api"
+import { allServersQuery, type NodeServer, serverKey, useBulkAction, type Warning } from "@/features/servers/api"
+import { validateServerSearch } from "@/features/servers/browse"
+import { usePower } from "@/features/servers/power"
 import { serverLook, serverType, statusOf } from "@/features/servers/server-types"
 import { settings } from "@/features/settings/tabs"
 import { templatesQuery } from "@/features/templates/api"
@@ -54,7 +58,7 @@ import { formatAgo } from "@/lib/format"
 import { useDebounced } from "@/lib/use-debounced"
 import { cn } from "@/lib/utils"
 import { openedPath, readRecent } from "./recent"
-import { account, type Creation, creations, pageKeys } from "./shortcuts"
+import { account, type Creation, creations, pageKeys, useSingleKeys } from "./shortcuts"
 import { Keys } from "./shortcuts-dialog"
 
 /** Actions on a server that the palette offers once a search starts with their name, e.g. "restart lobby". */
@@ -91,13 +95,15 @@ const at = (...parts: string[]) => `/${parts.map(encodeURIComponent).join("/")}`
 const recentLimit = 5
 
 /**
- * Searches servers, players, networks, nodes, the library, the automation, users and pages, acts
+ * Searches servers, saved views of them, players, networks, nodes, the library, the automation, users and pages, acts
  * on servers, and creates servers, networks and nodes; onOpen opens the dialogs for these.
  */
 export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (what: Creation | "shortcuts") => void }) {
   const access = useAccess()
   const navigate = useNavigate()
   const bulk = useBulkAction()
+  const operation = useOperation()
+  const power = usePower({ onClose })
   const [query, setQuery] = useState("")
   const { data: me } = useQuery(meQuery)
   const [recent] = useState(() => (me ? readRecent(me.id) : []))
@@ -114,6 +120,8 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
   const { data: schedules = [] } = useQuery({ ...policies.tasksQuery, enabled: access.can("policies.view") })
   const { data: workflows = [] } = useQuery({ ...workflowsQuery, enabled: access.can("workflows.view") })
   const { data: users = [] } = useQuery({ ...usersQuery, enabled: access.can("users.view") })
+  const views = useQuery(preferencesQuery).data?.views ?? []
+  const router = useRouter()
   const { players } = useOnlinePlayers(access.canSomewhere("servers.view"))
   const needle = query.trim().toLowerCase()
   const searched = useDebounced(needle, 200)
@@ -134,6 +142,8 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
   // The tabs of the settings are found by name too, e.g. "users".
   const pages = [...visiblePages(access), ...settings.tabs.filter((tab) => tab.to !== "/settings" && tab.visible(access)), account]
   const creatable = creations.filter((c) => c.allowed(access))
+  // The keys of shortcuts only show while they work.
+  const singleKeys = useSingleKeys()
 
   // The library, the automation and the users only show once something is searched.
   const groups: { heading: string; entries: Entry[]; searched?: boolean }[] = [
@@ -148,6 +158,17 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
         icon: <IconTile {...serverLook(s.type)} size="sm" className="size-6 rounded-md [&>svg]:size-3.5" />,
         status: statusOf(s),
         detail: [...s.tags.map((tag) => `#${tag}`), s.nodeName].join(" · "),
+      })),
+    },
+    {
+      heading: t("Saved views"),
+      // Their searches are checked again, as on the servers page.
+      entries: views.map((v) => ({
+        value: `view/${v.name}`,
+        path: router.buildLocation({ to: "/servers", search: validateServerSearch(v.search) }).href,
+        label: v.name,
+        icon: <BookmarkSimpleIcon className="text-primary" />,
+        detail: t("Servers"),
       })),
     },
     {
@@ -294,19 +315,27 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
 
   function act(kind: (typeof actions)[number]["kind"], server: NodeServer) {
     const params = { nodeId: server.nodeId, serverId: server.id }
-    if (kind === "console") return go(() => navigate({ to: "/nodes/$nodeId/servers/$serverId", params }))
+    if (kind === "console") return go(() => navigate({ to: "/nodes/$nodeId/servers/$serverId", params, state: { console: true } }))
+    // A notification follows the action, also while the server warns its players.
+    const run = (warning?: Warning) =>
+      operation.run(
+        (onStart) =>
+          bulk.mutateAsync({ action: kind, warning, servers: [server], onStart }).then(([r]) => {
+            if (r?.error) throw new Error(r.error)
+          }),
+        {
+          title: t("{{action}}: {{name}}…", { action: actions.find((a) => a.kind === kind)!.label(), name: server.name }),
+          notify: true,
+          done: () => ({ message: t("Done: {{name}}", { name: server.name }) }),
+        },
+      )
+    if (kind !== "start") return power.request({ nodeId: server.nodeId, server, action: kind, run })
     onClose()
-    toast.promise(
-      bulk.mutateAsync({ action: kind, servers: [server] }).then(([r]) => {
-        if (r?.error) throw new Error(r.error)
-      }),
-      {
-        loading: t("{{action}}: {{name}}…", { action: actions.find((a) => a.kind === kind)!.label(), name: server.name }),
-        success: t("Done: {{name}}", { name: server.name }),
-        error: (e: Error) => e.message,
-      },
-    )
+    run()
   }
+
+  // Asking before a stop or restart takes the place of the search.
+  if (power.dialog) return power.dialog
 
   return (
     <CommandDialog
@@ -358,16 +387,18 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
                 <CommandItem key={c.opens} value={`create/${c.opens}`} keywords={[t(c.label)]} onSelect={() => onOpen(c.opens)}>
                   <c.icon />
                   {t(c.label)}
-                  <CommandShortcut>
-                    <Keys keys={["c", c.key]} />
-                  </CommandShortcut>
+                  {singleKeys && (
+                    <CommandShortcut>
+                      <Keys keys={["c", c.key]} />
+                    </CommandShortcut>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
           )}
           <CommandGroup heading={t("Pages")}>
             {pages.map(({ to, label, icon: Icon }) => {
-              const key = pageKeys[to]
+              const key = singleKeys && pageKeys[to]
               return (
                 <CommandItem key={to} value={`page${to}`} keywords={[t(label)]} onSelect={() => go(() => navigate({ to }))}>
                   <Icon />
@@ -383,9 +414,11 @@ export function Palette({ onClose, onOpen }: { onClose: () => void; onOpen: (wha
             <CommandItem value="shortcuts" keywords={[t("Keyboard shortcuts")]} onSelect={() => onOpen("shortcuts")}>
               <KeyboardIcon />
               {t("Keyboard shortcuts")}
-              <CommandShortcut>
-                <Keys keys={["?"]} />
-              </CommandShortcut>
+              {singleKeys && (
+                <CommandShortcut>
+                  <Keys keys={["?"]} />
+                </CommandShortcut>
+              )}
             </CommandItem>
           </CommandGroup>
         </CommandList>

@@ -13,13 +13,12 @@ import { useNetworkOf } from "@/features/networks/servers"
 import { nodeQuery } from "@/features/nodes/api"
 import { type NodeServer, useServer } from "@/features/servers/api"
 import { type ServerUsage, useServerUsage } from "@/features/usage/api"
-import { sortingOf } from "@/lib/sort"
 import { PlayerMenu } from "./online-players"
 import { PlayerBulkBar } from "./player-bulk-bar"
 import { type PlayerDialog, PlayerDialogs } from "./player-dialog"
 import { type ListKind, PlayerListTab } from "./player-lists"
 import { PlayerName } from "./player-name"
-import { listSorts, type PlayerSearch, seenSorts } from "./search"
+import { listSorts, type PlayerSearch, seenSorts, usePlayerSorting } from "./search"
 import { SeenPlayers } from "./seen-players"
 import { bulkActions, useSelection } from "./selection"
 
@@ -36,11 +35,12 @@ export function ServerPlayersPage() {
   const network = useNetworkOf()({ nodeId, serverId })
   const [dialog, setDialog] = useState<PlayerDialog>()
   const selection = useSelection()
+  const set = (change: Partial<PlayerSearch>) => void navigate({ search: (s) => ({ ...s, ...change }), replace: true })
+  const sorting = usePlayerSorting(search, set)
   if (!server) return null
 
   const tab = search.tab ?? "online"
   const query = (search.q ?? "").toLowerCase()
-  const set = (change: Partial<PlayerSearch>) => void navigate({ search: (s) => ({ ...s, ...change }), replace: true })
   const nodeServer: NodeServer = { ...server, nodeId, nodeName: node?.name ?? "" }
 
   return (
@@ -80,7 +80,7 @@ export function ServerPlayersPage() {
           network={network}
           server={nodeServer}
           query={query}
-          sorting={sortingOf(search, seenSorts, set)}
+          sorting={sorting(seenSorts)}
           selection={selection}
           onAct={setDialog}
         />
@@ -90,7 +90,7 @@ export function ServerPlayersPage() {
           network={network}
           server={nodeServer}
           query={query}
-          sorting={sortingOf(search, listSorts, set)}
+          sorting={sorting(listSorts)}
           selection={selection}
           onAct={setDialog}
         />

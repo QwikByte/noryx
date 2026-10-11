@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from "motion/react"
+import { motion, useReducedMotionConfig } from "motion/react"
 import { cn } from "@/lib/utils"
 
 const W = 100
@@ -9,7 +9,7 @@ const H = 24
  * decorative. The line draws in from the left when it appears.
  */
 export function Sparkline({ values, max, className }: { values: number[]; max?: number; className?: string }) {
-  const reduced = useReducedMotion()
+  const reduced = useReducedMotionConfig()
   if (values.length < 2) return <div aria-hidden className={cn("h-6", className)} />
   const top = max || Math.max(...values) || 1
   const coords = values.map((v, i) => `${((i / (values.length - 1)) * W).toFixed(1)} ${(H - (Math.min(v, top) / top) * (H - 2) - 1).toFixed(1)}`)
