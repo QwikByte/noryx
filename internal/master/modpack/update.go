@@ -246,6 +246,7 @@ func changeVersion(ctx context.Context, conn grpc.ClientConnInterface, srv *nory
 		Id: srv.GetId(), Name: srv.GetName(), Version: version, MemoryMb: srv.GetMemoryMb(), Port: srv.GetPort(),
 		Java: srv.GetJava(), RestartPolicy: srv.GetRestartPolicy(), AikarFlags: srv.GetAikarFlags(), JvmOptions: srv.GetJvmOptions(),
 		CpuMillis: srv.GetCpuMillis(), LoaderVersion: loader, StopTimeoutSeconds: srv.GetStopTimeoutSeconds(), TimeZone: srv.GetTimeZone(),
+		ExtraPorts:         srv.GetExtraPorts(),
 		HealthStartMinutes: srv.GetHealthStartMinutes(), CrashLimit: srv.GetCrashLimit(), StableAfterMinutes: srv.GetStableAfterMinutes(),
 		UnhealthyRestartMinutes: srv.GetUnhealthyRestartMinutes(), ProcessLimit: srv.GetProcessLimit(), InitMemoryMb: srv.GetInitMemoryMb(),
 	})

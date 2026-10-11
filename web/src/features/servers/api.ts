@@ -55,6 +55,8 @@ export interface Server {
   processLimit: number
   /** The heap Java starts with, below memoryMb; 0 for all of it. */
   initMemoryMb: number
+  /** Ports of plugins, e.g. of a web map, which the node publishes on all its addresses. */
+  extraPorts: ExtraPort[]
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -62,6 +64,14 @@ export interface Server {
 }
 
 export type RestartPolicy = "always" | "on_crash" | "never"
+
+/** A port of a plugin of a server, which the node publishes at the same port of the container, where the plugin listens. */
+export interface ExtraPort {
+  port: number
+  protocol: "tcp" | "udp"
+  /** Plain text such as "Map"; may be empty. */
+  label: string
+}
 
 /** Settings of a server that can be changed after it was created. */
 export type ServerSettings = Pick<
@@ -84,6 +94,7 @@ export type ServerSettings = Pick<
   | "unhealthyRestart"
   | "processLimit"
   | "initMemoryMb"
+  | "extraPorts"
 >
 
 /** When the agent stops a server that keeps crashing, and restarts one that stays unhealthy. */
@@ -141,7 +152,7 @@ export const serverKey = (s: { nodeId: string; id: string }) => `${s.nodeId}/${s
 
 export interface NewServer
   extends Partial<
-    Pick<Server, "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone">
+    Pick<Server, "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone" | "extraPorts">
   > {
   name: string
   type: string

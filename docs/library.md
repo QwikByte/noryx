@@ -7,8 +7,9 @@ The **Library** of the panel: what new servers start with, and what many servers
 A template preconfigures new servers: software, Minecraft version, memory, the
 [settings](servers.md#settings-and-images) of a server, `server.properties`,
 [tags](servers.md#lists-tags-and-bulk-actions) and a list of plugins or mods from Modrinth or Hangar. When a server is
-created from a template, only node, name, port, storage and world are chosen, and its stop timeout and time zone can
-differ from the template's; `server.properties` is written before the first start and each plugin is installed in the
+created from a template, only node, name, port, storage and world are chosen, and its stop timeout, time zone and
+[extra ports](servers.md#extra-ports) can differ from the template's; `server.properties` is written before the first
+start and each plugin is installed in the
 newest version of its [channel](#channels) that suits the server, unless the template
 [keeps a version](#plugin-versions) of it, so templates don't go stale. Templates are created from scratch or from an
 existing server ("Save as template"), which takes its settings, its properties (except those the manager sets), its tags

@@ -30,6 +30,7 @@ import { PinButton } from "@/features/preferences/pin-button"
 import { formatMegabytes } from "@/lib/format"
 import { useServer } from "./api"
 import { Console } from "./console"
+import { ExtraPortChips } from "./extra-ports"
 import { JoinAddress } from "./join-address"
 import { MoveStatus } from "./move-status"
 import { ServerNotes } from "./notes"
@@ -141,6 +142,7 @@ export function ServerPage() {
                   {serverType(server.type).label} {displayVersion(server.version)}
                 </Chip>
                 <JoinAddress nodeId={nodeId} server={server} />
+                <ExtraPortChips nodeId={nodeId} server={server} />
                 <Chip icon={MemoryIcon} title={memoryTitle(server)}>
                   {formatMegabytes(server.memoryMb)}
                 </Chip>

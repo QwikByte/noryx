@@ -77,7 +77,7 @@ func TestTemplates(t *testing.T) {
 		t.Fatalf("imported %+v, want %+v", imported, tmpl)
 	}
 	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"motd"`, `"server-port": "1", "motd"`, 1)), http.StatusBadRequest, nil)
-	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"version": 2`, `"version": 3`, 1)), http.StatusBadRequest, nil)
+	api.do("POST", "/api/templates/import", []byte(strings.Replace(file, `"version": 3`, `"version": 4`, 1)), http.StatusBadRequest, nil)
 	api.do("DELETE", "/api/templates/"+imported.ID, nil, http.StatusNoContent, nil)
 
 	// A server created with a template's settings gets its server.properties before it starts.

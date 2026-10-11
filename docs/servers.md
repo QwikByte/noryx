@@ -185,6 +185,30 @@ sudo systemctl daemon-reload
 On a node that runs [Podman](installation.md#docker-or-podman), `podman-restart.service` stops the servers, so raise
 its `TimeoutStopSec` the same way, in `/etc/systemd/system/podman-restart.service.d`.
 
+## Extra ports
+
+Plugins that listen at a port of their own, such as web maps (BlueMap, Dynmap, squaremap), Simple Voice Chat, Votifier
+or exporters of metrics, need the node to publish that port. Under **Extra ports** in its settings, a server publishes
+up to 5, each TCP or UDP with a label such as `Map`. The node publishes each at the same port of the server, where the
+plugin must listen, so the plugin is set to that port in its configuration, e.g. `port: 8100` in BlueMap's
+`webserver.conf`. Changing them creates the container again, like the other settings.
+
+An extra port is from 1024 to 65535 and in the [port range](#node-settings) of the node, no other server or datastore
+of the node uses it, as its port or as an extra port, and it is neither the server's port nor its Bedrock port nor one
+its container uses itself: 25565, where the server listens inside its container, the console port 25575 and 25577. A
+TCP and a UDP port may share a number. The page of the server shows its extra ports at the host of its node's address
+with their labels, with a button to copy each, and opens TCP ports such as a web map in the browser; without the
+permission to see the node, it shows only the ports.
+
+Extra ports are public like the server's port: anyone on the internet reaches them at all addresses of the node, also
+for a server of a [network](networks.md) that players otherwise only reach through its proxy, which its settings point
+out. Other nodes don't reach them through the [private network](networks.md#private-network).
+
+Templates keep extra ports, which **Create server** shows to change, e.g. as another server of the node uses them
+already. A copy gets none, as the original keeps its own. A server that moves takes them along, which needs them to be
+free and in the port range on the new node; the move checks that before it stops the server. Agents of earlier versions
+publish no extra ports, which saving the settings, creating a server and moving one to their node tell.
+
 ## Crashes and health
 
 A server that crashed and starts again shows as **crashing**, with how often it crashed and its exit code. After 5
@@ -212,7 +236,8 @@ A server can be duplicated on its node: the copy gets all files, worlds and sett
 starts stopped. A running game server first writes its worlds to disk and pauses saving while they are copied, so
 players stay connected. The copy keeps the original's modpack, but doesn't take over its place in a network unless **Add
 the copy to the network** is chosen for a game server of one, e.g. for a second lobby: the copy then joins the network
-next to the original, see [Networks](networks.md#copies-of-servers).
+next to the original, see [Networks](networks.md#copies-of-servers). The copy gets no [extra ports](#extra-ports), as
+the original keeps them.
 
 ## Moving to another node
 

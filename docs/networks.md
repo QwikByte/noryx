@@ -164,7 +164,8 @@ keeps their settings and Floodgate's key for later.
 ## Reaching the servers
 
 On its own node, the proxy reaches a server by container name over a network that only the two of them share;
-such a server's port isn't published at all. A server on another node is reached over the private network of the nodes
+such a server's port isn't published at all. [Extra ports](servers.md#extra-ports) of its plugins are, on all addresses
+of the node, but never its port. A server on another node is reached over the private network of the nodes
 if both nodes are part of it (see [Private network](#private-network)). Otherwise it is reached at that node's host and
 the server's port, which must be open for the proxy's node. Docker's rules bypass firewalls such as ufw, so allow only
 the proxy's node in Docker's `DOCKER-USER` chain on the server's node, e.g. for port 25566 and the proxy's node

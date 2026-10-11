@@ -65,7 +65,7 @@ export function SaveTemplateDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const { version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, stopTimeout, timeZone } = server
+    const { version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, stopTimeout, timeZone, extraPorts } = server
     save.mutate(
       {
         name: name.trim(),
@@ -86,6 +86,7 @@ export function SaveTemplateDialog({
         unhealthyRestart: server.unhealthyRestart,
         processLimit: server.processLimit,
         initMemoryMb: server.initMemoryMb,
+        extraPorts,
         properties: props,
         tags: server.tags,
         plugins: projects,

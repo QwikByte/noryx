@@ -47,7 +47,7 @@ func (s *Service) checkBedrock(ctx context.Context, nodeID string, port uint32, 
 		return err
 	}
 	if i := slices.IndexFunc(res.GetServers(), func(srv *noryxv1.Server) bool {
-		return srv.GetPort() == port || srv.GetBedrockPort() == port && !slices.Contains(owners, srv.GetId())
+		return srv.Uses(port) && (srv.GetBedrockPort() != port || !slices.Contains(owners, srv.GetId()))
 	}); i >= 0 {
 		return httpapi.Errorf(http.StatusConflict, "Port %d is already used by %q on %s. Choose another Bedrock port.", port, res.GetServers()[i].GetName(), n.Name)
 	}

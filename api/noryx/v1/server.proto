@@ -135,6 +135,8 @@ message Server {
   uint32 stop_timeout_seconds = 21;
   // IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
   string time_zone = 22;
+  // Ports of plugins that the node publishes, e.g. of a web map; agents of older versions have none.
+  repeated ExtraPort extra_ports = 23;
   // Minutes a game server gets to start before its failed health checks count, e.g. as a large
   // modpack loads; 0 for the default of 2, as older agents report it.
   uint32 health_start_minutes = 24;
@@ -151,6 +153,18 @@ message Server {
   uint32 process_limit = 28;
   // Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
   uint32 init_memory_mb = 29;
+}
+
+// ExtraPort is a port of a plugin of a server, e.g. of a web map or a voice chat, which the node
+// publishes on all its addresses at the same port of the container, where the plugin listens.
+message ExtraPort {
+  // From 1024 to 65535, neither the server's own port nor its Bedrock port, nor one its container
+  // uses itself: 25565, 25575 (RCON) and 25577.
+  uint32 port = 1;
+  // "tcp" or "udp".
+  string protocol = 2;
+  // Plain text of up to 32 characters, e.g. "Map".
+  string label = 3;
 }
 
 message ListServersRequest {}
@@ -181,6 +195,7 @@ message CreateServerRequest {
   string loader_version = 14;
   uint32 stop_timeout_seconds = 15;
   string time_zone = 16;
+  repeated ExtraPort extra_ports = 17;
   uint32 health_start_minutes = 18;
   uint32 crash_limit = 19;
   uint32 stable_after_minutes = 20;
@@ -229,6 +244,8 @@ message UpdateServerRequest {
   // IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
   // for UTC.
   string time_zone = 13;
+  // Up to 5 ports of plugins to publish; changing them creates the container again.
+  repeated ExtraPort extra_ports = 14;
   // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
   // as older masters send it, means 2. Proxies keep the start period of their image.
   uint32 health_start_minutes = 15;

@@ -93,6 +93,9 @@ type Spec struct {
 	// Overlay is the node's address in the private network of the nodes, where a backend
 	// publishes its port for its proxy on another node; empty publishes it on all addresses.
 	Overlay string `json:"overlay,omitempty"`
+	// ExtraPorts are ports of plugins, e.g. of a web map, which the node publishes on all its
+	// addresses, also for a backend.
+	ExtraPorts []ExtraPort `json:"extraPorts,omitempty"`
 	// HealthStart is how many minutes a game server gets to start before its failed health
 	// checks count; 0 means the default.
 	HealthStart uint32 `json:"healthStart,omitempty"`
@@ -109,10 +112,19 @@ type Spec struct {
 	InitMemoryMB uint32 `json:"initMemoryMb,omitempty"`
 }
 
-// Uses reports whether a server uses a port of the node: its own, or the UDP port at which
-// Bedrock players join a proxy.
+// ExtraPort is a port of a plugin, published at the same port of the container, where the
+// plugin listens.
+type ExtraPort struct {
+	Port     uint32 `json:"port"`
+	Protocol string `json:"protocol"` // tcp or udp
+	Label    string `json:"label,omitempty"`
+}
+
+// Uses reports whether a server uses a port of the node: its own, the UDP port at which
+// Bedrock players join a proxy, or one of its extra ports.
 func (s Spec) Uses(port uint32) bool {
-	return s.Port == port || s.BedrockPort != 0 && s.BedrockPort == port
+	return s.Port == port || s.BedrockPort != 0 && s.BedrockPort == port ||
+		slices.ContainsFunc(s.ExtraPorts, func(p ExtraPort) bool { return p.Port == port })
 }
 
 // Server is a server managed by a runtime.

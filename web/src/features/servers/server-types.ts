@@ -92,9 +92,9 @@ export function suggestPort(used: number[], preferred: number, min = 1024, max =
   return start
 }
 
-/** The ports of servers, also those at which proxies let Bedrock players join. */
-export const usedPorts = (servers: { port: number; bedrockPort?: number }[] = []) =>
-  servers.flatMap((s) => (s.bedrockPort ? [s.port, s.bedrockPort] : [s.port]))
+/** The ports of servers, also those at which proxies let Bedrock players join and the extra ports of plugins. */
+export const usedPorts = (servers: { port: number; bedrockPort?: number; extraPorts?: { port: number }[] }[] = []) =>
+  servers.flatMap((s) => [s.port, ...(s.bedrockPort ? [s.bedrockPort] : []), ...(s.extraPorts ?? []).map((p) => p.port)])
 
 /** Suggests a name for a copy, e.g. "Lobby" → "Lobby 2", "Lobby 2" → "Lobby 3". */
 export function nextName(name: string, taken: string[]): string {

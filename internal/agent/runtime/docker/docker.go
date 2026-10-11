@@ -331,12 +331,21 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 		published[port][0].HostIP = addr // only the proxy's node reaches it, over the private network
 	}
 	if spec.BehindProxy && spec.ProxyOnNode {
-		published = nil // only its proxy connects, over their network
+		published = network.PortMap{} // only its proxy connects, over their network
 	}
 	if spec.BedrockPort != 0 && spec.Type.Proxy() {
 		// Geyser listens at the same port inside the container, so that it tells it correctly.
 		bedrock := network.MustParsePort(fmt.Sprintf("%d/udp", spec.BedrockPort))
 		exposed[bedrock], published[bedrock] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(spec.BedrockPort))}}
+	}
+	for _, p := range spec.ExtraPorts {
+		// Plugins listen at the same port inside the container, which is public like the server's
+		// own, also for a backend whose own port only its proxy reaches.
+		extra, err := network.ParsePort(fmt.Sprintf("%d/%s", p.Port, p.Protocol))
+		if err != nil {
+			return client.ContainerCreateOptions{}, err
+		}
+		exposed[extra], published[extra] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(p.Port))}}
 	}
 	user, capAdd := "", serverCapabilities
 	if img.ref == proxyImage {

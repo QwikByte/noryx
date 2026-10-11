@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Channel, Project } from "@/features/plugins/api"
-import type { RestartPolicy } from "@/features/servers/api"
+import type { ExtraPort, RestartPolicy } from "@/features/servers/api"
 import { defaults } from "@/features/servers/server-types"
 import { api } from "@/lib/api"
 
@@ -30,6 +30,8 @@ export interface TemplateSettings {
   processLimit: number
   /** The heap Java starts with, below memoryMb; 0 for all of it. */
   initMemoryMb: number
+  /** Ports of plugins, e.g. of a web map, which new servers publish unless changed. */
+  extraPorts: ExtraPort[]
   /** Written to server.properties before the first start. */
   properties: Record<string, string>
 }
@@ -98,6 +100,7 @@ export const emptyTemplate: TemplateDraft = {
   unhealthyRestart: 0,
   processLimit: 1024,
   initMemoryMb: 0,
+  extraPorts: [],
   properties: {},
   tags: [],
   plugins: [],
@@ -108,7 +111,7 @@ export function draftOf(t: Template): TemplateDraft {
   const settings = { type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties }
   const { stopTimeout, timeZone, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = t
   const advanced = { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
-  return { name, description, ...settings, stopTimeout, timeZone, ...advanced, tags, plugins }
+  return { name, description, ...settings, stopTimeout, timeZone, extraPorts: t.extraPorts, ...advanced, tags, plugins }
 }
 
 export const templatesQuery = queryOptions({

@@ -17,6 +17,7 @@ import { PluginIcon } from "@/features/plugins/plugin-icon"
 import { PluginSearch } from "@/features/plugins/plugin-search"
 import { VersionMenu } from "@/features/plugins/version-menu"
 import { CrashFields, HealthStartField, initialHeap, ResourceFields } from "@/features/servers/advanced-fields"
+import { ExtraPortsField } from "@/features/servers/extra-ports"
 import { defaults, serverType, splitOptions } from "@/features/servers/server-types"
 import {
   CpuLimitField,
@@ -142,6 +143,7 @@ export function TemplateForm({
           <MemoryField id="template-memory" value={form.memoryMb} onChange={(memoryMb) => set({ memoryMb })} />
         </div>
         <TimeZoneField id="template-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
+        <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} />
       </FormSection>
 
       <FormSection title={t("Starting and stopping")}>

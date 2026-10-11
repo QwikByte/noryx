@@ -255,6 +255,9 @@ func (s *Store) freePort(ctx context.Context, ds Datastore, refused map[uint32]b
 	used := maps.Clone(refused)
 	for _, srv := range servers.GetServers() {
 		used[srv.GetPort()], used[srv.GetBedrockPort()] = true, true
+		for _, p := range srv.GetExtraPorts() {
+			used[p.GetPort()] = true
+		}
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT port FROM datastores WHERE node_id = ? AND port <> 0`, ds.NodeID)
 	if err != nil {

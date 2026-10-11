@@ -17,6 +17,7 @@ import { UsageWarnings } from "@/features/usage/thresholds"
 import { cn } from "@/lib/utils"
 import { CrashFields, HealthStartField, initialHeap, ResourceFields } from "./advanced-fields"
 import { freeMemoryMb, type Server, type ServerSettings, serversQuery, useServer, useUpdateImage, useUpdateServer } from "./api"
+import { ExtraPortsField } from "./extra-ports"
 import { isModded, serverType, splitOptions } from "./server-types"
 import {
   CpuLimitField,
@@ -91,8 +92,8 @@ function UpdateImage({ nodeId, server }: { nodeId: string; server: Server }) {
 }
 
 function settingsOf(s: Server): ServerSettings {
-  const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone } = s
-  const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone }
+  const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone, extraPorts } = s
+  const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone, extraPorts }
   const { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = s
   return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
 }
@@ -174,6 +175,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
           </FieldDescription>
         )}
         <TimeZoneField value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
+        <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} server={{ nodeId, serverId: server.id }} />
       </FormSection>
 
       <FormSection title={t("Starting and stopping")}>

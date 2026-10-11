@@ -258,6 +258,7 @@ func newServer(req *noryxv1.CreateServerRequest) (runtime.Spec, error) {
 		LoaderVersion: req.GetLoaderVersion(),
 		StopTimeout:   req.GetStopTimeoutSeconds(),
 		TimeZone:      req.GetTimeZone(),
+		ExtraPorts:    extraPorts(req.GetExtraPorts()),
 		HealthStart:   req.GetHealthStartMinutes(),
 	}
 	spec.CrashLimit, spec.StableAfter, spec.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
@@ -289,6 +290,7 @@ func (s *Service) DuplicateServer(ctx context.Context, req *noryxv1.DuplicateSer
 	spec := source.Spec
 	spec.ID, spec.Name, spec.Port, spec.BehindProxy, spec.ProxyOnNode = runtime.NewID(), req.GetName(), req.GetPort(), false, false
 	spec.BedrockPort, spec.BedrockPlayers, spec.Overlay = 0, false, "" // the copy isn't part of the network
+	spec.ExtraPorts = nil                                              // the original keeps them
 	release, err := s.check(ctx, spec)
 	if err != nil {
 		return nil, err
@@ -343,7 +345,7 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 		ID: h.GetId(), Name: h.GetName(), Type: h.GetType(), Version: h.GetVersion(), MemoryMB: h.GetMemoryMb(), Port: h.GetPort(),
 		Storage: h.GetStorage(), Java: h.GetJava(), RestartPolicy: h.GetRestartPolicy(), AikarFlags: h.GetAikarFlags(),
 		JVMOptions: h.GetJvmOptions(), CPUMillis: h.GetCpuMillis(), LoaderVersion: h.GetLoaderVersion(),
-		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(),
+		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(), ExtraPorts: extraPorts(h.GetExtraPorts()),
 		HealthStart: h.GetHealthStartMinutes(), CrashLimit: h.GetCrashLimit(), StableAfter: h.GetStableAfterMinutes(),
 		UnhealthyRestart: h.GetUnhealthyRestartMinutes(), ProcessLimit: h.GetProcessLimit(), InitMemoryMB: h.GetInitMemoryMb(),
 	}
@@ -423,6 +425,7 @@ func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerReq
 	srv.Java, srv.RestartPolicy, srv.AikarFlags = req.GetJava(), req.GetRestartPolicy(), req.GetAikarFlags()
 	srv.JVMOptions, srv.CPUMillis, srv.LoaderVersion = req.GetJvmOptions(), req.GetCpuMillis(), req.GetLoaderVersion()
 	srv.StopTimeout, srv.TimeZone = req.GetStopTimeoutSeconds(), req.GetTimeZone()
+	srv.ExtraPorts = extraPorts(req.GetExtraPorts())
 	srv.HealthStart = req.GetHealthStartMinutes()
 	srv.CrashLimit, srv.StableAfter, srv.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
 	srv.ProcessLimit, srv.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
@@ -455,7 +458,7 @@ func (s *Service) find(ctx context.Context, id string) (runtime.Server, error) {
 	return srv, toStatus(err)
 }
 
-// check validates the settings of a server and reserves its port; see reserve.
+// check validates the settings of a server and reserves its ports; see reserve.
 func (s *Service) check(ctx context.Context, spec runtime.Spec) (release func(), err error) {
 	var cpus uint32
 	if info, err := s.rt.Info(ctx); err == nil {
@@ -464,20 +467,23 @@ func (s *Service) check(ctx context.Context, spec runtime.Spec) (release func(),
 	if msg := checkSettings(spec, cpus); msg != "" {
 		return nil, status.Error(codes.InvalidArgument, msg)
 	}
-	return s.reserve(ctx, spec.ID, spec.Port, func(servers []runtime.Server) error {
-		if i := slices.IndexFunc(servers, func(srv runtime.Server) bool {
-			return srv.Uses(spec.Port) && (srv.ID != spec.ID || spec.BedrockPort == spec.Port)
-		}); i >= 0 {
-			return status.Errorf(codes.AlreadyExists, "Port %d is already used by %q. Choose another port.", spec.Port, servers[i].Name)
+	ports := portsOf(spec)
+	return s.reserve(ctx, spec.ID, ports, func(servers []runtime.Server) error {
+		for _, port := range ports {
+			if i := slices.IndexFunc(servers, func(srv runtime.Server) bool {
+				return srv.Uses(port) && (srv.ID != spec.ID || spec.BedrockPort == port)
+			}); i >= 0 {
+				return status.Errorf(codes.AlreadyExists, "Port %d is already used by %q. Choose another port.", port, servers[i].Name)
+			}
 		}
 		return nil
 	})
 }
 
-// reserve checks with the servers of the node that the server id may use port, and
-// reserves it until release is called, once the server's container has it, so that
-// concurrent requests can't take the same port.
-func (s *Service) reserve(ctx context.Context, id string, port uint32, check func([]runtime.Server) error) (release func(), err error) {
+// reserve checks with the servers of the node that the server id may use ports, and
+// reserves them until release is called, once the server's container has them, so that
+// concurrent requests can't take the same ports.
+func (s *Service) reserve(ctx context.Context, id string, ports []uint32, check func([]runtime.Server) error) (release func(), err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	servers, err := s.rt.List(ctx)
@@ -491,17 +497,23 @@ func (s *Service) reserve(ctx context.Context, id string, port uint32, check fun
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	if slices.ContainsFunc(datastores, func(ds runtime.Datastore) bool { return ds.Port == port }) {
-		return nil, status.Errorf(codes.AlreadyExists, "Port %d is used by a datastore of a network. Choose another port.", port)
+	for _, port := range ports {
+		if slices.ContainsFunc(datastores, func(ds runtime.Datastore) bool { return ds.Port == port }) {
+			return nil, status.Errorf(codes.AlreadyExists, "Port %d is used by a datastore of a network. Choose another port.", port)
+		}
+		if other, ok := s.reserved[port]; ok && other != id {
+			return nil, status.Errorf(codes.AlreadyExists, "Port %d is about to be used by another server. Choose another port.", port)
+		}
 	}
-	if other, ok := s.reserved[port]; ok && other != id {
-		return nil, status.Errorf(codes.AlreadyExists, "Port %d is about to be used by another server. Choose another port.", port)
+	for _, port := range ports {
+		s.reserved[port] = id
 	}
-	s.reserved[port] = id
 	return func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		delete(s.reserved, port)
+		for _, port := range ports {
+			delete(s.reserved, port)
+		}
 	}, nil
 }
 
@@ -604,7 +616,7 @@ func (s *Service) checkBedrock(ctx context.Context, id string, port uint32) (rel
 	if port == 0 {
 		return func() {}, nil
 	}
-	return s.reserve(ctx, id, port, func(servers []runtime.Server) error {
+	return s.reserve(ctx, id, []uint32{port}, func(servers []runtime.Server) error {
 		i := slices.IndexFunc(servers, func(srv runtime.Server) bool { return srv.ID == id })
 		switch {
 		case i < 0:
@@ -614,7 +626,7 @@ func (s *Service) checkBedrock(ctx context.Context, id string, port uint32) (rel
 		case port < minPort || port > maxPort:
 			return status.Errorf(codes.InvalidArgument, "The Bedrock port must be between %d and %d.", minPort, maxPort)
 		}
-		if other := slices.IndexFunc(servers, func(srv runtime.Server) bool { return srv.Uses(port) && (srv.ID != id || srv.Port == port) }); other >= 0 {
+		if other := slices.IndexFunc(servers, func(srv runtime.Server) bool { return srv.Uses(port) && (srv.ID != id || srv.BedrockPort != port) }); other >= 0 {
 			return status.Errorf(codes.AlreadyExists, "Port %d is already used by %q. Choose another Bedrock port.", port, servers[other].Name)
 		}
 		return nil
@@ -785,7 +797,10 @@ func checkSettings(spec runtime.Spec, cpus uint32) string {
 			return msg
 		}
 	}
-	return checkAdvanced(spec)
+	if msg := checkAdvanced(spec); msg != "" {
+		return msg
+	}
+	return noryxv1.CheckExtraPorts(protoPorts(spec.ExtraPorts), spec.Port, spec.BedrockPort)
 }
 
 // checkJVMOption returns a message for the operator if a JVM option is refused.
@@ -841,6 +856,7 @@ func toProto(s runtime.Server) *noryxv1.Server {
 		JvmOptions: s.JVMOptions, CpuMillis: s.CPUMillis, Crashes: uint32(s.Crashes), ExitCode: int32(s.ExitCode), //nolint:gosec // small numbers
 		LoaderVersion: s.LoaderVersion, BedrockPort: s.BedrockPort, RefusedJvmOptions: refusedOptions(s.JVMOptions),
 		Overlay: s.Overlay != "", Unhealthy: s.Unhealthy, StopTimeoutSeconds: s.StopTimeout, TimeZone: s.TimeZone,
+		ExtraPorts:         protoPorts(s.ExtraPorts),
 		HealthStartMinutes: s.HealthStart, CrashLimit: s.CrashLimit, StableAfterMinutes: s.StableAfter, UnhealthyRestartMinutes: s.UnhealthyRestart,
 		ProcessLimit: s.ProcessLimit, InitMemoryMb: s.InitMemoryMB,
 	}

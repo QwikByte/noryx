@@ -105,7 +105,9 @@ Velocity's modern forwarding signs the forwarded player data with a random secre
 master's database and on the network's servers; the API never returns it, and the file manager hides it in every file
 that holds it. Legacy forwarding (BungeeCord's) can be spoofed by anyone who reaches a server, so the servers of such a
 network are only reachable by the proxy on its node, and those on other nodes need the operator's confirmation that a
-firewall protects them. Servers that leave a network, also as it is deleted, run in online mode again without the
+firewall protects them. The extra ports of their plugins are public all the same, which their settings say, but never
+publish the port a server listens at inside its container (see [Containers](#containers)). Servers that leave a
+network, also as it is deleted, run in online mode again without the
 secret. Restoring a backup keeps what decides how a server takes part in a network as it is: a proxy's forwarding secret
 and the files with secrets of Geyser and Floodgate, the forwarding settings, including the secret Velocity 1 kept in
 its configuration, and a game server's online mode. The agent puts them into the extracted backup before it replaces
@@ -131,6 +133,15 @@ start, which owns their data, without any capabilities. Servers of a node can't 
 without communication between containers (`noryx-servers`), and a Velocity proxy shares another one only with its
 backends on the node. The PID limit lets a server's container run 1,024 processes and threads, or up to 8,192 if its
 settings say so, which the agent checks, so that a compromised server can't exhaust the node, e.g. with a fork bomb.
+
+A container publishes the server's port, a proxy's Bedrock port and the extra ports of the server's plugins, nothing
+else. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
+of the node, and never the server's or its Bedrock port, nor a port the container uses itself: 25565 and 25577, where
+servers and proxies listen inside it, and the console port 25575, which the image sets again on every start, so that
+neither the console nor the game port of a server behind a proxy becomes reachable through them. Each is published at
+the same port of the container on all addresses of the node, so whatever a plugin serves there is public like the
+server's port; a compromised server could serve anything there, but it reaches the internet anyway. Their labels are
+plain text of up to 32 characters, which the panel shows as text only.
 
 A node runs its containers with Docker or with Podman as root, and the same holds for both. The agent sets every option
 of a container itself, so that Podman gets the same users, capabilities, limits, health checks and published addresses

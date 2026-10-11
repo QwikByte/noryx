@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -223,6 +224,80 @@ func TestCreateServerReservesThePort(t *testing.T) {
 		t.Fatalf("%d servers created, %d refused", len(servers), refused)
 	}
 	// Once the server exists, the port is free to reserve for it again, e.g. to change it.
+	if len(s.reserved) != 0 {
+		t.Fatalf("ports still reserved: %v", s.reserved)
+	}
+}
+
+// Extra ports are ports of plugins from 1024 on that neither the server nor its container uses
+// otherwise, each listed once, with a label of plain text.
+func TestCheckExtraPorts(t *testing.T) {
+	port := func(n uint32, protocol, label string) runtime.ExtraPort {
+		return runtime.ExtraPort{Port: n, Protocol: protocol, Label: label}
+	}
+	six := make([]runtime.ExtraPort, 6)
+	for i := range six {
+		six[i] = port(8101+uint32(i), "tcp", "")
+	}
+	tests := []struct {
+		name  string
+		ports []runtime.ExtraPort
+		ok    bool
+	}{
+		{"none", nil, true},
+		{"map, voice chat and metrics", []runtime.ExtraPort{
+			port(8100, "tcp", "Map"), port(24454, "udp", "Voice chat"), port(8100, "udp", ""), port(9225, "tcp", "Métriques ✓"),
+		}, true},
+		{"five", six[:5], true},
+		{"six", six, false},
+		{"privileged", []runtime.ExtraPort{port(80, "tcp", "")}, false},
+		{"beyond 65535", []runtime.ExtraPort{port(65536, "tcp", "")}, false},
+		{"another protocol", []runtime.ExtraPort{port(8100, "sctp", "")}, false},
+		{"protocol in capitals", []runtime.ExtraPort{port(8100, "TCP", "")}, false},
+		{"the server's port", []runtime.ExtraPort{port(25570, "udp", "")}, false},
+		{"the Bedrock port", []runtime.ExtraPort{port(19132, "udp", "")}, false},
+		{"the game port inside the container", []runtime.ExtraPort{port(25565, "tcp", "")}, false},
+		{"the console port", []runtime.ExtraPort{port(25575, "tcp", "")}, false},
+		{"BungeeCord's port", []runtime.ExtraPort{port(25577, "udp", "")}, false},
+		{"twice", []runtime.ExtraPort{port(8100, "tcp", "Map"), port(8100, "tcp", "Map 2")}, false},
+		{"label with a line break", []runtime.ExtraPort{port(8100, "tcp", "Map\nfake")}, false},
+		{"label turning text around", []runtime.ExtraPort{port(8100, "tcp", "\u202epaM")}, false},
+		{"long label", []runtime.ExtraPort{port(8100, "tcp", strings.Repeat("ä", 33))}, false},
+	}
+	for _, tt := range tests {
+		spec := runtime.Spec{
+			Name: "Proxy", Type: noryxv1.ServerType_SERVER_TYPE_VELOCITY, Version: "LATEST", MemoryMB: 1024, Port: 25570, BedrockPort: 19132, ExtraPorts: tt.ports,
+		}
+		if msg := checkSettings(spec, 8); (msg == "") != tt.ok {
+			t.Errorf("%s: checkSettings() = %q, want ok = %v", tt.name, msg, tt.ok)
+		}
+	}
+}
+
+// A server can't take the port of another one as its own or as an extra port, whether the other
+// uses it as its own or as an extra port.
+func TestExtraPortsAreTaken(t *testing.T) {
+	rt := &slowRuntime{servers: []runtime.Server{{Spec: runtime.Spec{
+		ID: runtime.NewID(), Name: "Survival", Port: 25570, ExtraPorts: []runtime.ExtraPort{{Port: 8100, Protocol: "tcp", Label: "Map"}},
+	}}}}
+	s := NewService(rt, nil, nil)
+	create := func(port uint32, extra ...*noryxv1.ExtraPort) (*noryxv1.CreateServerResponse, error) {
+		return s.CreateServer(t.Context(), &noryxv1.CreateServerRequest{
+			Name: "Lobby", Type: noryxv1.ServerType_SERVER_TYPE_PAPER, MemoryMb: 1024, Port: port, AcceptEula: true, ExtraPorts: extra,
+		})
+	}
+	for _, port := range []uint32{8100, 25570} {
+		if _, err := create(port); status.Code(err) != codes.AlreadyExists {
+			t.Errorf("port %d: %v", port, err)
+		}
+		if _, err := create(25566, &noryxv1.ExtraPort{Port: port, Protocol: "udp"}); status.Code(err) != codes.AlreadyExists {
+			t.Errorf("extra port %d: %v", port, err)
+		}
+	}
+	res, err := create(25566, &noryxv1.ExtraPort{Port: 8101, Protocol: "tcp", Label: "Map"})
+	if got := res.GetServer().GetExtraPorts(); err != nil || len(got) != 1 || got[0].GetPort() != 8101 || got[0].GetLabel() != "Map" {
+		t.Fatalf("extra ports = %v, %v", got, err)
+	}
 	if len(s.reserved) != 0 {
 		t.Fatalf("ports still reserved: %v", s.reserved)
 	}

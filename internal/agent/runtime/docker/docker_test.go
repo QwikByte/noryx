@@ -9,6 +9,8 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 
+	"github.com/moby/moby/api/types/network"
+
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
@@ -82,6 +84,34 @@ func TestPublishedPort(t *testing.T) {
 		}
 		if got != tc.want {
 			t.Errorf("%+v: host IP %q, want %q", tc.spec, got, tc.want)
+		}
+	}
+}
+
+// Extra ports are published at the same port of the container on all addresses of the node, also
+// for a backend whose own port only its proxy reaches.
+func TestPublishedExtraPorts(t *testing.T) {
+	for _, spec := range []runtime.Spec{
+		{},
+		{BehindProxy: true, Overlay: "10.213.0.3"},
+		{BehindProxy: true, ProxyOnNode: true},
+	} {
+		spec.ID, spec.Type, spec.Port = "server", noryxv1.ServerType_SERVER_TYPE_PAPER, 25566
+		spec.ExtraPorts = []runtime.ExtraPort{{Port: 8100, Protocol: "tcp", Label: "Map"}, {Port: 24454, Protocol: "udp", Label: "Voice chat"}}
+		opts, err := containerOptions(spec, "/data", sharedNetwork)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"8100/tcp", "24454/udp"} {
+			port := network.MustParsePort(want)
+			bindings := opts.HostConfig.PortBindings[port]
+			_, exposed := opts.Config.ExposedPorts[port]
+			if !exposed || len(bindings) != 1 || bindings[0].HostIP.IsValid() || bindings[0].HostPort != port.Port() {
+				t.Errorf("%+v: %s exposed %v, published at %+v", spec, want, exposed, bindings)
+			}
+		}
+		if n := len(opts.HostConfig.PortBindings); n != 2 && spec.ProxyOnNode || n != 3 && !spec.ProxyOnNode {
+			t.Errorf("%+v: %d published ports", spec, n)
 		}
 	}
 }

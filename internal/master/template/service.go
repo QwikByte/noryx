@@ -24,6 +24,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/plugin"
+	"github.com/QwikByte/noryx/internal/master/server"
 	"github.com/QwikByte/noryx/internal/master/tag"
 )
 
@@ -84,6 +85,9 @@ type Settings struct {
 	StopTimeout uint32 `json:"stopTimeout"`
 	// TimeZone is an IANA time zone such as Europe/Berlin; empty means UTC.
 	TimeZone string `json:"timeZone"`
+	// ExtraPorts are ports of plugins that the servers publish, e.g. of a web map, which the
+	// agent checks again, also whether they are free, when a server is created.
+	ExtraPorts []server.ExtraPort `json:"extraPorts"`
 	// HealthStart is how many minutes game servers get to start before their failed health
 	// checks count; 0 means the default.
 	HealthStart uint32 `json:"healthStart"`
@@ -214,6 +218,7 @@ func (s *Service) build(ctx context.Context, in Input) (Template, error) {
 	t.StopTimeout = stopSeconds(t.StopTimeout)
 	t.advancedDefaults()
 	t.JVMOptions = append([]string{}, t.JVMOptions...)
+	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
 	if t.Properties == nil {
 		t.Properties = map[string]string{}
 	}
@@ -312,6 +317,9 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 	case len(t.Tags) > tag.MaxPerServer:
 		return fmt.Sprintf("Use at most %d tags.", tag.MaxPerServer)
 	}
+	if msg := noryxv1.CheckExtraPorts(server.ProtoPorts(t.ExtraPorts), 0, 0); msg != "" {
+		return msg
+	}
 	for key, value := range t.Properties {
 		switch {
 		case !propertyPattern.MatchString(key) || len(value) > maxPropValue ||
@@ -368,6 +376,7 @@ func scan(row scanner) (Template, error) {
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
 	t.StopTimeout = stopSeconds(t.StopTimeout) // templates saved before they had one
+	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
 	t.advancedDefaults()
 	return t, nil
 }
