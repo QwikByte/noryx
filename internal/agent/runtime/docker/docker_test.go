@@ -1,9 +1,13 @@
 package docker
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/moby/moby/api/types/container"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
@@ -104,6 +108,32 @@ func TestStopTimeoutAndTimeZone(t *testing.T) {
 		}
 		if tz != tc.tz || *opts.Config.StopTimeout != tc.seconds {
 			t.Errorf("%+v: time zone %q, stop timeout %d", tc.spec, tz, *opts.Config.StopTimeout)
+		}
+	}
+}
+
+// Game servers get the health check of their image with their start period, so that Docker and
+// Podman behave the same; proxies keep that of their image.
+func TestHealthCheck(t *testing.T) {
+	for _, tc := range []struct {
+		spec  runtime.Spec
+		start time.Duration // 0 for none
+	}{
+		{runtime.Spec{Type: noryxv1.ServerType_SERVER_TYPE_PAPER}, 2 * time.Minute},
+		{runtime.Spec{Type: noryxv1.ServerType_SERVER_TYPE_NEOFORGE, HealthStart: 15}, 15 * time.Minute},
+		{runtime.Spec{Type: noryxv1.ServerType_SERVER_TYPE_VELOCITY, HealthStart: 15}, 0},
+	} {
+		tc.spec.ID, tc.spec.Port = "server", 25565
+		opts, err := containerOptions(tc.spec, "/data", sharedNetwork)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := &container.HealthConfig{Test: []string{"CMD-SHELL", "mc-health"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: tc.start, Retries: 2}
+		if tc.start == 0 {
+			want = nil
+		}
+		if got := opts.Config.Healthcheck; !reflect.DeepEqual(got, want) {
+			t.Errorf("%+v: health check %+v, want %+v", tc.spec, got, want)
 		}
 	}
 }

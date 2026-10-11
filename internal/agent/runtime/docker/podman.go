@@ -153,7 +153,8 @@ func (d *Docker) refusal() error {
 }
 
 // imageChecks are the health checks of the images of itzg, which Podman doesn't take from
-// images in the OCI format, as these are.
+// images in the OCI format, as these are. Game servers get theirs on both runtimes, with their
+// start period; see healthCheck.
 var imageChecks = map[string]*container.HealthConfig{
 	serverImage: {Test: []string{"CMD-SHELL", "mc-health"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 2 * time.Minute, Retries: 2},
 	proxyImage:  {Test: []string{"CMD-SHELL", "/usr/bin/health.sh"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 10 * time.Second, Retries: 3},

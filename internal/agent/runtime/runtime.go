@@ -93,6 +93,9 @@ type Spec struct {
 	// Overlay is the node's address in the private network of the nodes, where a backend
 	// publishes its port for its proxy on another node; empty publishes it on all addresses.
 	Overlay string `json:"overlay,omitempty"`
+	// HealthStart is how many minutes a game server gets to start before its failed health
+	// checks count; 0 means the default.
+	HealthStart uint32 `json:"healthStart,omitempty"`
 }
 
 // Uses reports whether a server uses a port of the node: its own, or the UDP port at which

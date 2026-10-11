@@ -352,6 +352,7 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 			OpenStdin: spec.Type.Proxy(),
 			// Also when Docker stops the container by itself, e.g. as its daemon stops.
 			StopTimeout: new(stopSeconds(spec)),
+			Healthcheck: healthCheck(spec),
 		},
 		NetworkingConfig: &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{netName: {}}},
 		HostConfig: &container.HostConfig{

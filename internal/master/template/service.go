@@ -84,6 +84,9 @@ type Settings struct {
 	StopTimeout uint32 `json:"stopTimeout"`
 	// TimeZone is an IANA time zone such as Europe/Berlin; empty means UTC.
 	TimeZone string `json:"timeZone"`
+	// HealthStart is how many minutes game servers get to start before their failed health
+	// checks count; 0 means the default.
+	HealthStart uint32 `json:"healthStart"`
 }
 
 // Input is a new or changed template.
@@ -197,6 +200,7 @@ func (s *Service) build(ctx context.Context, in Input) (Template, error) {
 	}
 	t.RestartPolicy = noryxv1.ParseRestartPolicy(t.RestartPolicy).Slug()
 	t.StopTimeout = stopSeconds(t.StopTimeout)
+	t.HealthStart = healthStart(t.HealthStart, typ)
 	t.JVMOptions = append([]string{}, t.JVMOptions...)
 	if t.Properties == nil {
 		t.Properties = map[string]string{}
@@ -273,6 +277,8 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Give the servers 30 seconds to 10 minutes to stop."
 	case !noryxv1.ValidTimeZone(t.TimeZone):
 		return "Choose a time zone such as Europe/Berlin, or none for UTC."
+	case !noryxv1.ValidHealthStart(t.HealthStart):
+		return "Give the servers 2 to 30 minutes to start."
 	case len(t.JVMOptions) > maxJVMOptions:
 		return "Use at most 32 JVM options."
 	case typ.Proxy() && len(t.Properties) > 0:
@@ -340,12 +346,22 @@ func scan(row scanner) (Template, error) {
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
 	t.StopTimeout = stopSeconds(t.StopTimeout) // templates saved before they had one
+	t.HealthStart = healthStart(t.HealthStart, noryxv1.ParseServerType(t.Type))
 	return t, nil
 }
 
 // stopSeconds is a stop timeout in seconds; 0 means the default.
 func stopSeconds(seconds uint32) uint32 {
 	return cmp.Or(seconds, uint32(noryxv1.DefaultStopTimeout/time.Second))
+}
+
+// healthStart is the start period of the health check of servers of a type in minutes; 0 means
+// the default, which proxies keep.
+func healthStart(minutes uint32, typ noryxv1.ServerType) uint32 {
+	if typ.Proxy() {
+		minutes = 0
+	}
+	return cmp.Or(minutes, uint32(noryxv1.DefaultHealthStart/time.Minute))
 }
 
 func uniqueName(err error, name string) error {

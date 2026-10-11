@@ -163,6 +163,10 @@ func TestModpackUpdate(t *testing.T) {
 	if spec.Version != "1.21.5" || spec.LoaderVersion != "0.16.14" || spec.Type != noryxv1.ServerType_SERVER_TYPE_FABRIC {
 		t.Fatalf("spec = %+v", spec)
 	}
+	// Packs load many mods, so their servers get longer to start, which changing the version keeps.
+	if spec.HealthStart != modpack.HealthStart {
+		t.Fatalf("start period = %d minutes", spec.HealthStart)
+	}
 	if servers, _ := a.runtime.List(t.Context()); servers[0].State != noryxv1.ServerState_SERVER_STATE_RUNNING {
 		t.Fatal("the server didn't start again")
 	}

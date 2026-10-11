@@ -215,6 +215,7 @@ export function CreateServerDialog({
         jvmOptions,
         cpuLimit,
         properties,
+        healthStart: template.healthStart,
         versions: keptVersions(template.plugins),
         channels: keptChannels(template.plugins),
       })

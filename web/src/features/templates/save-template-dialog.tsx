@@ -80,6 +80,7 @@ export function SaveTemplateDialog({
         cpuLimit,
         stopTimeout,
         timeZone,
+        healthStart: server.healthStart,
         properties: props,
         tags: server.tags,
         plugins: projects,

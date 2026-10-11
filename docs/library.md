@@ -217,7 +217,9 @@ decides the software, the Minecraft version and the version of the mod loader. T
 files servers need (not those for players only) and writes them into the new server, with the files the pack brings
 itself (`overrides`, then `server-overrides`), except `server.properties` and `eula.txt`. Afterwards it is a server like
 any other: the **Mods** tab recognises the mods and updates them. A server that didn't get all files of its pack is
-deleted again. Creating servers from modpacks needs the permission to manage plugins and mods on the node.
+deleted again. Creating servers from modpacks needs the permission to manage plugins and mods on the node. As packs load
+many mods, their servers get 10 minutes to start before a failing health check counts (the
+[start period](servers.md#settings-and-images)), which their settings can change.
 
 The master remembers the pack and version a server was created from, and the files the pack wrote with their SHA-512
 hashes. The **Modpack** section of the server's **Settings** tab shows them, marks a newer release, and moves the server

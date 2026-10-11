@@ -122,19 +122,26 @@ needs the permission to change files.
 
 The settings of a server can be changed after it was created: name, Minecraft version, the version of the mod loader of
 Fabric, Quilt, Forge and NeoForge servers (the newest unless set), memory, port, Java version (8, 11, 17, 21, 25 or the
-newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout and the time zone. The
-agent creates the container again with the same data; the old container is only removed once the new one exists. A
-server keeps the image it was created with; **Update image** in its settings pulls the newest one and, if it changed,
-creates the container again the same way. The old image is removed once no server uses it. New servers get the newest
-image too: creating one pulls it, which downloads its changes if it was updated since. Deleting servers keeps their
-images. Servers created from a modpack show it in their settings, where they move to [another version of
-it](library.md#modpacks).
+newest), when it starts on its own, Aikar's flags, JVM options, a CPU limit, the stop timeout, the time zone and the
+start period of a game server's health check. The agent creates the container again with the same data; the old
+container is only removed once the new one exists. A server keeps the image it was created with; **Update image** in its
+settings pulls the newest one and, if it changed, creates the container again the same way. The old image is removed
+once no server uses it. New servers get the newest image too: creating one pulls it, which downloads its changes if it
+was updated since. Deleting servers keeps their images. Servers created from a modpack show it in their settings, where
+they move to [another version of it](library.md#modpacks).
 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
 the IANA time zones such as `Europe/Berlin` chosen from a searchable list, sets the time of the server's log and of
 plugins that work with times; servers run in UTC unless one is chosen. Agents of earlier versions keep 1 minute and UTC,
 which saving the settings, creating a server and moving one to their node tell.
+
+The **start period** of a game server's [health check](#crashes-and-health) is how long it may take to start before a
+failing check counts: from 2 to 30 minutes, 2 unless changed, e.g. longer for a large modpack, which would show as
+unhealthy while it loads. Servers created from a [modpack](library.md#modpacks) get 10 minutes. Changing it creates the
+container again, as other settings do. Docker and Podman give the server the same check, that of its image, so that both
+behave the same; proxies keep the check of their image, which starts after 10 seconds. Agents of earlier versions keep 2
+minutes, which saving the settings, creating a server and moving one to their node tell.
 
 Stopping and restarting a server run as [operations](panel.md#operations), as they may take as long as its stop
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives
@@ -174,7 +181,8 @@ crashes in a row, each within 10 minutes of its start, the agent stops it, as Do
 forever. Each crash is a warning in the log, which the bell counts, and the notice on the server's page links to its
 crash reports.
 
-The images check the health of their server. A server that runs but fails its health check, e.g. as it hangs, shows as
+The images check the health of their server every 30 seconds, a game server with `mc-health`. A server that runs but
+fails its health check twice in a row after its [start period](#settings-and-images), e.g. as it hangs, shows as
 **unhealthy** on its card and page and under what needs attention on the overview; the log tells when it becomes
 unhealthy and healthy again. It still counts as running: its console, restarts, stops and schedules work as usual.
 

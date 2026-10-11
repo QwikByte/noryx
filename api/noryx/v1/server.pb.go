@@ -319,9 +319,12 @@ type Server struct {
 	// for the default of 60, as older agents report it.
 	StopTimeoutSeconds uint32 `protobuf:"varint,21,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
-	TimeZone      string `protobuf:"bytes,22,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeZone string `protobuf:"bytes,22,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// Minutes a game server gets to start before its failed health checks count, e.g. as a large
+	// modpack loads; 0 for the default of 2, as older agents report it.
+	HealthStartMinutes uint32 `protobuf:"varint,24,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -508,6 +511,13 @@ func (x *Server) GetTimeZone() string {
 	return ""
 }
 
+func (x *Server) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
+}
+
 type ListServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -611,6 +621,7 @@ type CreateServerRequest struct {
 	LoaderVersion      string            `protobuf:"bytes,14,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
 	StopTimeoutSeconds uint32            `protobuf:"varint,15,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	TimeZone           string            `protobuf:"bytes,16,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	HealthStartMinutes uint32            `protobuf:"varint,18,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -755,6 +766,13 @@ func (x *CreateServerRequest) GetTimeZone() string {
 		return x.TimeZone
 	}
 	return ""
+}
+
+func (x *CreateServerRequest) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
 }
 
 type CreateServerResponse struct {
@@ -1059,9 +1077,12 @@ type UpdateServerRequest struct {
 	StopTimeoutSeconds uint32 `protobuf:"varint,12,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
 	// for UTC.
-	TimeZone      string `protobuf:"bytes,13,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeZone string `protobuf:"bytes,13,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
+	// as older masters send it, means 2. Proxies keep the start period of their image.
+	HealthStartMinutes uint32 `protobuf:"varint,15,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UpdateServerRequest) Reset() {
@@ -1183,6 +1204,13 @@ func (x *UpdateServerRequest) GetTimeZone() string {
 		return x.TimeZone
 	}
 	return ""
+}
+
+func (x *UpdateServerRequest) GetHealthStartMinutes() uint32 {
+	if x != nil {
+		return x.HealthStartMinutes
+	}
+	return 0
 }
 
 type UpdateServerResponse struct {
@@ -2434,7 +2462,7 @@ var File_noryx_v1_server_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\xd5\x05\n" +
+	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x87\x06\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2461,10 +2489,11 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\aoverlay\x18\x13 \x01(\bR\aoverlay\x12\x1c\n" +
 	"\tunhealthy\x18\x14 \x01(\bR\tunhealthy\x120\n" +
 	"\x14stop_timeout_seconds\x18\x15 \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\x16 \x01(\tR\btimeZone\"\x14\n" +
+	"\ttime_zone\x18\x16 \x01(\tR\btimeZone\x120\n" +
+	"\x14health_start_minutes\x18\x18 \x01(\rR\x12healthStartMinutes\"\x14\n" +
 	"\x12ListServersRequest\"A\n" +
 	"\x13ListServersResponse\x12*\n" +
-	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\x92\x05\n" +
+	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xc4\x05\n" +
 	"\x13CreateServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x14.noryx.v1.ServerTypeR\x04type\x12\x18\n" +
@@ -2488,7 +2517,8 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"properties\x12%\n" +
 	"\x0eloader_version\x18\x0e \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\x0f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\x10 \x01(\tR\btimeZone\x1a=\n" +
+	"\ttime_zone\x18\x10 \x01(\tR\btimeZone\x120\n" +
+	"\x14health_start_minutes\x18\x12 \x01(\rR\x12healthStartMinutes\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
@@ -2502,7 +2532,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x12StopServerResponse\"&\n" +
 	"\x14RestartServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15RestartServerResponse\"\xaf\x03\n" +
+	"\x15RestartServerResponse\"\xe1\x03\n" +
 	"\x13UpdateServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2520,7 +2550,8 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	" \x01(\rR\tcpuMillis\x12%\n" +
 	"\x0eloader_version\x18\v \x01(\tR\rloaderVersion\x120\n" +
 	"\x14stop_timeout_seconds\x18\f \x01(\rR\x12stopTimeoutSeconds\x12\x1b\n" +
-	"\ttime_zone\x18\r \x01(\tR\btimeZone\"@\n" +
+	"\ttime_zone\x18\r \x01(\tR\btimeZone\x120\n" +
+	"\x14health_start_minutes\x18\x0f \x01(\rR\x12healthStartMinutes\"@\n" +
 	"\x14UpdateServerResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\"$\n" +
 	"\x12UpdateImageRequest\x12\x0e\n" +

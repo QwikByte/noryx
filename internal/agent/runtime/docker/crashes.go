@@ -31,6 +31,18 @@ func mayHaveCrashed(c container.Summary) bool {
 	return !healthy && c.State != container.StateCreated && !strings.HasPrefix(c.Status, "Exited (0)")
 }
 
+// healthCheck is the health check of a game server: that of its image, with the server's start
+// period, in which failures don't count. Docker and Podman get it alike, so that they behave the
+// same; proxies keep that of their image.
+func healthCheck(spec runtime.Spec) *container.HealthConfig {
+	if images[spec.Type].ref != serverImage {
+		return nil
+	}
+	check := *imageChecks[serverImage]
+	check.StartPeriod = noryxv1.HealthStart(spec.HealthStart)
+	return &check
+}
+
 // addCrashes adds to srv how often it crashed since it was last started. A server that
 // starts again after a crash is crashing.
 func (d *Docker) addCrashes(ctx context.Context, containerID string, srv *runtime.Server) {

@@ -135,6 +135,9 @@ message Server {
   uint32 stop_timeout_seconds = 21;
   // IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
   string time_zone = 22;
+  // Minutes a game server gets to start before its failed health checks count, e.g. as a large
+  // modpack loads; 0 for the default of 2, as older agents report it.
+  uint32 health_start_minutes = 24;
 }
 
 message ListServersRequest {}
@@ -165,6 +168,7 @@ message CreateServerRequest {
   string loader_version = 14;
   uint32 stop_timeout_seconds = 15;
   string time_zone = 16;
+  uint32 health_start_minutes = 18;
 }
 
 message CreateServerResponse {
@@ -207,6 +211,9 @@ message UpdateServerRequest {
   // IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
   // for UTC.
   string time_zone = 13;
+  // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
+  // as older masters send it, means 2. Proxies keep the start period of their image.
+  uint32 health_start_minutes = 15;
 }
 
 message UpdateServerResponse {

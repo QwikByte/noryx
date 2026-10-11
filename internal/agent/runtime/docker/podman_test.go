@@ -122,7 +122,8 @@ func TestRuntimeMismatch(t *testing.T) {
 }
 
 // Podman leaves the health checks of the images of itzg out, and before 5.8 starts only
-// containers whose restart policy is always at boot; Docker's containers stay as they are.
+// containers whose restart policy is always at boot; Docker's containers stay as they are, with
+// the health check that game servers get on both.
 func TestAdapt(t *testing.T) {
 	server := func() client.ContainerCreateOptions {
 		opts, err := containerOptions(runtime.Spec{ID: "s", Type: noryxv1.ServerType_SERVER_TYPE_PAPER, Port: 25565, Java: "21"}, "/data", sharedNetwork)
@@ -132,7 +133,7 @@ func TestAdapt(t *testing.T) {
 	docker := &Docker{}
 	opts := server()
 	docker.adapt(&opts)
-	if opts.Config.Healthcheck != nil || opts.HostConfig.RestartPolicy.Name != container.RestartPolicyUnlessStopped || opts.HostConfig.Binds[0] != "/data:/data" {
+	if hc := opts.Config.Healthcheck; hc == nil || hc.Test[1] != "mc-health" || opts.HostConfig.RestartPolicy.Name != container.RestartPolicyUnlessStopped || opts.HostConfig.Binds[0] != "/data:/data" {
 		t.Errorf("Docker: health check %v, restart policy %s, mounts %v", opts.Config.Healthcheck, opts.HostConfig.RestartPolicy.Name, opts.HostConfig.Binds)
 	}
 	for version, policy := range map[string]container.RestartPolicyMode{

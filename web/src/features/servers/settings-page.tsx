@@ -19,6 +19,7 @@ import { freeMemoryMb, type Server, type ServerSettings, serversQuery, useServer
 import { isModded, serverType, splitOptions } from "./server-types"
 import {
   CpuLimitField,
+  HealthStartField,
   JavaFields,
   JvmOptionsField,
   MemoryField,
@@ -91,7 +92,8 @@ function UpdateImage({ nodeId, server }: { nodeId: string; server: Server }) {
 
 function settingsOf(s: Server): ServerSettings {
   const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone } = s
-  return { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone }
+  const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone }
+  return { ...settings, healthStart: s.healthStart }
 }
 
 function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
@@ -176,6 +178,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
       <FormSection title={t("Starting and stopping")}>
         <RestartPolicyField value={form.restartPolicy} onChange={(restartPolicy) => set({ restartPolicy })} />
         <StopTimeoutField value={form.stopTimeout} onChange={(stopTimeout) => set({ stopTimeout })} />
+        {game && <HealthStartField value={form.healthStart} onChange={(healthStart) => set({ healthStart })} />}
       </FormSection>
 
       <FormSection title={t("Java")}>

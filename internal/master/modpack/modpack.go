@@ -42,6 +42,9 @@ const (
 	maxFiles      = 5000
 	// downloads is how many files are downloaded and sent to the agent at once.
 	downloads = 4
+	// HealthStart is how many minutes servers created from a pack get to start before their
+	// failed health checks count, unless another start period is chosen, as packs load many mods.
+	HealthStart = 10
 )
 
 // loaders are the server types of the mod loaders packs depend on, by their name in the index.

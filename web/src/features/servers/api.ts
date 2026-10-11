@@ -44,6 +44,8 @@ export interface Server {
   stopTimeout: number
   /** IANA time zone such as Europe/Berlin; empty for UTC. */
   timeZone: string
+  /** Minutes a game server gets to start before its failed health checks count, e.g. as a large modpack loads. */
+  healthStart: number
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -67,6 +69,7 @@ export type ServerSettings = Pick<
   | "loaderVersion"
   | "stopTimeout"
   | "timeZone"
+  | "healthStart"
 >
 
 /** What the panel creates servers with, as the settings of the master say, unless a template is chosen. */
@@ -129,6 +132,8 @@ export interface NewServer
   storage: string
   /** Written to server.properties before the first start. */
   properties?: Record<string, string>
+  /** Minutes the server gets to start, e.g. those of its template; 10 for a modpack unless given. */
+  healthStart?: number
   /** A modpack decides the type and the versions of the server. */
   modpack?: ModpackChoice
   /** Given to the new server, e.g. those of its template. */

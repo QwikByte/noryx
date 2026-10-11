@@ -19,6 +19,7 @@ import { VersionMenu } from "@/features/plugins/version-menu"
 import { defaults, serverType, splitOptions } from "@/features/servers/server-types"
 import {
   CpuLimitField,
+  HealthStartField,
   JavaFields,
   JvmOptionsField,
   MemoryField,
@@ -145,6 +146,9 @@ export function TemplateForm({
       <FormSection title={t("Starting and stopping")}>
         <RestartPolicyField value={form.restartPolicy} onChange={(restartPolicy) => set({ restartPolicy })} />
         <StopTimeoutField id="template-stop-timeout" value={form.stopTimeout} onChange={(stopTimeout) => set({ stopTimeout })} />
+        {!type.proxy && (
+          <HealthStartField id="template-health-start" value={form.healthStart} onChange={(healthStart) => set({ healthStart })} />
+        )}
       </FormSection>
 
       <FormSection title={t("Java")}>

@@ -19,6 +19,8 @@ export interface TemplateSettings {
   stopTimeout: number
   /** IANA time zone such as Europe/Berlin; empty for UTC. */
   timeZone: string
+  /** Minutes game servers get to start before their failed health checks count. */
+  healthStart: number
   /** Written to server.properties before the first start. */
   properties: Record<string, string>
 }
@@ -81,6 +83,7 @@ export const emptyTemplate: TemplateDraft = {
   cpuLimit: 0,
   stopTimeout: 60,
   timeZone: "",
+  healthStart: 2,
   properties: {},
   tags: [],
   plugins: [],
@@ -89,7 +92,7 @@ export const emptyTemplate: TemplateDraft = {
 export function draftOf(t: Template): TemplateDraft {
   const { name, description, type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties, tags, plugins } = t
   const settings = { type, version, memoryMb, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, properties }
-  return { name, description, ...settings, stopTimeout: t.stopTimeout, timeZone: t.timeZone, tags, plugins }
+  return { name, description, ...settings, stopTimeout: t.stopTimeout, timeZone: t.timeZone, healthStart: t.healthStart, tags, plugins }
 }
 
 export const templatesQuery = queryOptions({
