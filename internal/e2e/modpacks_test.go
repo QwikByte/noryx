@@ -10,8 +10,10 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
+	"github.com/QwikByte/noryx/internal/agent/storage"
 	"github.com/QwikByte/noryx/internal/master/modpack"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
+	"github.com/QwikByte/noryx/internal/master/network"
 )
 
 func TestModpacks(t *testing.T) {
@@ -211,5 +213,88 @@ func TestModpackUpdate(t *testing.T) {
 	check(t, m.db.QueryRow(`SELECT COUNT(*) FROM server_modpacks WHERE server_id = ?`, created.ID).Scan(&left))
 	if left != 0 {
 		t.Fatal("the pack of a deleted server is remembered")
+	}
+}
+
+// An update backs up what the request chooses, with the folders of the pack's files, into the
+// storage location it chooses, which needs the permission to back up the server; it updates
+// without a backup only when the request asks for that.
+func TestModpackUpdateBackup(t *testing.T) {
+	m := startMaster(t)
+	a := m.startAgent(t, "node-1")
+	api := apiClient{t: t, url: m.panel(t).URL}
+	check(t, storage.New(a.dir).Add("archive", t.TempDir()))
+	mod := m.modrinth.find(func(v modrinth.Version) bool { return v.ProjectID == "fabricapi" })[0].Files[0]
+	index := map[string]any{
+		"formatVersion": 1, "game": "minecraft", "dependencies": map[string]string{"minecraft": "1.21.4", "fabric-loader": "0.16.10"},
+		"files": []map[string]any{{"path": "mods/fabric-api.jar", "hashes": map[string]string{"sha512": mod.Hashes.SHA512}, "downloads": []string{mod.URL}, "fileSize": mod.Size}},
+	}
+	var versions []string
+	for _, number := range []string{"1.0", "2.0", "3.0", "4.0"} {
+		versions = append(versions, m.modrinth.modpackVersion(t, "pack", number, index, map[string]string{"overrides/kubejs/" + number + ".js": number}).ID)
+	}
+	var created struct{ ID string }
+	api.do("POST", "/api/nodes/"+a.node.ID+"/servers", map[string]any{
+		"name": "Pack", "memoryMb": 1024, "port": 25565, "acceptEula": true, "modpack": map[string]string{"project": "pack", "version": versions[0]},
+	}, http.StatusCreated, &created)
+	base := "/api/nodes/" + a.node.ID + "/servers/" + created.ID
+	data := serverData{t, filepath.Join(a.runtime.dir, created.ID)}
+	data.write("world/level.dat", "level")
+	data.write("server.properties", "motd=pack\n")
+	type backup struct {
+		Label, Location string
+		Paths           []string
+	}
+	backups := func() (list []backup) {
+		api.do("GET", base+"/backups", nil, http.StatusOK, &list)
+		return list
+	}
+	has := func(b backup, paths ...string) bool {
+		return !slices.ContainsFunc(paths, func(p string) bool { return !slices.Contains(b.Paths, p) })
+	}
+	update := func(c apiClient, version string, body map[string]any, status int) (change modpack.Change) {
+		t.Helper()
+		body["version"] = version
+		c.do("POST", base+"/modpack", body, status, &change)
+		return change
+	}
+
+	// What is chosen, and where; the folders of the pack's files are always in it.
+	choice := map[string]any{"selection": map[string]any{"config": true}, "location": "archive"}
+	change := update(api, versions[1], map[string]any{"backup": choice}, http.StatusOK)
+	list := backups()
+	if len(list) != 1 || list[0].Label != "Before modpack 2.0" || change.Backup != list[0].Label || list[0].Location != "archive" ||
+		!has(list[0], "kubejs", "mods", "server.properties") || has(list[0], "world") {
+		t.Fatalf("change = %+v, backups = %+v", change, list)
+	}
+
+	// Without a backup only when asked for, and never with a choice.
+	update(api, versions[2], map[string]any{"backup": choice, "noBackup": true}, http.StatusBadRequest)
+	change = update(api, versions[2], map[string]any{"noBackup": true}, http.StatusOK)
+	if len(backups()) != 1 || change.Backup != "" || change.Number != "3.0" || data.read("kubejs/3.0.js") != "3.0" {
+		t.Fatalf("change = %+v, backups = %+v", change, backups())
+	}
+	// Invalid choices are refused before anything changes.
+	for _, b := range []map[string]any{{"selection": map[string]any{}}, {"selection": map[string]any{"paths": []string{"../x"}}}, {"selection": choice["selection"], "location": "No"}} {
+		update(api, versions[3], map[string]any{"backup": b}, http.StatusBadRequest)
+	}
+
+	// Choosing needs the permission to back up the server; the default and no backup don't.
+	grant := func(perms ...string) apiClient {
+		return m.withGrants(t, map[string]any{
+			"name": strings.Join(perms, " "), "permissions": perms, "targets": []network.Ref{{NodeID: a.node.ID, ServerID: created.ID}},
+		})
+	}
+	updater := grant("servers.view", "servers.settings", "plugins.manage")
+	update(updater, versions[3], map[string]any{"backup": choice}, http.StatusForbidden)
+	change = update(updater, versions[3], map[string]any{}, http.StatusOK)
+	if list := backups(); len(list) != 2 || change.Backup != "Before modpack 4.0" || list[0].Location != "default" ||
+		!has(list[0], "world", "kubejs", "mods", "server.properties") {
+		t.Fatalf("change = %+v, backups = %+v", change, list)
+	}
+	update(updater, versions[0], map[string]any{"noBackup": true}, http.StatusOK)
+	update(grant("servers.view", "servers.settings", "plugins.manage", "backups.create"), versions[1], map[string]any{"backup": choice}, http.StatusOK)
+	if len(backups()) != 3 {
+		t.Fatalf("backups = %+v", backups())
 	}
 }

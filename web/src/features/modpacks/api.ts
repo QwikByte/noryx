@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
 import { t } from "i18next"
+import type { JobSettings } from "@/features/backups/api"
 import { type Followed, serversQuery } from "@/features/servers/api"
 import { operate } from "@/features/operations/api"
 import { type Project, pluginsQuery } from "@/features/plugins/api"
@@ -56,7 +57,7 @@ export const serverModpackQuery = (nodeId: string, serverId: string) =>
 /** What moving a server to another version of its modpack did. */
 export interface ModpackChange {
   number: string
-  /** The label of the backup made before. */
+  /** The label of the backup made before; empty if the update made none. */
   backup: string
   written: string[]
   removed: string[]
@@ -66,12 +67,21 @@ export interface ModpackChange {
   warning?: string
 }
 
-/** Moves a server to another version of its modpack, newer or older, after backing it up. */
+/**
+ * What an update backs up first, and where, as Back up first of schedules; none backs up the worlds, mods and configuration
+ * into the default storage location. With noBackup, it backs up nothing.
+ */
+export interface ModpackBackup {
+  backup?: Pick<JobSettings, "selection" | "location">
+  noBackup?: true
+}
+
+/** Moves a server to another version of its modpack, newer or older, after backing it up unless asked not to. */
 export function useUpdateModpack(nodeId: string, serverId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ version, onStart }: { version: string } & Followed) =>
-      operate<ModpackChange>(`/nodes/${nodeId}/servers/${serverId}/modpack`, { body: { version } }, onStart),
+    mutationFn: ({ version, backup, noBackup, onStart }: { version: string } & ModpackBackup & Followed) =>
+      operate<ModpackChange>(`/nodes/${nodeId}/servers/${serverId}/modpack`, { body: { version, backup, noBackup } }, onStart),
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: serversQuery(nodeId).queryKey }),

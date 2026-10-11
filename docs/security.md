@@ -207,7 +207,10 @@ moves to another version of its pack, and the agent confines the files like thos
 files of a pack changed on a server, the agent hashes them only if they are regular files without secrets, not through
 links, so a hash tells nothing about a secret, and an update never replaces or removes such files. A compromised server
 can only make its own files look changed or unchanged. Updating a pack needs the permissions to change the server's
-settings and to manage its plugins and mods, as it does both. The version of a mod loader ends up in a variable of
+settings and to manage its plugins and mods, as it does both. Choosing what an update backs up first, and where, needs
+the permission to back up the server too, like **Back up**; the backup it makes by default needs none. An update without
+a backup, which a request has to ask for, needs no more permissions, as changing the version and the mods by hand makes
+no backup either; the log notes it. The version of a mod loader ends up in a variable of
 the server image, so the agent only accepts letters, digits, `.`, `_`, `+` and `-`. The agent decides the folder from
 the server type and only accepts plain `.jar` file names in it. Turned-off plugins stay in the server's data, in the
 folder `.disabled` of the plugin folder, which backups of the plugins include; the agent confines it like the plugin

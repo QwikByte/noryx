@@ -225,8 +225,9 @@ to another version of its pack for the same mod loader, newer or older: **Update
 runs as an [operation](panel.md#operations), which can be cancelled while the master downloads and checks the version
 and compares it with what the server has, which the agent hashes. Then:
 
-1. The server stops if it runs, and is backed up with its worlds, mods and configuration and the folders of the pack's
-   files, as "Before modpack" and the version.
+1. The server stops if it runs, and is backed up as "Before modpack" and the version, unless that was turned off: by
+   default with its worlds, mods and configuration in the default storage location, always with the folders of the
+   pack's files.
 2. What the new version doesn't change stays as it is, whatever happened to it on the server.
 3. Mods follow the pack: new ones are added, changed ones replaced and dropped ones removed, also other versions of
    their projects installed by hand on the **Mods** tab. A mod that you removed stays removed.
@@ -237,8 +238,15 @@ and compares it with what the server has, which the agent hashes. Then:
    its container again. Otherwise a version set in the server's settings stays.
 6. The server starts again if it ran before.
 
+The dialog of the update chooses the backup like **Back up first** of [schedules](automation.md#schedules) and
+**Back up** on the **Backups** tab: what to back up, with the files left out, and the storage location of the node,
+which needs the permission to back up the server. It is a backup made by hand, which no backup job deletes. Without
+**Back up first**, e.g. right after a backup job backed the server up or when a large world wouldn't fit, the update
+makes no backup once you confirm that; the log notes it. Through the API, an update backs up as by default unless the
+request has a `backup` with a `selection` and a `location`, or `"noBackup": true`.
+
 If the backup fails, nothing changes, and a server that ran starts again. If something fails after it, the server stays
-stopped, as it may be updated in part, and the error names the backup to restore. Copies of a server and servers that
-move to another node keep their pack. Servers created before the master remembered packs have none, and their mods are
-updated on the **Mods** tab. Updating needs the permissions to change the server's settings and to manage its plugins
-and mods, and an agent of this version.
+stopped, as it may be updated in part, and the error names the backup to restore, if there is one. Copies of a server
+and servers that move to another node keep their pack. Servers created before the master remembered packs have none,
+and their mods are updated on the **Mods** tab. Updating needs the permissions to change the server's settings and to
+manage its plugins and mods, and an agent of this version.

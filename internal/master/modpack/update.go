@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -27,11 +28,15 @@ const updateTimeout = 3 * time.Hour
 
 var errOlderAgent = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to update the modpacks of its servers.")
 
+// defaultBackup is what an update backs up unless the request chooses: the worlds, plugins
+// and mods and the configuration, as the panel suggests, in the default storage location.
+var defaultBackup = backup.JobSettings{Selection: backup.Selection{Worlds: true, Plugins: true, Config: true}}
+
 // Change is what an update of the modpack of a server did.
 type Change struct {
 	// Number is the version of the pack the server has now.
 	Number string `json:"number"`
-	// Backup is the label of the backup made before.
+	// Backup is the label of the backup made before; empty if the update made none.
 	Backup  string   `json:"backup"`
 	Written []string `json:"written"`
 	Removed []string `json:"removed"`
@@ -48,12 +53,14 @@ type update struct {
 	server  *noryxv1.Server
 	from    installed
 	version string // the ID of the version to install
+	// backup is what of the server is backed up before, and where; nil for no backup.
+	backup  *backup.JobSettings
 	release func()
 }
 
 // prepare checks that a server can move to a version of its pack, before the update
 // downloads it, and keeps others from updating the server meanwhile, until release.
-func (s *Service) prepare(ctx context.Context, nodeID, serverID, version string) (update, error) {
+func (s *Service) prepare(ctx context.Context, nodeID, serverID, version string, b *backup.JobSettings) (update, error) {
 	from, ok, err := s.installed(ctx, nodeID, serverID)
 	switch {
 	case err != nil:
@@ -89,21 +96,21 @@ func (s *Service) prepare(ctx context.Context, nodeID, serverID, version string)
 		defer s.mu.Unlock()
 		delete(s.updating, key)
 	}
-	return update{nodeID: nodeID, server: res.GetServers()[i], from: from, version: version, release: release}, nil
+	return update{nodeID: nodeID, server: res.GetServers()[i], from: from, version: version, backup: b, release: release}, nil
 }
 
 // steps are those an update plans; the agent adds those of creating the container again.
 func (u update) steps() []string {
-	if u.server.GetState() == noryxv1.ServerState_SERVER_STATE_STOPPED {
-		return []string{"modpack", "archive", "mods"}
-	}
-	return []string{"modpack", "stop", "archive", "mods"}
+	stopped := u.server.GetState() == noryxv1.ServerState_SERVER_STATE_STOPPED
+	return slices.DeleteFunc([]string{"modpack", "stop", "archive", "mods"}, func(step string) bool {
+		return step == "stop" && stopped || step == "archive" && u.backup == nil
+	})
 }
 
 // run updates the modpack of a server as an operation. It downloads the new version and
-// plans what changes, which can be cancelled. Then it stops the server, backs it up and
-// writes and removes files; if the pack changes its Minecraft or loader version, the server
-// gets the new one. A server that ran starts again.
+// plans what changes, which can be cancelled. Then it stops the server, backs it up unless
+// asked not to, and writes and removes files; if the pack changes its Minecraft or loader
+// version, the server gets the new one. A server that ran starts again.
 func (s *Service) run(ctx context.Context, u update) (*Change, error) {
 	srv := u.server
 	conn, err := s.nodes.Conn(ctx, u.nodeID)
@@ -117,6 +124,10 @@ func (s *Service) run(ctx context.Context, u update) (*Change, error) {
 	var p plan
 	if err == nil {
 		p, err = s.plan(ctx, conn, srv.GetId(), u.from.files, next)
+	}
+	var sel *noryxv1.BackupSelection
+	if err == nil && u.backup != nil {
+		sel, err = selection(u.backup.Selection, topLevel(u.from.files, next.files))
 	}
 	if err == nil {
 		err = operation.Keep(ctx)
@@ -133,17 +144,20 @@ func (s *Service) run(ctx context.Context, u update) (*Change, error) {
 			return nil, err
 		}
 	}
-	change := &Change{Number: next.Number, Backup: label(next.Number), Written: []string{}, Removed: p.remove, Kept: p.kept}
+	change := &Change{Number: next.Number, Written: []string{}, Removed: p.remove, Kept: p.kept}
 	for _, f := range p.write {
 		change.Written = append(change.Written, f.path)
 	}
-	operation.Step(ctx, "archive")
-	if err := backUp(ctx, conn, srv.GetId(), change.Backup, topLevel(u.from.files, next.files)); err != nil {
-		if running { // nothing changed yet
-			_, startErr := servers.StartServer(ctx, &noryxv1.StartServerRequest{Id: srv.GetId()})
-			err = errors.Join(err, startErr)
+	if sel != nil {
+		change.Backup = label(next.Number)
+		operation.Step(ctx, "archive")
+		if err := backUp(ctx, conn, srv.GetId(), change.Backup, sel, u.backup.Location); err != nil {
+			if running { // nothing changed yet
+				_, startErr := servers.StartServer(ctx, &noryxv1.StartServerRequest{Id: srv.GetId()})
+				err = errors.Join(err, startErr)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 	operation.Step(ctx, "mods")
 	err = s.apply(ctx, files, srv.GetId(), p)
@@ -154,8 +168,12 @@ func (s *Service) run(ctx context.Context, u update) (*Change, error) {
 		err = s.remember(ctx, u.nodeID, srv.GetId(), next, p.files)
 	}
 	if err != nil {
-		return nil, httpapi.Errorf(http.StatusBadGateway, "%s The server stays stopped, as it may be updated in part; the backup %q has it as it was.",
-			strings.TrimSuffix(httpapi.Message(err), ".")+".", change.Backup)
+		restore := "."
+		if change.Backup != "" {
+			restore = fmt.Sprintf("; the backup %q has it as it was.", change.Backup)
+		}
+		return nil, httpapi.Errorf(http.StatusBadGateway, "%s The server stays stopped, as it may be updated in part%s",
+			strings.TrimSuffix(httpapi.Message(err), ".")+".", restore)
 	}
 	if running {
 		operation.Step(ctx, "start")
@@ -186,12 +204,27 @@ func topLevel(old map[string]written, next []file) []string {
 	return slices.Compact(top)
 }
 
-// backUp backs a server up with the selection the panel suggests, plus the files of its pack.
-func backUp(ctx context.Context, conn grpc.ClientConnInterface, serverID, label string, paths []string) error {
+// selection is what of a server an update backs up: what was chosen, plus the files and
+// folders with the files of the pack, so that the backup has all files the update changes.
+func selection(s backup.Selection, pack []string) (*noryxv1.BackupSelection, error) {
+	paths := s.Paths
+	if !s.Everything { // which has them
+		paths = append(slices.Clone(s.Paths), pack...)
+		slices.Sort(paths)
+		paths = slices.Compact(paths)
+	}
+	if len(paths) > noryxv1.MaxBackupPaths {
+		return nil, httpapi.Errorf(http.StatusBadRequest, "Back up everything, or fewer files and folders: with those of the modpack, they are more than %d.", noryxv1.MaxBackupPaths)
+	}
+	return &noryxv1.BackupSelection{Everything: s.Everything, Worlds: s.Worlds, Plugins: s.Plugins, Config: s.Config, Paths: paths, Exclude: s.Exclude}, nil
+}
+
+// backUp backs a server up as a backup made by hand, in a storage location of its node.
+func backUp(ctx context.Context, conn grpc.ClientConnInterface, serverID, label string, sel *noryxv1.BackupSelection, location string) error {
 	ctx, stop := operation.Agent(ctx, conn)
 	defer stop()
 	_, err := noryxv1.NewBackupServiceClient(conn).CreateBackup(ctx, &noryxv1.CreateBackupRequest{
-		ServerId: serverID, Label: label, Selection: &noryxv1.BackupSelection{Worlds: true, Plugins: true, Config: true, Paths: paths},
+		ServerId: serverID, Label: label, Selection: sel, Location: location,
 	})
 	return err
 }

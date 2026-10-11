@@ -12,6 +12,8 @@ import (
 	"slices"
 	"testing"
 
+	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 )
@@ -81,6 +83,36 @@ func TestDiff(t *testing.T) {
 	// The record has the files of the next version, also those kept.
 	if got := slices.Sorted(maps.Keys(p.files)); len(got) != len(next) || p.files["mods/a-2.jar"] != mod("A", "a2") {
 		t.Errorf("record = %v", p.files)
+	}
+}
+
+// The backup before an update has what was chosen and the files and folders with the files of
+// the pack, within the limit of paths, and is a step of the update only if it is made.
+func TestSelection(t *testing.T) {
+	pack := topLevel(map[string]written{"mods/a.jar": {}, "config/a.toml": {}}, []file{{path: "mods/b.jar"}, {path: "options.txt"}})
+	sel, err := selection(backup.Selection{Worlds: true, Paths: []string{"kubejs", "mods"}, Exclude: []string{"config/big"}}, pack)
+	if err != nil || !sel.GetWorlds() || sel.GetPlugins() || !slices.Equal(sel.GetPaths(), []string{"config", "kubejs", "mods", "options.txt"}) ||
+		!slices.Equal(sel.GetExclude(), []string{"config/big"}) {
+		t.Errorf("selection = %v, %v", sel, err)
+	}
+	if sel, err := selection(backup.Selection{Everything: true}, pack); err != nil || !sel.GetEverything() || len(sel.GetPaths()) != 0 {
+		t.Errorf("everything = %v, %v", sel, err)
+	}
+	many := make([]string, noryxv1.MaxBackupPaths-1)
+	for i := range many {
+		many[i] = fmt.Sprintf("folder-%d", i)
+	}
+	if _, err := selection(backup.Selection{Paths: many}, pack); err == nil {
+		t.Error("a selection with more paths than allowed was accepted")
+	}
+
+	u := update{server: &noryxv1.Server{State: noryxv1.ServerState_SERVER_STATE_STOPPED}}
+	if steps := u.steps(); !slices.Equal(steps, []string{"modpack", "mods"}) {
+		t.Errorf("steps without a backup = %q", steps)
+	}
+	u.server.State, u.backup = noryxv1.ServerState_SERVER_STATE_RUNNING, &defaultBackup
+	if steps := u.steps(); !slices.Equal(steps, []string{"modpack", "stop", "archive", "mods"}) {
+		t.Errorf("steps = %q", steps)
 	}
 }
 

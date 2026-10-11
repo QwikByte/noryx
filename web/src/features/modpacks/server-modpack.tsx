@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { useState } from "react"
 import { Callout, ErrorCallout } from "@/components/callout"
-import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Pill } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -14,6 +13,7 @@ import { PluginIcon } from "@/features/plugins/plugin-icon"
 import type { Server } from "@/features/servers/api"
 import {
   describeVersion,
+  type ModpackBackup,
   type ModpackChange,
   type ModpackVersion,
   modpackVersionsQuery,
@@ -21,6 +21,7 @@ import {
   serverModpackQuery,
   useUpdateModpack,
 } from "./api"
+import { UpdateModpackDialog } from "./update-modpack-dialog"
 
 const published = (v: ModpackVersion) => Date.parse(v.published)
 
@@ -46,9 +47,9 @@ function ModpackSection({ nodeId, server, pack }: { nodeId: string; server: Serv
   const update = useUpdateModpack(nodeId, server.id)
   const operation = useOperation()
 
-  function run(version: ModpackVersion) {
+  function run(version: ModpackVersion, backup: ModpackBackup) {
     setChange(undefined)
-    operation.run((onStart) => update.mutateAsync({ version: version.id, onStart }), {
+    operation.run((onStart) => update.mutateAsync({ version: version.id, ...backup, onStart }), {
       title: t("Moving {{name}} to version {{number}} of its modpack…", { name: server.name, number: version.number }),
       notify: true,
       done: (change) => {
@@ -116,25 +117,19 @@ function ModpackSection({ nodeId, server, pack }: { nodeId: string; server: Serv
                 </SelectContent>
               </Select>
             </Field>
-            <ConfirmDialog
+            <UpdateModpackDialog
               trigger={
                 <Button disabled={!target || update.isPending}>
                   <ArrowsClockwiseIcon />
                   {action}
                 </Button>
               }
-              title={t("Move {{name}} to version {{number}}?", { name: server.name, number: target?.number })}
-              description={[
-                server.state === "stopped"
-                  ? t("The server is backed up first. Then its mods and files change, and its Minecraft and loader version if the modpack's do.")
-                  : t("The server stops and is backed up first. Then its mods and files change, and its Minecraft and loader version if the modpack's do, and it starts again."),
-                t("Files that changed on the server since the modpack wrote them stay as they are, and are listed afterwards."),
-                older && t("Worlds can't be opened by older Minecraft versions; the backup keeps them as they are."),
-              ]
-                .filter(Boolean)
-                .join(" ")}
+              nodeId={nodeId}
+              server={server}
+              target={target}
+              older={older}
               action={action}
-              onConfirm={() => target && run(target)}
+              onUpdate={run}
             />
           </div>
         )
@@ -158,11 +153,13 @@ function ChangeSummary({ change, onDismiss }: { change: ModpackChange; onDismiss
         <XIcon />
       </Button>
       <p>
-        {t("Files written: {{written}}, removed: {{removed}}. The backup “{{backup}}” has the server as it was before.", {
-          written: change.written.length,
-          removed: change.removed.length,
-          backup: change.backup,
-        })}
+        {change.backup
+          ? t("Files written: {{written}}, removed: {{removed}}. The backup “{{backup}}” has the server as it was before.", {
+              written: change.written.length,
+              removed: change.removed.length,
+              backup: change.backup,
+            })
+          : t("Files written: {{written}}, removed: {{removed}}.", { written: change.written.length, removed: change.removed.length })}
       </p>
       {change.kept.length > 0 && (
         <>
