@@ -73,6 +73,14 @@ of Let's Encrypt or `--tls-cert`, the master tells browsers to use HTTPS only (H
 self-signed one, which would lock browsers out once it changes; behind a reverse proxy, set it there. The master may
 listen at ports below 1024 (`CAP_NET_BIND_SERVICE`), e.g. 443 and 80, and has no other privileges.
 
+Signing in checks the password first and asks for the code only once it is right, so whoever guesses a user's password
+learns that it is right before the second factor counts; two-factor authentication keeps them from signing in with it,
+not from finding out. This is accepted, as the alternatives are worse: an answer that a code is needed whatever the
+password, which only users with two-factor authentication may get, tells which usernames exist and have it, or makes
+every user enter a code; and checking codes before the password would let anyone use up the attempts of a user's codes
+and so keep the user out. Guessing stays as slow as the limits of sign-in attempts per client and per username make it,
+and a password that may have leaked should be changed anyway, which also ends the other sessions.
+
 ## API tokens
 
 Scripts authenticate with personal API tokens: `noryx_` and 128 random bits, a prefix that lets secret scanners
