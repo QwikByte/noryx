@@ -585,9 +585,12 @@ so the agent reads at most 8 MiB and 10,000 entries of it, like the lists, and o
 ## Moving servers
 
 Agents never connect to each other: the master relays the server's archive and backups between them over its mutually
-authenticated connections. The new node checks the settings like those of a new server and extracts the archive confined
-to the server's data directory, without symbolic links. Moving needs the permissions to delete the server and read its
-files, and to create servers on the new node.
+authenticated connections. The new node checks the settings like those of a new server and the archive like an
+uploaded backup, as a compromised node or master could send it, with the limits for backups: links and other special
+files, paths outside the data, an end that announces too many entries, too much data or a zip bomb delete the new server
+again before anything of it is written. It extracts the archive confined to the server's data directory, with all its
+files, as the server takes its secrets along, but none of the agent's temporary files, and keeps 1 GB free. Moving
+needs the permissions to delete the server and read its files, and to create servers on the new node.
 
 A server created from an archive of a server from elsewhere gets the archive checked like one of the file manager,
 before anything of it is used: links, paths outside the data and too much data delete the new server again. It leaves

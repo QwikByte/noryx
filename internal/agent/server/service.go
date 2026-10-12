@@ -3,7 +3,6 @@
 package server
 
 import (
-	"archive/zip"
 	"cmp"
 	"context"
 	"errors"
@@ -13,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -370,13 +370,18 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 		return toStatus(err)
 	}
 	if err := s.extract(ctx, spec.ID, stream); err != nil {
-		return toStatus(errors.Join(err, s.rt.Remove(context.WithoutCancel(ctx), spec.ID)))
+		if err := s.rt.Remove(context.WithoutCancel(ctx), spec.ID); err != nil {
+			slog.Error("Can't delete a server whose archive failed", logging.Servers, logging.KeyServer, spec.ID, "err", err)
+		}
+		return toStatus(err)
 	}
 	return stream.SendAndClose(&noryxv1.ImportServerResponse{Server: toProto(runtime.Server{Spec: spec, State: noryxv1.ServerState_SERVER_STATE_STOPPED})})
 }
 
-// extract receives an archive into a temporary file of a server's data directory, as
-// reading it needs random access, and extracts it there.
+// extract receives the archive of a server's data from another node into a temporary file of
+// its data directory, as reading it needs random access, and extracts it there. The archive is
+// untrusted, as a compromised node or master may send it: it is checked and extracted like an
+// uploaded backup, but with all its files, as the server takes its secrets along.
 func (s *Service) extract(ctx context.Context, id string, stream noryxv1.ServerService_ImportServerServer) error {
 	dir, err := s.rt.Data(ctx, id)
 	if err != nil {
@@ -409,11 +414,12 @@ func (s *Service) extract(ctx context.Context, id string, stream noryxv1.ServerS
 			return err
 		}
 	}
-	zr, err := zip.NewReader(f, size)
+	a, err := archive.Open(f, size, archive.Backups)
 	if err != nil {
 		return err
 	}
-	return dir.ExtractZip(ctx, zr, ".")
+	_, err = a.Extract(ctx, dir, ".", archive.Options{Protected: func(name string) bool { return datadir.IsTemp(filepath.Base(name)) }})
+	return err
 }
 
 func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerRequest) (*noryxv1.UpdateServerResponse, error) {

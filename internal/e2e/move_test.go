@@ -1,8 +1,13 @@
 package e2e
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +15,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
@@ -181,4 +189,92 @@ func must[T any](v T, err error) T {
 
 func isServer(id string) func(runtime.Server) bool {
 	return func(s runtime.Server) bool { return s.ID == id }
+}
+
+// The archive of a moving server comes from another node, which may be compromised, so the
+// new node checks it like an uploaded backup: an archive with a link, a path that leaves the
+// folder, a zip bomb or an end that announces more entries than a backup may hold creates no
+// server and writes nothing.
+func TestImportHostileArchive(t *testing.T) {
+	m := startMaster(t)
+	a := m.startAgent(t, "node-1")
+	conn, err := m.nodes.Conn(t.Context(), a.node.ID)
+	check(t, err)
+	client := noryxv1.NewServerServiceClient(conn)
+	link := func(zw *zip.Writer) {
+		h := &zip.FileHeader{Name: "world"}
+		h.SetMode(fs.ModeSymlink | 0o777)
+		w, err := zw.CreateHeader(h)
+		check(t, err)
+		_, err = io.WriteString(w, "/etc")
+		check(t, err)
+	}
+	escape := func(zw *zip.Writer) {
+		_, err := zw.Create("../outside")
+		check(t, err)
+	}
+	bomb := func(zw *zip.Writer) {
+		w, err := zw.Create("world/region/r.0.0.mca")
+		check(t, err)
+		_, err = w.Write(make([]byte, 100<<20)) // unpacks to 100 MB from about 100 KB
+		check(t, err)
+	}
+	for _, c := range []struct {
+		name    string
+		archive []byte
+		want    codes.Code
+	}{
+		{"a link", zipWith(t, link), codes.InvalidArgument},
+		{"a path outside", zipWith(t, escape), codes.InvalidArgument},
+		{"a zip bomb", zipWith(t, bomb), codes.InvalidArgument},
+		{"a huge directory", announcing(64<<10, 1_000_001), codes.ResourceExhausted},
+	} {
+		id := runtime.NewID()
+		stream, err := client.ImportServer(t.Context())
+		check(t, err)
+		check(t, stream.Send(&noryxv1.ImportServerRequest{Content: &noryxv1.ImportServerRequest_Header{Header: &noryxv1.Server{
+			Id: id, Name: "Moved", Type: noryxv1.ServerType_SERVER_TYPE_PAPER, Version: "1.21.4", MemoryMb: 1024, Port: 25570,
+		}}}))
+		_ = stream.Send(&noryxv1.ImportServerRequest{Content: &noryxv1.ImportServerRequest_Data{Data: c.archive}}) // CloseAndRecv tells why it failed
+		if _, err := stream.CloseAndRecv(); status.Code(err) != c.want {
+			t.Errorf("%s: %v", c.name, err)
+		}
+		if slices.ContainsFunc(must(a.runtime.List(t.Context())), isServer(id)) {
+			t.Errorf("%s: the server was created", c.name)
+		}
+		if _, err := os.Stat(filepath.Join(a.runtime.dir, id)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s: its data remained: %v", c.name, err)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(a.runtime.dir, "outside")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("wrote outside the server's data: %v", err)
+	}
+}
+
+// zipWith returns a ZIP archive with the entries that add writes.
+func zipWith(t *testing.T, add func(*zip.Writer)) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	add(zw)
+	check(t, zw.Close())
+	return buf.Bytes()
+}
+
+// announcing returns size bytes that end like a ZIP64 archive with entries entries.
+func announcing(size int, entries uint64) []byte {
+	le := binary.LittleEndian
+	end := le.AppendUint32(nil, 0x06064b50) // the ZIP64 end
+	end = le.AppendUint64(end, 44)
+	end = append(end, 45, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	end = le.AppendUint64(end, entries) // on this disk
+	end = le.AppendUint64(end, entries) // and in all
+	end = le.AppendUint64(end, 46)      // the size of the directory
+	end = le.AppendUint64(end, uint64(size-56-20-22-46))
+	end = le.AppendUint32(end, 0x07064b50) // the locator of the ZIP64 end
+	end = le.AppendUint32(end, 0)
+	end = le.AppendUint64(end, uint64(size-56-20-22))
+	end = le.AppendUint32(end, 1)
+	end = le.AppendUint32(end, 0x06054b50) // the end, which leaves the numbers to the ZIP64 end
+	end = append(end, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0)
+	return append([]byte("PK\x03\x04"), append(make([]byte, size-4-len(end)), end...)...)
 }
