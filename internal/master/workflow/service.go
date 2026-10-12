@@ -154,6 +154,7 @@ type Service struct {
 	mu      sync.Mutex
 	ctx     context.Context // ends the runs when the master stops
 	active  map[string]*active
+	hooks   map[string]string // IDs of the workflows by the SHA-256 of the token of their URL
 	runs    map[int64]*run
 	limited map[string]time.Time // when it was logged that triggers fired too often
 
@@ -166,7 +167,6 @@ type Service struct {
 type active struct {
 	wf      Workflow
 	needs   []access.Permission
-	hook    string      // the SHA-256 of the token of its URL, if any
 	next    []time.Time // of its schedule and interval triggers
 	running int
 	queue   []pending
@@ -181,7 +181,7 @@ type pending struct {
 func NewService(db *sql.DB, deps Deps) *Service {
 	return &Service{
 		db: db, deps: deps, limit: ratelimit.New(burst, interval), wake: make(chan struct{}, 1), ctx: context.Background(),
-		active: map[string]*active{}, runs: map[int64]*run{}, limited: map[string]time.Time{},
+		active: map[string]*active{}, hooks: map[string]string{}, runs: map[int64]*run{}, limited: map[string]time.Time{},
 		watch: watch{seen: map[string]map[string]*observed{}, crossings: map[crossKey]*crossingAt{}, matchers: map[string]matcher{}},
 	}
 }
@@ -242,7 +242,7 @@ func (s *Service) reload(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fresh := map[string]*active{}
+	fresh, byHook := map[string]*active{}, map[string]string{}
 	now := time.Now()
 	for _, wf := range list {
 		d := Draft{Name: wf.Name, Description: wf.Description, Enabled: wf.Enabled, Definition: wf.Definition}
@@ -251,7 +251,10 @@ func (s *Service) reload(ctx context.Context) error {
 			slog.Warn("A workflow is invalid and doesn't run", logging.Workflows, "workflow", wf.Name, "err", err)
 			wf.Enabled = false
 		}
-		a := &active{wf: wf, needs: needs, hook: hooks[wf.ID], next: make([]time.Time, len(wf.Triggers))}
+		a := &active{wf: wf, needs: needs, next: make([]time.Time, len(wf.Triggers))}
+		if h := hooks[wf.ID]; h != "" {
+			byHook[h] = wf.ID
+		}
 		if old := s.active[wf.ID]; old != nil {
 			a.running, a.queue = old.running, old.queue
 		}
@@ -262,7 +265,7 @@ func (s *Service) reload(ctx context.Context) error {
 		}
 		fresh[wf.ID] = a
 	}
-	s.active = fresh
+	s.active, s.hooks = fresh, byHook
 	select {
 	case s.wake <- struct{}{}:
 	default:
@@ -570,18 +573,15 @@ func hash(token string) string {
 }
 
 // Hook starts the enabled workflow whose URL has the token, if it has a webhook trigger. It
-// returns whether the run started, was queued or skipped.
+// returns whether the run started, was queued or skipped. Anyone may call it, so it finds the
+// workflow by the hash of the token in an index rather than among all workflows.
 func (s *Service) Hook(token string, data map[string]any) (string, error) {
-	h := hash(token)
 	s.mu.Lock()
-	id := ""
-	for _, a := range s.active {
-		if a.hook != "" && a.hook == h && a.wf.Enabled && slices.ContainsFunc(a.wf.Triggers, func(t Trigger) bool { return t.Kind == OnWebhook }) {
-			id = a.wf.ID
-		}
-	}
+	id := s.hooks[hash(token)]
+	a := s.active[id]
+	found := a != nil && a.wf.Enabled && slices.ContainsFunc(a.wf.Triggers, func(t Trigger) bool { return t.Kind == OnWebhook })
 	s.mu.Unlock()
-	if id == "" {
+	if !found {
 		return "", httpapi.Errorf(http.StatusNotFound, "Not found.")
 	}
 	return s.fire(id, OnWebhook, data), nil
