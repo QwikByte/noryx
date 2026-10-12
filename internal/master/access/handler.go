@@ -27,8 +27,9 @@ type Handler struct {
 	svc   *Service
 	users *auth.Service
 	conf  Config
-	// changes serialises the changes of users, so that two administrators who disable or
-	// delete each other at once can't leave none.
+	// changes serialises the changes of users and groups, so that two administrators who
+	// disable or delete each other at once can't leave none, and no check of what a group
+	// grants passes against a state that another change alters meanwhile.
 	changes sync.Mutex
 }
 
@@ -77,6 +78,8 @@ func (h *Handler) saveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx, actor := r.Context(), From(r.Context())
+	h.changes.Lock()
+	defer h.changes.Unlock()
 	err := in.check()
 	if err == nil && !actor.Covers(Group{Permissions: in.Permissions, AllServers: in.AllServers, Targets: in.Targets}.grants()) {
 		err = errEscalate
@@ -108,6 +111,8 @@ func (h *Handler) saveGroup(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.changes.Lock()
+	defer h.changes.Unlock()
 	group, err := h.svc.Group(ctx, r.PathValue("id"))
 	switch {
 	case err != nil:
