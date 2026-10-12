@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/agent/archive"
 	"github.com/QwikByte/noryx/internal/agent/backup"
 	"github.com/QwikByte/noryx/internal/agent/storage"
 )
@@ -25,6 +26,10 @@ const (
 	maxUnpacked = 64 << 30 // bytes of its SQL files together
 	maxRatio    = 100      // of these to the bytes of the archive, beyond its first MiB
 )
+
+// dumpLimits are checked before archive/zip reads the directory of an uploaded archive, which
+// has about 100 bytes for each entry.
+var dumpLimits = archive.Limits{Entries: maxEntries, Size: maxUnpacked, Directory: 1 << 20}
 
 var errTooLarge = status.Errorf(codes.InvalidArgument, "A dump can have up to %d GB.", noryxv1.MaxImportedDump>>30)
 
@@ -91,9 +96,9 @@ func (s *Service) importArchive(datastoreID, location, id string, d backup.Detai
 	if err != nil {
 		return backup.Archive{}, err
 	}
-	zr, err := zip.NewReader(tmp, n)
+	zr, err := openDump(tmp, n)
 	if err != nil {
-		return backup.Archive{}, status.Error(codes.InvalidArgument, "Upload a ZIP archive, or the SQL file of a database.")
+		return backup.Archive{}, err
 	}
 	files, err := sqlFiles(zr, n)
 	if err != nil {
@@ -121,6 +126,17 @@ func (s *Service) importArchive(datastoreID, location, id string, d backup.Detai
 		}
 		return zw.Close()
 	})
+}
+
+// openDump opens an uploaded ZIP archive of size bytes. Its end is checked first, so that one
+// that announces more entries than a dump may have is refused before archive/zip reserves
+// memory for them.
+func openDump(r io.ReaderAt, size int64) (*zip.Reader, error) {
+	zr, err := archive.OpenZip(r, size, dumpLimits)
+	if status.Code(err) == codes.InvalidArgument {
+		return nil, status.Error(codes.InvalidArgument, "Upload a ZIP archive, or the SQL file of a database.")
+	}
+	return zr, err
 }
 
 // sqlFiles returns the SQL files of the databases in an uploaded ZIP archive of size bytes, which
