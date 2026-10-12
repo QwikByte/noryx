@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
@@ -248,6 +249,28 @@ func (s *Service) NewJoinToken(ctx context.Context, id string) (JoinToken, error
 	}
 	token := enrollment.Token{Master: s.config.EnrollAddr(), NodeID: id, Secret: secret, CAFingerprint: pki.Fingerprint(s.ca.Cert)}
 	return JoinToken{token, expires}, err
+}
+
+// EnrollmentServer returns the gRPC server of the enrollment port, which is open to the
+// internet and serves only Enroll: one call of a few hundred bytes, after which an agent goes
+// away. So its connections are bounded: the TLS handshake gets 10 seconds, a connection 4
+// calls at once of up to 64 KiB, a minute without calls and 5 minutes in all, and a client
+// that doesn't answer pings for 20 seconds is cut off, as is one that pings more than every 5
+// minutes, which agents never do here.
+func (s *Service) EnrollmentServer() *grpc.Server {
+	srv := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(pki.MasterServerTLS(s.cert))),
+		grpc.ConnectionTimeout(10*time.Second),
+		grpc.MaxConcurrentStreams(4),
+		grpc.MaxRecvMsgSize(64<<10),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: time.Minute, MaxConnectionAge: 5 * time.Minute, MaxConnectionAgeGrace: 30 * time.Second,
+			Time: time.Minute, Timeout: 20 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: 5 * time.Minute}),
+	)
+	noryxv1.RegisterEnrollmentServiceServer(srv, s)
+	return srv
 }
 
 // Enroll implements noryxv1.EnrollmentServiceServer. The join token is consumed atomically.

@@ -254,8 +254,7 @@ func startMaster(t *testing.T) *master {
 	logStore := logs.NewStore(db, logs.NewNames(nodes), conf)
 	logStore.Start(t.Context())
 	t.Cleanup(logStore.Close)
-	enrollServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(pki.MasterServerTLS(masterCert))))
-	noryxv1.RegisterEnrollmentServiceServer(enrollServer, nodes)
+	enrollServer := nodes.EnrollmentServer()
 	serve(t, enrollServer, ln)
 	return &master{
 		db: db, ca: ca, cert: masterCert, settings: conf, nodes: nodes, logs: logStore,
