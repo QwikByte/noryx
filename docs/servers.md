@@ -63,7 +63,9 @@ user](panel.md#settings-of-each-user)). **Fill the window** gives the console th
 
 The prompt keeps the commands of each server while the browser tab is open, and the arrow keys walk through them. While
 typing, it suggests Minecraft's commands (or the proxy's), their arguments, the names of the players online and earlier
-commands; **Tab** takes a suggestion. Agents of older versions send the output without colours.
+commands; **Tab** takes a suggestion. Commands that may carry a password, such as `authme register <player> <password>`
+or `login <password>`, are neither kept nor logged in full (see [Security](security.md#console)). Agents of older
+versions send the output without colours.
 
 ## File manager
 

@@ -615,6 +615,13 @@ Minecraft's colour codes, which the panel only maps to class names of a fixed se
 which the CLI and the terminal show, has no control characters but line breaks and tabs, so that a server can't control
 the terminal it is shown in.
 
+The log keeps who ran which command on which server, from the console, the terminal and actions on many servers, but
+plugins take passwords on the console too, e.g. `authme register <player> <password>`. So it leaves out what follows a
+word after which a password or another secret may follow: `l`, `log`, `login`, `reg`, `register`, `unregister`,
+`unreg`, `cp`, `pw` and words that contain `pass`, `secret` or `token` or end with `key`, so that the command above is
+logged as `authme register …`. The prompts of the panel keep the latest commands in the browser tab until it closes or
+the user signs out, but never one with such a word.
+
 ## Private network
 
 Only nodes whose administrator ran `noryx-agent overlay allow` join, so the master can't open a UDP port and an

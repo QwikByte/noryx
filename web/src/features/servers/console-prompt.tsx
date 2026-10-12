@@ -2,6 +2,7 @@ import { ClockCounterClockwiseIcon, PaperPlaneRightIcon, TerminalIcon, TextTIcon
 import { t } from "i18next"
 import { type FormEvent, type KeyboardEvent, useId, useMemo, useRef, useState } from "react"
 import { Trans } from "react-i18next"
+import { loadCommands, mayHoldSecret } from "@/lib/use-command-history"
 import { cn } from "@/lib/utils"
 import { commandsOf, type Suggestion, suggest } from "./console-completion"
 
@@ -9,17 +10,14 @@ const maxHistory = 50
 const steps: Partial<Record<string, number>> = { ArrowUp: -1, ArrowDown: 1 }
 const icons = { history: ClockCounterClockwiseIcon, command: TerminalIcon, player: UserIcon, word: TextTIcon }
 
-/** The commands typed in this tab of the browser, latest last; sessionStorage keeps them until the tab closes or the user signs out. */
+/**
+ * The commands typed in this tab of the browser, latest last; sessionStorage keeps them until the tab closes or the
+ * user signs out. Commands that may carry a password are never kept.
+ */
 function useHistory(key: string) {
-  const [history, setHistory] = useState<string[]>(() => {
-    try {
-      const stored: unknown = JSON.parse(sessionStorage.getItem(key) ?? "[]")
-      return Array.isArray(stored) ? stored.filter((c) => typeof c === "string").slice(-maxHistory) : []
-    } catch {
-      return []
-    }
-  })
+  const [history, setHistory] = useState(() => loadCommands(key, maxHistory))
   function add(command: string) {
+    if (mayHoldSecret(command)) return history
     const next = [...history.filter((c) => c !== command), command].slice(-maxHistory)
     setHistory(next)
     try {

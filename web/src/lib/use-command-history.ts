@@ -3,18 +3,36 @@ import { useRef } from "react"
 const prefix = "noryx-history:"
 const maxCommands = 50
 
-function load(key: string): string[] {
+/**
+ * A word of a command after which a password or another secret may follow, e.g. in "authme register Steve
+ * <password>" or "login <password>". The logs of the master and the agents leave out what follows it by the same
+ * rule (internal/logging/command.go).
+ */
+const secretWord = /^\/?(l|log|login|reg|register|unregister|unreg|cp|pw|.*pass.*|.*secret.*|.*token.*|.*key)$/i
+
+/** Whether a command may carry a password or another secret, which no history keeps. */
+export function mayHoldSecret(command: string) {
+  return command.trim().split(/\s+/).slice(0, -1).some((word) => secretWord.test(word))
+}
+
+/** The commands of a history kept in the browser tab, without those that may carry a secret. */
+export function loadCommands(key: string, max = maxCommands): string[] {
   try {
-    const stored: unknown = JSON.parse(sessionStorage.getItem(prefix + key) ?? "[]")
-    return Array.isArray(stored) ? stored.filter((c) => typeof c === "string").slice(-maxCommands) : []
+    const stored: unknown = JSON.parse(sessionStorage.getItem(key) ?? "[]")
+    return Array.isArray(stored)
+      ? stored.filter((c): c is string => typeof c === "string" && !mayHoldSecret(c)).slice(-max)
+      : []
   } catch {
     return []
   }
 }
 
+const load = (key: string) => loadCommands(prefix + key)
+
 /**
  * The commands typed into a prompt, e.g. of a console, which ↑ and ↓ step through. The browser tab keeps the
- * latest ones per key until it is closed or the user signs out, so they outlast leaving the page.
+ * latest ones per key until it is closed or the user signs out, so they outlast leaving the page; commands that
+ * may carry a password are never kept.
  */
 export function useCommandHistory(key: string) {
   const state = useRef<{ key: string; commands: string[]; index: number }>(undefined)
@@ -29,6 +47,8 @@ export function useCommandHistory(key: string) {
     /** Adds a command as the latest one and steps past it. */
     add(command: string) {
       const s = current()
+      s.index = s.commands.length
+      if (mayHoldSecret(command)) return
       s.commands = [...s.commands.filter((c) => c !== command), command].slice(-maxCommands)
       s.index = s.commands.length
       try {
