@@ -335,13 +335,14 @@ or delete data, but can't learn the superuser's password or place data outside t
 
 ## Duplicates
 
-Copying never follows symbolic links, so a copy can't pull in files from outside the server's directory. A copied
-Velocity proxy loses its forwarding secret, a copied BungeeCord proxy stops forwarding and a copied game server stops
-trusting the proxy, so a copy can't impersonate a server of a network. Copied proxies also lose Floodgate's key, with
-which Geyser vouches for Bedrock players, and copied game servers demand signed chat again. A copied Fabric or Quilt
-server keeps FabricProxy-Lite, which turns players away until it is removed in the **Mods** tab. A copy of a game server
-of a network only joins the network, and gets its forwarding secret, if the user who copies it may also manage networks;
-it stays on the node of the original, so it is as exposed as the original is.
+Copying never follows symbolic links, so a copy can't pull in files from outside the server's directory. A copy that
+wouldn't leave 1 GB free is refused before anything is copied, and copying stops before less is left, as the server may
+write meanwhile. A copied Velocity proxy loses its forwarding secret, a copied BungeeCord proxy stops forwarding and a
+copied game server stops trusting the proxy, so a copy can't impersonate a server of a network. Copied proxies also lose
+Floodgate's key, with which Geyser vouches for Bedrock players, and copied game servers demand signed chat again. A
+copied Fabric or Quilt server keeps FabricProxy-Lite, which turns players away until it is removed in the **Mods** tab.
+A copy of a game server of a network only joins the network, and gets its forwarding secret, if the user who copies it
+may also manage networks; it stays on the node of the original, so it is as exposed as the original is.
 
 ## Backups
 
@@ -349,19 +350,20 @@ The agent keeps backups outside of the servers' folders, accessible to itself on
 server can't read or tamper with them. The master can only choose among the storage locations the node's administrator
 allowed, and backup IDs and paths are validated by the agent, also the paths a backup leaves out and those a restore
 chooses, which must be in the backup. Restoring confines every entry to the server's folder, and backups never contain
-symbolic links. Downloads are attachments like those of the file manager and hide the secrets the same way; the backups
-on the node keep them, so restoring works. Restoring keeps the files that only hold secrets, such as the server's
-console password, and the secrets of file sets and networks as they are, see [File sets](#file-sets) and
-[Networks](#networks); the manifest of file sets is never backed up or restored. Restoring into another server is a
-copy like a duplicate: the master relays the backup between the agents with the original's secrets hidden, as in a
-download, so the other server gets none of them, nor the original's files with secrets of file sets; the agent puts the
-other server's own secrets wherever the backup says `<hidden>`, and keeps its network's secret and forwarding settings.
-It needs the permission to see the backups of the original and to restore backups of the other server, and only goes
-between game servers or between proxies. Like moving a server, it brings whatever the backup holds, e.g. plugins, which
-a compromised node could have changed like the data of its servers. Marking a backup to keep needs the permission to
-back up the server, and letting its job delete it again the one to delete backups. The master refuses restoring chosen
-paths, into another server or with a backup first on nodes whose agent would ignore that, e.g. restore all of a backup
-instead.
+symbolic links. A restore whose files wouldn't leave 1 GB free is refused before anything is extracted, and extracting
+stops before less is left, as the sizes in an archive may be wrong. Downloads are attachments like those of the file
+manager and hide the secrets the same way; the backups on the node keep them, so restoring works. Restoring keeps the
+files that only hold secrets, such as the server's console password, and the secrets of file sets and networks as they
+are, see [File sets](#file-sets) and [Networks](#networks); the manifest of file sets is never backed up or restored.
+Restoring into another server is a copy like a duplicate: the master relays the backup between the agents with the
+original's secrets hidden, as in a download, so the other server gets none of them, nor the original's files with
+secrets of file sets; the agent puts the other server's own secrets wherever the backup says `<hidden>`, and keeps its
+network's secret and forwarding settings. It needs the permission to see the backups of the original and to restore
+backups of the other server, and only goes between game servers or between proxies. Like moving a server, it brings
+whatever the backup holds, e.g. plugins, which a compromised node could have changed like the data of its servers.
+Marking a backup to keep needs the permission to back up the server, and letting its job delete it again the one to
+delete backups. The master refuses restoring chosen paths, into another server or with a backup first on nodes whose
+agent would ignore that, e.g. restore all of a backup instead.
 
 An uploaded backup is untrusted. The agent receives it outside the server's data, keeps it only once it checked it like
 an archive of the file manager (see [File manager](#file-manager)), and marks it as untrusted in its details, which only
@@ -658,13 +660,13 @@ choose among these locations, so a compromised master can't mount other host dir
 ## Settings of nodes
 
 The settings that the agent of a node applies itself have bounds that it checks itself too, so that not even a
-compromised master can set them beyond: uploads, backups, copies of backups, dumps and the data of moving servers leave
-1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the node's disk; the
-runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless changed, so that a
-server that writes without end can't fill it either, unless the settings leave it to the runtime's own configuration;
-and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root can read, and
-applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them needs the
-permission to change the node.
+compromised master can set them beyond: uploads, backups, restores, duplicates, copies of backups, dumps and the data of
+moving servers leave 1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the
+node's disk; the runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless
+changed, so that a server that writes without end can't fill it either, unless the settings leave it to the runtime's
+own configuration; and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root
+can read, and applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them
+needs the permission to change the node.
 
 ## Installation
 

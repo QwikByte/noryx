@@ -2,6 +2,7 @@ package backup
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -568,5 +569,27 @@ func check(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A backup whose files don't fit with the space kept free is refused before anything of it
+// is extracted, also one that the agent made itself.
+func TestRestoreKeepsSpaceFree(t *testing.T) {
+	path, dir := paperData(t)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.CreateRaw(&zip.FileHeader{Name: "world/huge.dat", Method: zip.Store, UncompressedSize64: 8 << 40, CompressedSize64: 1})
+	check(t, err)
+	_, err = w.Write([]byte{0})
+	check(t, err)
+	check(t, zw.Close())
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	check(t, err)
+	staged, err := stage(t.Context(), dir, zr, []string{"world"})
+	if !errors.As(err, new(storage.FullError)) || status.Code(toStatus(err)) != codes.ResourceExhausted {
+		t.Fatalf("staged an archive of 8 TB: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(path, staged)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("extracted something: %v", err)
 	}
 }
