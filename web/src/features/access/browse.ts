@@ -1,5 +1,5 @@
 import { msg } from "@/lib/i18n"
-import { matches, validateQuery } from "@/lib/search"
+import { matches, params, validateQuery } from "@/lib/search"
 import { type Order, orders, sortBy } from "@/lib/sort"
 import type { Group, User } from "./api"
 
@@ -37,10 +37,10 @@ export interface UserSearch {
 
 /** Reads the list's settings from the address. Each key must be set explicitly, see the login route. */
 export function validateUserSearch(search: Record<string, unknown>): UserSearch {
-  const pick = <T extends string>(key: string, allowed: readonly T[]) => allowed.find((v) => v === search[key])
+  const { text, pick } = params(search)
   return {
     ...validateQuery(search),
-    group: typeof search.group === "string" && search.group ? search.group : undefined,
+    group: text("group"),
     state: pick("state", Object.keys(userStates) as UserState[]),
     sort: pick("sort", Object.keys(userSortOrders) as UserSort[]),
     order: pick("order", orders),

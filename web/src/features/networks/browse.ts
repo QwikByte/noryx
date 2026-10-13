@@ -2,7 +2,7 @@ import type { NodeServer } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
 import type { ServerUsage } from "@/features/usage/api"
 import { msg } from "@/lib/i18n"
-import { matches, validateQuery } from "@/lib/search"
+import { matches, params, validateQuery } from "@/lib/search"
 import { type Order, orders, sortBy } from "@/lib/sort"
 import type { Network, ServerRef } from "./api"
 import { findServer } from "./servers"
@@ -28,7 +28,7 @@ export interface NetworkSearch {
 
 /** Reads the list's settings from the address. Each key must be set explicitly, see the login route. */
 export function validateNetworkSearch(search: Record<string, unknown>): NetworkSearch {
-  const pick = <T extends string>(key: string, allowed: readonly T[]) => allowed.find((v) => v === search[key])
+  const { pick } = params(search)
   return {
     ...validateQuery(search),
     sort: pick("sort", Object.keys(networkSorts) as NetworkSort[]),

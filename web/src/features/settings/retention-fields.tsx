@@ -1,12 +1,11 @@
 import { EyeSlashIcon, TrashIcon } from "@phosphor-icons/react"
 import { t } from "i18next"
-import type { ReactNode } from "react"
 import { toast } from "sonner"
 import { Callout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { NumberField } from "@/components/number-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useDeleteSeenPlayers } from "@/features/players/api"
 import type { Retention } from "./api"
@@ -16,7 +15,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
   const set = (change: Partial<Retention>) => onChange({ ...value, ...change })
   return (
     <>
-      <Amount
+      <NumberField
         id="settings-usage-days"
         label={t("Keep the usage of each hour for")}
         min={30}
@@ -28,7 +27,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         {t(
           "From 30 days to a year, for the charts of 30 days, of 90 days from 90 days and of 365 days from a year. The minutes behind the charts of 24 hours and 7 days are kept for a week; a year of hours takes about as much space.",
         )}
-      </Amount>
+      </NumberField>
       <Field orientation="horizontal">
         <Switch id="settings-seen-players" checked={value.seenPlayers} onCheckedChange={(seenPlayers) => set({ seenPlayers })} />
         <FieldContent>
@@ -41,7 +40,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         </FieldContent>
       </Field>
       {!value.seenPlayers && <DeleteSeen />}
-      <Amount
+      <NumberField
         id="settings-seen-days"
         label={t("Keep players seen for")}
         min={1}
@@ -51,8 +50,8 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         onChange={(seenDays) => set({ seenDays })}
       >
         {t("From a day to a year, also once they are no longer recorded.")}
-      </Amount>
-      <Amount
+      </NumberField>
+      <NumberField
         id="settings-operation-hours"
         label={t("List finished operations for")}
         min={1}
@@ -62,7 +61,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         onChange={(operationHours) => set({ operationHours })}
       >
         {t("Up to a day, and the last 200 at most. The master keeps them in memory, so a restart empties the list.")}
-      </Amount>
+      </NumberField>
     </>
   )
 }
@@ -92,46 +91,5 @@ function DeleteSeen() {
         }
       />
     </Callout>
-  )
-}
-
-/** A number of days or hours within bounds, and what it means. */
-function Amount({
-  id,
-  label,
-  min,
-  max,
-  unit,
-  value,
-  onChange,
-  children,
-}: {
-  id: string
-  label: string
-  min: number
-  max: number
-  unit: string
-  value: number
-  onChange: (value: number) => void
-  children: ReactNode
-}) {
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="number"
-          required
-          min={min}
-          max={max}
-          className="font-mono sm:w-32"
-          value={value}
-          onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-        />
-        <span className="text-sm text-muted-foreground">{unit}</span>
-      </div>
-      <FieldDescription>{children}</FieldDescription>
-    </Field>
   )
 }

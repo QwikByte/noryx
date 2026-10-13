@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { Callout, ErrorCallout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormSection } from "@/components/form-section"
+import { NumberField } from "@/components/number-input"
 import { StatCard, StatStrip } from "@/components/stat-card"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
@@ -297,33 +298,31 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               />
             </FieldDescription>
           </Field>
-          <Field>
-            <FieldLabel htmlFor="settings-join-token">{t("Join tokens are valid for")}</FieldLabel>
-            <NumberInput
-              id="settings-join-token"
-              min={5}
-              max={1440}
-              unit={t("minutes")}
-              value={form.joinTokenMinutes}
-              onChange={(joinTokenMinutes) => set({ joinTokenMinutes })}
-            />
-            <FieldDescription>{t("From 5 minutes to a day. Each token works only once.")}</FieldDescription>
-          </Field>
+          <NumberField
+            id="settings-join-token"
+            label={t("Join tokens are valid for")}
+            min={5}
+            max={1440}
+            unit={t("minutes")}
+            value={form.joinTokenMinutes}
+            onChange={(joinTokenMinutes) => set({ joinTokenMinutes })}
+          >
+            {t("From 5 minutes to a day. Each token works only once.")}
+          </NumberField>
         </FormSection>
 
         <FormSection title={t("Sign-in")}>
-          <Field>
-            <FieldLabel htmlFor="settings-session">{t("Sessions last")}</FieldLabel>
-            <NumberInput
-              id="settings-session"
-              min={1}
-              max={168}
-              unit={t("hours")}
-              value={form.sessionHours}
-              onChange={(sessionHours) => set({ sessionHours })}
-            />
-            <FieldDescription>{t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}</FieldDescription>
-          </Field>
+          <NumberField
+            id="settings-session"
+            label={t("Sessions last")}
+            min={1}
+            max={168}
+            unit={t("hours")}
+            value={form.sessionHours}
+            onChange={(sessionHours) => set({ sessionHours })}
+          >
+            {t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}
+          </NumberField>
           <SignInFields value={form} onChange={set} />
           <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} />
         </FormSection>
@@ -334,34 +333,30 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
         </FormSection>
 
         <FormSection title={t("Log")}>
-          <Field>
-            <FieldLabel htmlFor="settings-log-days">{t("Keep entries for")}</FieldLabel>
-            <NumberInput
-              id="settings-log-days"
-              min={1}
-              max={365}
-              unit={t("days")}
-              value={form.logDays}
-              onChange={(logDays) => set({ logDays })}
-            />
-            <FieldDescription>{t("Up to a year. Export entries to keep them longer.")}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="settings-log-size">{t("Maximum size")}</FieldLabel>
-            <NumberInput
-              id="settings-log-size"
-              min={100}
-              max={102400}
-              unit="MiB"
-              value={form.logSizeMb}
-              onChange={(logSizeMb) => set({ logSizeMb })}
-            />
-            <FieldDescription>
-              {t(
-                "From 100 MiB to 100 GiB, so that the log can't fill the disk. Beyond this size or a million entries, the oldest entries are deleted before their time, and a warning is logged.",
-              )}
-            </FieldDescription>
-          </Field>
+          <NumberField
+            id="settings-log-days"
+            label={t("Keep entries for")}
+            min={1}
+            max={365}
+            unit={t("days")}
+            value={form.logDays}
+            onChange={(logDays) => set({ logDays })}
+          >
+            {t("Up to a year. Export entries to keep them longer.")}
+          </NumberField>
+          <NumberField
+            id="settings-log-size"
+            label={t("Maximum size")}
+            min={100}
+            max={102400}
+            unit="MiB"
+            value={form.logSizeMb}
+            onChange={(logSizeMb) => set({ logSizeMb })}
+          >
+            {t(
+              "From 100 MiB to 100 GiB, so that the log can't fill the disk. Beyond this size or a million entries, the oldest entries are deleted before their time, and a warning is logged.",
+            )}
+          </NumberField>
         </FormSection>
 
         <FormSection title={t("Retention")}>
@@ -646,37 +641,5 @@ function PanelRestartNotice({ settings, master }: { settings: MasterSettings; ma
         </div>
       )}
     </Callout>
-  )
-}
-
-function NumberInput({
-  id,
-  min,
-  max,
-  unit,
-  value,
-  onChange,
-}: {
-  id: string
-  min: number
-  max: number
-  unit: string
-  value: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        id={id}
-        type="number"
-        required
-        min={min}
-        max={max}
-        className="font-mono sm:w-32"
-        value={value}
-        onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-      />
-      <span className="text-sm text-muted-foreground">{unit}</span>
-    </div>
   )
 }
