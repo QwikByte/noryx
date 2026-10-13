@@ -75,14 +75,16 @@ type watched struct {
 
 // Watch logs crashes and stops servers that keep crashing, logs when the health check of a
 // server fails and passes again, restarts servers that stay unhealthy if they are to, and closes
-// the connections to the consoles of servers that stop, until ctx is done.
+// the connections to the consoles of servers that stop, until ctx is done. When the events stop,
+// e.g. while the runtime restarts, it connects again and has the runtime replay those it missed.
 func (d *Docker) Watch(ctx context.Context) {
 	w := watched{
 		inRow: map[string]int{}, unhealthy: map[string]bool{}, lives: map[string]*life{},
 		checks: map[string]*checks{}, restarting: map[string]bool{}, carried: map[string]int{},
 	}
+	var since time.Time
 	for ctx.Err() == nil {
-		err := d.watch(ctx, w)
+		err := d.watch(ctx, w, &since)
 		if ctx.Err() == nil {
 			slog.Debug("Can't watch the servers for crashes", logging.Servers, "err", err)
 		}
@@ -93,19 +95,35 @@ func (d *Docker) Watch(ctx context.Context) {
 	}
 }
 
-func (d *Docker) watch(ctx context.Context, w watched) error {
+// watch handles the events of the runtime until they stop. since is the time from which it
+// wants them: zero when the agent starts, then that of the event after the last one it saw, so
+// that those of a gap are replayed when it connects again.
+func (d *Docker) watch(ctx context.Context, w watched, since *time.Time) error {
 	// health_status matches the events of all states of health.
 	actions := []string{string(events.ActionDie), string(events.ActionHealthStatus)}
 	if d.podman != nil {
 		actions = append(actions, string(events.ActionStart), string(events.ActionRestart))
 	}
 	filters := make(client.Filters).Add("type", string(events.ContainerEventType)).Add("event", actions...).Add("label", managed)
-	res := d.cli.Events(ctx, client.EventsListOptions{Filters: filters})
+	opts := client.EventsListOptions{Filters: filters}
+	if since.IsZero() {
+		*since = time.Now()
+	} else {
+		opts.Since = fmt.Sprintf("%d.%09d", since.Unix(), since.Nanosecond())
+	}
+	res := d.cli.Events(ctx, opts)
+	if opts.Since != "" {
+		d.closeStopped(ctx) // in case the runtime lost events itself
+	}
 	tick := time.NewTicker(hangCheck)
 	defer tick.Stop()
 	for {
 		select {
 		case msg := <-res.Messages:
+			// Podman reads the time as a float, which is precise to less than a microsecond.
+			if at := time.Unix(0, msg.TimeNano); !at.Before(*since) {
+				*since = at.Add(time.Microsecond)
+			}
 			switch {
 			case d.podman != nil:
 				d.podmanEvent(ctx, msg, w)
@@ -120,6 +138,20 @@ func (d *Docker) watch(ctx context.Context, w watched) error {
 			d.restartHanging(ctx, w)
 		case err := <-res.Err:
 			return err
+		}
+	}
+}
+
+// closeStopped closes the consoles of the servers that don't run, e.g. as they died while the
+// agent didn't see the events of the runtime.
+func (d *Docker) closeStopped(ctx context.Context) {
+	res, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true, Filters: make(client.Filters).Add("label", managed)})
+	if err != nil {
+		return
+	}
+	for _, c := range res.Items {
+		if spec, ok := specOf(c.Labels); ok && c.State != container.StateRunning {
+			d.consoles.Close(spec.ID)
 		}
 	}
 }

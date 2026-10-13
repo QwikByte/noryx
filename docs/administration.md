@@ -106,7 +106,7 @@ letters of their names, and of nodes, datastores, databases and backups. When se
 lists them, e.g. servers with their names, and a click takes one. Tab in an empty line moves on to the next control.
 
 ↑ and ↓ repeat earlier commands, which the browser tab keeps for each node and the master until it is closed or the
-user signs out.
+user signs out, except those that may carry a password (see [Security](security.md#console)).
 
 ### Notifications
 

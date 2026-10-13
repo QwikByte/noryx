@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"maps"
@@ -21,9 +22,9 @@ import (
 	"github.com/QwikByte/noryx/internal/agent/storage"
 )
 
-// archive returns a ZIP archive with files of the given names and contents, deflated if
+// zipOf returns a ZIP archive with files of the given names and contents, deflated if
 // deflate is set, otherwise stored.
-func archive(t *testing.T, deflate bool, files ...string) []byte {
+func zipOf(t *testing.T, deflate bool, files ...string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -45,17 +46,17 @@ func archive(t *testing.T, deflate bool, files ...string) []byte {
 // what macOS adds, and must be complete and unpack to a sensible size.
 func TestSQLFiles(t *testing.T) {
 	read := func(data []byte) (map[string]*zip.File, error) {
-		zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		zr, err := openDump(bytes.NewReader(data), int64(len(data)))
 		must(t, err)
 		return sqlFiles(zr, int64(len(data)))
 	}
-	files, err := read(archive(t, true, "luckperms.sql", "CREATE TABLE a;", "litebans.sql", "", "__MACOSX/._luckperms.sql", "junk", "folder/", ""))
+	files, err := read(zipOf(t, true, "luckperms.sql", "CREATE TABLE a;", "litebans.sql", "", "__MACOSX/._luckperms.sql", "junk", "folder/", ""))
 	must(t, err)
 	if names := slices.Sorted(maps.Keys(files)); !slices.Equal(names, []string{"litebans", "luckperms"}) {
 		t.Fatalf("files %v", names)
 	}
 
-	damaged := archive(t, false, "luckperms.sql", "CREATE TABLE a;")
+	damaged := zipOf(t, false, "luckperms.sql", "CREATE TABLE a;")
 	damaged[bytes.Index(damaged, []byte("CREATE"))] = 'X'
 	many := []string{}
 	for i := range maxEntries + 1 {
@@ -66,21 +67,48 @@ func TestSQLFiles(t *testing.T) {
 		tooManyDatabases = append(tooManyDatabases, fmt.Sprintf("db%d.sql", i), "")
 	}
 	for name, data := range map[string][]byte{
-		"a path":          archive(t, true, "../luckperms.sql", ""),
-		"a folder":        archive(t, true, "dump/luckperms.sql", ""),
-		"upper case":      archive(t, true, "LuckPerms.sql", ""),
-		"a reserved name": archive(t, true, "mysql.sql", ""),
-		"another file":    archive(t, true, "luckperms.sql", "", "readme.txt", ""),
-		"twice":           archive(t, true, "luckperms.sql", "", "luckperms.sql", ""),
-		"nothing":         archive(t, true, "folder/", ""),
+		"a path":          zipOf(t, true, "../luckperms.sql", ""),
+		"a folder":        zipOf(t, true, "dump/luckperms.sql", ""),
+		"upper case":      zipOf(t, true, "LuckPerms.sql", ""),
+		"a reserved name": zipOf(t, true, "mysql.sql", ""),
+		"another file":    zipOf(t, true, "luckperms.sql", "", "readme.txt", ""),
+		"twice":           zipOf(t, true, "luckperms.sql", "", "luckperms.sql", ""),
+		"nothing":         zipOf(t, true, "folder/", ""),
 		"damaged":         damaged,
-		"too many files":  archive(t, false, many...),
-		"too many":        archive(t, false, tooManyDatabases...),
-		"far more inside": archive(t, true, "luckperms.sql", strings.Repeat("\x00", 101<<20)),
+		"too many files":  zipOf(t, false, many...),
+		"too many":        zipOf(t, false, tooManyDatabases...),
+		"far more inside": zipOf(t, true, "luckperms.sql", strings.Repeat("\x00", 101<<20)),
 	} {
 		if _, err := read(data); status.Code(err) != codes.InvalidArgument {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// An archive whose ZIP64 end announces more entries than a dump may have is refused before
+// archive/zip reserves memory for them, as is a file that is no ZIP archive.
+func TestOpenDumpChecksEnd(t *testing.T) {
+	const size = 64 << 10
+	le := binary.LittleEndian
+	end := le.AppendUint32(nil, 0x06064b50) // the ZIP64 end
+	end = le.AppendUint64(end, 44)
+	end = append(end, 45, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	end = le.AppendUint64(end, maxEntries+1) // entries on this disk
+	end = le.AppendUint64(end, maxEntries+1) // and in all
+	end = le.AppendUint64(end, 46)           // the size of the directory
+	end = le.AppendUint64(end, size-56-20-22-46)
+	end = le.AppendUint32(end, 0x07064b50) // the locator of the ZIP64 end
+	end = le.AppendUint32(end, 0)
+	end = le.AppendUint64(end, size-56-20-22)
+	end = le.AppendUint32(end, 1)
+	end = le.AppendUint32(end, 0x06054b50) // the end, which leaves the numbers to the ZIP64 end
+	end = append(end, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0)
+	data := append(make([]byte, size-len(end)), end...)
+	if _, err := openDump(bytes.NewReader(data), size); status.Code(err) != codes.ResourceExhausted {
+		t.Errorf("announced entries: %v", err)
+	}
+	if _, err := openDump(strings.NewReader("CREATE TABLE a;"), 15); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("no archive: %v", err)
 	}
 }
 

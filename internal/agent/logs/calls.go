@@ -25,9 +25,10 @@ const (
 	FromLocal  = "local"
 )
 
-// detailFields are the request fields that are logged besides the server ID. Others may
-// hold secrets, such as the forwarding secret of a network, or file contents.
-var detailFields = []protoreflect.Name{"name", "version", "command", "path", "from", "to", "file_name", "replaces", "backup_id", "label", "location", "job_id", "set_id", "set_name", "dump_id"}
+// detailFields are the request fields that are logged besides the server ID and the command
+// of a console, without what may be a password. Others may hold secrets, such as the
+// forwarding secret of a network, or file contents.
+var detailFields = []protoreflect.Name{"name", "version", "path", "from", "to", "file_name", "replaces", "backup_id", "label", "location", "job_id", "set_id", "set_name", "dump_id"}
 
 var categories = map[string]slog.Attr{
 	"NodeService": logging.Nodes, "ServerService": logging.Servers, "FileService": logging.Files,
@@ -137,6 +138,8 @@ func details(m protoreflect.Message, attrs []slog.Attr, idKey string, nested boo
 		case f.Kind() != protoreflect.StringKind:
 		case f.Name() == "id" || f.Name() == "server_id":
 			attrs = append(attrs, slog.String(idKey, v.String()))
+		case f.Name() == "command":
+			attrs = append(attrs, logging.Command(v.String()))
 		case slices.Contains(detailFields, f.Name()):
 			attrs = append(attrs, slog.String(string(f.Name()), v.String()))
 		}

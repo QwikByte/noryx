@@ -23,7 +23,10 @@ A compromised node can't make its certificate seem to expire sooner or later tha
 Adding a node creates a single-use join token (valid for one hour unless the settings say otherwise, stored only as a
 hash). It contains the master address, the node ID, the secret and the CA fingerprint. The agent creates its key pair
 locally, sends a CSR and pins the CA fingerprint, so the exchange can't be intercepted. Private keys never leave the
-node. The master checks the token before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds.
+node. The master checks the token before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds. As
+the port of enrollment is open to the internet and serves nothing else, its connections are bounded: 10 seconds for the
+TLS handshake, 4 calls at once of up to 64 KiB each, a minute without calls and 5 minutes in all, and a client that
+doesn't answer the master's pings for 20 seconds, or pings more often than every 5 minutes, is cut off.
 
 ## Agents only obey the master
 
@@ -72,6 +75,14 @@ protection as the CA key next to it. The panel must be served over HTTPS (its se
 of Let's Encrypt or `--tls-cert`, the master tells browsers to use HTTPS only (HSTS, one year), but not with a
 self-signed one, which would lock browsers out once it changes; behind a reverse proxy, set it there. The master may
 listen at ports below 1024 (`CAP_NET_BIND_SERVICE`), e.g. 443 and 80, and has no other privileges.
+
+Signing in checks the password first and asks for the code only once it is right, so whoever guesses a user's password
+learns that it is right before the second factor counts; two-factor authentication keeps them from signing in with it,
+not from finding out. This is accepted, as the alternatives are worse: an answer that a code is needed whatever the
+password, which only users with two-factor authentication may get, tells which usernames exist and have it, or makes
+every user enter a code; and checking codes before the password would let anyone use up the attempts of a user's codes
+and so keep the user out. Guessing stays as slow as the limits of sign-in attempts per client and per username make it,
+and a password that may have leaked should be changed anyway, which also ends the other sessions.
 
 ## API tokens
 
@@ -306,12 +317,14 @@ author knows their key; any other one fails the load. So a dump can't run progra
 e.g. the superuser's password, or connect to another database or as another user. An uploaded dump is checked before it
 is kept: a single SQL file goes into a database the master knows, and a ZIP archive may only hold a `<database>.sql`
 with a valid name for each database besides folders and macOS's `__MACOSX`, up to 1000 entries, 50 databases and SQL
-files of 64 GB and 100 times its size together, all read to their ends to check their checksums; the agent keeps only
-these SQL files, and uploads have at most 16 GB and stop before they leave less than 1 GB free, also those whose size
-the master doesn't know in advance. The agent never stores the passwords of users: upgrades keep the hashes, which it
-checks before it uses them in a statement. Dumps are kept like backups and checked before a restore drops anything, so
-a damaged one changes nothing. Browsing never reads as the superuser, as reading runs what the database's user may have
-written, e.g. casts to text, functions and views: on PostgreSQL it reads as the database's own user, and on MariaDB,
+files of 64 GB and 100 times its size together, all read to their ends to check their checksums. Its end may announce
+no more entries and at most 1 MB of directory, which the agent checks before it reads the directory, as for archives
+of the file manager. The agent keeps only these SQL files, and uploads have at most 16 GB and stop before they leave
+less than 1 GB free, also those whose size the master doesn't know in advance. The agent never stores the passwords of
+users: upgrades keep the hashes, which it checks before it uses them in a statement. Dumps are kept like backups and
+checked before a restore drops anything, so a damaged one changes nothing. Browsing never reads as the superuser, as
+reading runs what the database's user may have written, e.g. casts to text, functions and views: on PostgreSQL it reads
+as the database's own user, and on MariaDB,
 which signs in users only with their passwords, as a user that may only read the database, signs in only on the
 container with a random password and exists only while the agent reads. It reads in a session that only reads and stops
 each statement after 10 seconds, with statements the agent builds itself from names that need no escaping: tables,
@@ -333,13 +346,14 @@ or delete data, but can't learn the superuser's password or place data outside t
 
 ## Duplicates
 
-Copying never follows symbolic links, so a copy can't pull in files from outside the server's directory. A copied
-Velocity proxy loses its forwarding secret, a copied BungeeCord proxy stops forwarding and a copied game server stops
-trusting the proxy, so a copy can't impersonate a server of a network. Copied proxies also lose Floodgate's key, with
-which Geyser vouches for Bedrock players, and copied game servers demand signed chat again. A copied Fabric or Quilt
-server keeps FabricProxy-Lite, which turns players away until it is removed in the **Mods** tab. A copy of a game server
-of a network only joins the network, and gets its forwarding secret, if the user who copies it may also manage networks;
-it stays on the node of the original, so it is as exposed as the original is.
+Copying never follows symbolic links, so a copy can't pull in files from outside the server's directory. A copy that
+wouldn't leave 1 GB free is refused before anything is copied, and copying stops before less is left, as the server may
+write meanwhile. A copied Velocity proxy loses its forwarding secret, a copied BungeeCord proxy stops forwarding and a
+copied game server stops trusting the proxy, so a copy can't impersonate a server of a network. Copied proxies also lose
+Floodgate's key, with which Geyser vouches for Bedrock players, and copied game servers demand signed chat again. A
+copied Fabric or Quilt server keeps FabricProxy-Lite, which turns players away until it is removed in the **Mods** tab.
+A copy of a game server of a network only joins the network, and gets its forwarding secret, if the user who copies it
+may also manage networks; it stays on the node of the original, so it is as exposed as the original is.
 
 ## Backups
 
@@ -347,19 +361,20 @@ The agent keeps backups outside of the servers' folders, accessible to itself on
 server can't read or tamper with them. The master can only choose among the storage locations the node's administrator
 allowed, and backup IDs and paths are validated by the agent, also the paths a backup leaves out and those a restore
 chooses, which must be in the backup. Restoring confines every entry to the server's folder, and backups never contain
-symbolic links. Downloads are attachments like those of the file manager and hide the secrets the same way; the backups
-on the node keep them, so restoring works. Restoring keeps the files that only hold secrets, such as the server's
-console password, and the secrets of file sets and networks as they are, see [File sets](#file-sets) and
-[Networks](#networks); the manifest of file sets is never backed up or restored. Restoring into another server is a
-copy like a duplicate: the master relays the backup between the agents with the original's secrets hidden, as in a
-download, so the other server gets none of them, nor the original's files with secrets of file sets; the agent puts the
-other server's own secrets wherever the backup says `<hidden>`, and keeps its network's secret and forwarding settings.
-It needs the permission to see the backups of the original and to restore backups of the other server, and only goes
-between game servers or between proxies. Like moving a server, it brings whatever the backup holds, e.g. plugins, which
-a compromised node could have changed like the data of its servers. Marking a backup to keep needs the permission to
-back up the server, and letting its job delete it again the one to delete backups. The master refuses restoring chosen
-paths, into another server or with a backup first on nodes whose agent would ignore that, e.g. restore all of a backup
-instead.
+symbolic links. A restore whose files wouldn't leave 1 GB free is refused before anything is extracted, and extracting
+stops before less is left, as the sizes in an archive may be wrong. Downloads are attachments like those of the file
+manager and hide the secrets the same way; the backups on the node keep them, so restoring works. Restoring keeps the
+files that only hold secrets, such as the server's console password, and the secrets of file sets and networks as they
+are, see [File sets](#file-sets) and [Networks](#networks); the manifest of file sets is never backed up or restored.
+Restoring into another server is a copy like a duplicate: the master relays the backup between the agents with the
+original's secrets hidden, as in a download, so the other server gets none of them, nor the original's files with
+secrets of file sets; the agent puts the other server's own secrets wherever the backup says `<hidden>`, and keeps its
+network's secret and forwarding settings. It needs the permission to see the backups of the original and to restore
+backups of the other server, and only goes between game servers or between proxies. Like moving a server, it brings
+whatever the backup holds, e.g. plugins, which a compromised node could have changed like the data of its servers.
+Marking a backup to keep needs the permission to back up the server, and letting its job delete it again the one to
+delete backups. The master refuses restoring chosen paths, into another server or with a backup first on nodes whose
+agent would ignore that, e.g. restore all of a backup instead.
 
 An uploaded backup is untrusted. The agent receives it outside the server's data, keeps it only once it checked it like
 an archive of the file manager (see [File manager](#file-manager)), and marks it as untrusted in its details, which only
@@ -583,9 +598,12 @@ so the agent reads at most 8 MiB and 10,000 entries of it, like the lists, and o
 ## Moving servers
 
 Agents never connect to each other: the master relays the server's archive and backups between them over its mutually
-authenticated connections. The new node checks the settings like those of a new server and extracts the archive confined
-to the server's data directory, without symbolic links. Moving needs the permissions to delete the server and read its
-files, and to create servers on the new node.
+authenticated connections. The new node checks the settings like those of a new server and the archive like an
+uploaded backup, as a compromised node or master could send it, with the limits for backups: links and other special
+files, paths outside the data, an end that announces too many entries, too much data or a zip bomb delete the new server
+again before anything of it is written. It extracts the archive confined to the server's data directory, with all its
+files, as the server takes its secrets along, but none of the agent's temporary files, and keeps 1 GB free. Moving
+needs the permissions to delete the server and read its files, and to create servers on the new node.
 
 A server created from an archive of a server from elsewhere gets the archive checked like one of the file manager,
 before anything of it is used: links, paths outside the data and too much data delete the new server again. It leaves
@@ -607,6 +625,13 @@ Servers and their plugins write the output, so the panel shows it only as text: 
 Minecraft's colour codes, which the panel only maps to class names of a fixed set, never to markup. The plain output,
 which the CLI and the terminal show, has no control characters but line breaks and tabs, so that a server can't control
 the terminal it is shown in.
+
+The log keeps who ran which command on which server, from the console, the terminal and actions on many servers, but
+plugins take passwords on the console too, e.g. `authme register <player> <password>`. So it leaves out what follows a
+word after which a password or another secret may follow: `l`, `log`, `login`, `reg`, `register`, `unregister`,
+`unreg`, `cp`, `pw` and words that contain `pass`, `secret` or `token` or end with `key`, so that the command above is
+logged as `authme register …`. The prompts of the panel keep the latest commands in the browser tab until it closes or
+the user signs out, but never one with such a word.
 
 ## Private network
 
@@ -653,13 +678,13 @@ choose among these locations, so a compromised master can't mount other host dir
 ## Settings of nodes
 
 The settings that the agent of a node applies itself have bounds that it checks itself too, so that not even a
-compromised master can set them beyond: uploads, backups, copies of backups, dumps and the data of moving servers leave
-1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the node's disk; the
-runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless changed, so that a
-server that writes without end can't fill it either, unless the settings leave it to the runtime's own configuration;
-and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root can read, and
-applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them needs the
-permission to change the node.
+compromised master can set them beyond: uploads, backups, restores, duplicates, copies of backups, dumps and the data of
+moving servers leave 1 to 50 GiB free, never less than 1 GiB (which this page calls 1 GB), so that they can't fill the
+node's disk; the runtime keeps 1 to 10 files of 1 to 100 MB of the output of each container, 3 files of 10 MB unless
+changed, so that a server that writes without end can't fill it either, unless the settings leave it to the runtime's
+own configuration; and the agent measures every 5 to 60 seconds. It keeps them in its data directory, which only root
+can read, and applies them again when it starts, or the defaults if they are missing or out of bounds. Changing them
+needs the permission to change the node.
 
 ## Installation
 

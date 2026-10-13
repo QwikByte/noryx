@@ -15,14 +15,25 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+// maxConns bounds the connections of the pool: readers share the write-ahead log, while
+// writers wait for each other anyway.
+const maxConns = 8
+
 // Open opens the database at path and applies all pending migrations. The space of deleted
 // rows is reused, and the write-ahead log shrinks back to 16 MiB after a large transaction,
 // such as deleting many log entries.
+//
+// Transactions take the write lock as they begin, so that one that reads before it writes
+// waits up to the busy timeout for another writer instead of failing with "database is
+// locked", which SQLite answers when a reading transaction can't become a writing one.
+// Read-only transactions don't.
 func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=journal_size_limit(16777216)")
+	db, err := sql.Open("sqlite", "file:"+path+"?_txlock=immediate&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=journal_size_limit(16777216)")
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
 	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate database: %w", err)

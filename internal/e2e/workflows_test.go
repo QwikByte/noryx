@@ -182,8 +182,14 @@ func TestWorkflowSecretsAndWebhooks(t *testing.T) {
 		t.Fatalf("run = %+v", run)
 	}
 
-	// A new URL replaces the one before.
-	api.do("POST", "/api/workflows/"+wf.ID+"/hook", nil, http.StatusOK, nil)
+	// A new URL replaces the one before; a paused workflow and one without a URL start nothing.
+	api.do("POST", "/api/workflows/"+wf.ID+"/hook", nil, http.StatusOK, &hook)
+	draft["enabled"] = false
+	api.do("PUT", "/api/workflows/"+wf.ID, draft, http.StatusOK, nil)
+	call(hook.Path, `{}`, http.StatusNotFound)
+	api.do("DELETE", "/api/workflows/"+wf.ID+"/hook", nil, http.StatusNoContent, nil)
+	draft["enabled"] = true
+	api.do("PUT", "/api/workflows/"+wf.ID, draft, http.StatusOK, nil)
 	call(hook.Path, `{}`, http.StatusNotFound)
 }
 

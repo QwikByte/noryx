@@ -81,7 +81,7 @@ func (h *Handler) bulk(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	logging.Note(r.Context(), slog.String("action", req.Action), slog.String("command", req.Command), slog.Int("servers", len(req.Servers)))
+	logging.Note(r.Context(), slog.String("action", req.Action), logging.Command(req.Command), slog.Int("servers", len(req.Servers)))
 	nodes := make([]string, len(req.Servers))
 	for i, s := range req.Servers {
 		nodes[i] = s.NodeID

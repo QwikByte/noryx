@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/fs"
 	"maps"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -96,14 +95,11 @@ func list(zr *zip.Reader, folder string, hidden secrets.Files) ([]*noryxv1.FileI
 
 // stage extracts what a backup holds of paths into a temporary folder of the data directory,
 // which the caller removes unless its name is empty. Nothing of the server changes yet, so it
-// can keep running meanwhile. Untrusted backups are staged by stageUntrusted.
+// can keep running meanwhile, and a backup that doesn't fit with the space kept free is
+// refused before anything is extracted. Untrusted backups are staged by stageUntrusted.
 func stage(ctx context.Context, dir *datadir.Dir, zr *zip.Reader, paths []string) (string, error) {
 	files := slices.DeleteFunc(slices.Clone(zr.File), func(f *zip.File) bool { return !slices.ContainsFunc(paths, within(entry(f))) })
-	var size uint64 // never more than twice math.MaxInt64, so it can't overflow
-	for _, f := range files {
-		size = min(size+min(f.UncompressedSize64, math.MaxInt64), math.MaxInt64)
-	}
-	progress.Step(ctx, "restore", int64(size)) //nolint:gosec // at most math.MaxInt64
+	progress.Step(ctx, "restore", datadir.UnpackedSize(files))
 	tmp := datadir.TempName(".")
 	return tmp, dir.ExtractZip(ctx, &zip.Reader{File: files}, tmp)
 }

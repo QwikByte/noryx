@@ -12,11 +12,14 @@ import (
 	"syscall"
 
 	"github.com/QwikByte/noryx/internal/agent/progress"
+	"github.com/QwikByte/noryx/internal/agent/storage"
 )
 
 // Copy copies the data directory src into dst, which must not exist yet. Files keep their
 // permissions and, if the agent runs as root, their owners. Symbolic links and other
-// special files are left out, so the copy can't reach anything outside of src.
+// special files are left out, so the copy can't reach anything outside of src. It returns a
+// storage.FullError unless the files fit with the space kept free, and stops before it leaves
+// less, as they may grow meanwhile.
 func Copy(ctx context.Context, src, dst string) error {
 	from, err := os.OpenRoot(src)
 	if err != nil {
@@ -31,9 +34,16 @@ func Copy(ctx context.Context, src, dst string) error {
 		return err
 	}
 	defer to.Close()
-	if progress.Active(ctx) {
-		progress.Step(ctx, "copy", Size(from.FS(), "."))
+	top, err := to.Open(".")
+	if err != nil {
+		return err
 	}
+	defer top.Close()
+	size := Size(from.FS(), ".")
+	if err := storage.Fits(top, size); err != nil {
+		return err
+	}
+	progress.Step(ctx, "copy", size)
 	return fs.WalkDir(from.FS(), ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || ctx.Err() != nil {
 			return cmp.Or(err, ctx.Err())
@@ -45,7 +55,7 @@ func Copy(ctx context.Context, src, dst string) error {
 		case d.IsDir() && name != ".":
 			err = to.Mkdir(name, dirPerm)
 		case d.Type().IsRegular():
-			err = copyFile(ctx, from, to, name)
+			err = copyFile(ctx, from, to, name, top)
 		case !d.IsDir():
 			return nil
 		}
@@ -99,7 +109,7 @@ func (d *Dir) CopyTree(ctx context.Context, from, to string) (err error) {
 	})
 }
 
-func copyFile(ctx context.Context, from, to *os.Root, name string) error {
+func copyFile(ctx context.Context, from, to *os.Root, name string, top *os.File) error {
 	in, err := openPlain(from, name) // the server may have put a named pipe there meanwhile
 	if err != nil {
 		return err
@@ -109,7 +119,7 @@ func copyFile(ctx context.Context, from, to *os.Root, name string) error {
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(out, progress.Reader(ctx, in))
+	_, err = io.Copy(storage.Guard(out, top), progress.Reader(ctx, in))
 	return errors.Join(err, out.Close())
 }
 

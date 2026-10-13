@@ -215,13 +215,14 @@ func (s *Service) Setup(ctx context.Context, token, password string, ttl time.Du
 	if err != nil {
 		return u, "", err
 	}
+	hash := hashPassword(password) // before the transaction, which keeps other writers waiting
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE token_hash = ?`, hashToken(token))
 		if err == nil && rowsAffected(res) == 0 {
 			err = errInvalidSetup // used by a concurrent request
 		}
 		if err == nil {
-			_, err = tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hashPassword(password), u.ID)
+			_, err = tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, u.ID)
 		}
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, u.ID)
@@ -252,8 +253,9 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, current, next, k
 	}
 	// A setup link would set the password again, and other sessions may belong to whoever
 	// knew the old one.
+	hash := hashPassword(next)
 	return s.inTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hashPassword(next), id)
+		_, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, id)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE user_id = ?`, id)
 		}

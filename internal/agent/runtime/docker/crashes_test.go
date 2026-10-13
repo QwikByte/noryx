@@ -280,3 +280,41 @@ func TestRestartUnlessStopped(t *testing.T) {
 		t.Fatalf("restart with a stop meanwhile: %v, started %d times", err, starts)
 	}
 }
+
+// When the events of the runtime stop, e.g. as it restarts, the agent connects again and asks
+// for those after the last one it saw, so that a crash in the gap is counted.
+func TestWatchReplaysGap(t *testing.T) {
+	captureLog(t)
+	var mu sync.Mutex
+	var since []string
+	actor := events.Actor{ID: "c1", Attributes: map[string]string{labelManaged: "true", labelSpec: `{"id":"s1"}`, "exitCode": "1"}}
+	at := time.Unix(1_800_000_000, 5)
+	d := fakeEngine(t, false, "", map[string]http.HandlerFunc{
+		"GET /v1.41/events": func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			since = append(since, r.URL.Query().Get("since"))
+			first := len(since) == 1
+			mu.Unlock()
+			if first { // an event, then the runtime goes away
+				_ = json.NewEncoder(w).Encode(events.Message{Action: events.ActionHealthStatusUnhealthy, Actor: actor, TimeNano: at.UnixNano()})
+			} else { // the crash meanwhile
+				_ = json.NewEncoder(w).Encode(events.Message{Action: events.ActionDie, Actor: actor, TimeNano: at.Add(time.Second).UnixNano()})
+			}
+		},
+		"GET /v1.41/containers/{id}/json": reply(container.InspectResponse{RestartCount: 1, State: &container.State{Running: true}}),
+		"GET /v1.41/containers/json":      reply([]container.Summary{}),
+	})
+	w := watched{inRow: map[string]int{}, unhealthy: map[string]bool{}, restarting: map[string]bool{}, carried: map[string]int{}}
+	var from time.Time
+	for range 2 {
+		if err := d.watch(t.Context(), w, &from); err == nil {
+			t.Fatal("the events didn't end")
+		}
+	}
+	if !slices.Equal(since, []string{"", "1800000000.000001005"}) {
+		t.Errorf("since = %q", since)
+	}
+	if w.inRow["c1"] != 1 {
+		t.Errorf("crashes in a row: %d, want 1", w.inRow["c1"])
+	}
+}

@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/QwikByte/noryx/internal/agent/progress"
+	"github.com/QwikByte/noryx/internal/agent/storage"
 )
 
 // stored lists extensions of files that are compressed already; deflating them again
@@ -149,10 +151,29 @@ func addFile(ctx context.Context, zw *zip.Writer, root *os.Root, name string, d 
 	return err
 }
 
+// UnpackedSize returns the size of the files of an archive as their headers tell, at most
+// math.MaxInt64.
+func UnpackedSize(files []*zip.File) int64 {
+	var size uint64 // never more than twice math.MaxInt64, so it can't overflow
+	for _, f := range files {
+		size = min(size+min(f.UncompressedSize64, math.MaxInt64), math.MaxInt64)
+	}
+	return int64(size) //nolint:gosec // at most math.MaxInt64
+}
+
 // ExtractZip extracts an archive written by WriteZip into the directory dest. Entries
 // belong to the owner of the data directory and keep their permissions, without special
-// bits, and their modification times.
+// bits, and their modification times. It returns a storage.FullError unless the files fit
+// with the space kept free, and stops before it leaves less, as the sizes may be wrong.
 func (d *Dir) ExtractZip(ctx context.Context, zr *zip.Reader, dest string) error {
+	top, err := d.Open(".")
+	if err != nil {
+		return err
+	}
+	defer top.Close()
+	if err := storage.Fits(top, UnpackedSize(zr.File)); err != nil {
+		return err
+	}
 	if err := d.MkdirAll(dest); err != nil {
 		return err
 	}
@@ -174,14 +195,14 @@ func (d *Dir) ExtractZip(ctx context.Context, zr *zip.Reader, dest string) error
 		if err := d.MkdirAll(filepath.Dir(target)); err != nil {
 			return err
 		}
-		if err := d.extract(ctx, f, target); err != nil {
+		if err := d.extract(ctx, f, target, top); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (d *Dir) extract(ctx context.Context, f *zip.File, name string) error {
+func (d *Dir) extract(ctx context.Context, f *zip.File, name string, top *os.File) error {
 	r, err := f.Open()
 	if err != nil {
 		return err
@@ -191,7 +212,7 @@ func (d *Dir) extract(ctx context.Context, f *zip.File, name string) error {
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(out, progress.Reader(ctx, r)) //nolint:gosec // archives are written by the agent itself
+	_, err = io.Copy(storage.Guard(out, top), progress.Reader(ctx, r)) //nolint:gosec // archives are written by the agent itself
 	if err := errors.Join(err, out.Close(), d.Chmod(name, f.Mode().Perm()), d.own(name)); err != nil {
 		return err
 	}

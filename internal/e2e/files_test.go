@@ -244,4 +244,12 @@ func TestFreeSpace(t *testing.T) {
 	api := apiClient{t: t, url: m.panel(t).URL}
 	api.do("POST", "/api/nodes/"+srv.NodeID+"/servers/"+srv.ServerID+"/backups", map[string]any{"selection": map[string]any{"everything": true}},
 		http.StatusRequestEntityTooLarge, nil)
+	// Nor would its copy, which is refused before anything is copied.
+	_, err = noryxv1.NewServerServiceClient(conn).DuplicateServer(t.Context(), &noryxv1.DuplicateServerRequest{Id: srv.ServerID, Name: "Copy", Port: 25566})
+	if status.Code(err) != codes.ResourceExhausted || !strings.Contains(status.Convert(err).Message(), "GB stays free") {
+		t.Fatalf("duplicate of 8 TB: %v", err)
+	}
+	if servers := must(a.runtime.List(t.Context())); len(servers) != 1 {
+		t.Fatalf("servers after the refused copy: %+v", servers)
+	}
 }

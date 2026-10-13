@@ -101,7 +101,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	if len(args) > 0 && args[0] == root.Name() {
 		args = args[1:]
 	}
-	logging.Note(r.Context(), slog.String("command", req.Command))
+	logging.Note(r.Context(), logging.Command(req.Command))
 	if req.Target != MasterTarget {
 		logging.Note(r.Context(), slog.String(logging.KeyNode, req.Target))
 	}

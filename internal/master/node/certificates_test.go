@@ -3,8 +3,14 @@ package node
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"net"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/pki"
@@ -54,5 +60,30 @@ func TestCertificateExpiryIsStored(t *testing.T) {
 	restarted.seen(t.Context(), "n1", later)
 	if got := expiry(restarted); !got.Equal(later) {
 		t.Fatalf("expiry after a newer certificate = %v, want %v", got, later)
+	}
+}
+
+// The enrollment port serves Enroll to agents that pin the CA, and refuses requests far larger
+// than one.
+func TestEnrollmentServer(t *testing.T) {
+	s := newTestService(t)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := s.EnrollmentServer()
+	go srv.Serve(lis) //nolint:errcheck // ends with Stop
+	t.Cleanup(srv.Stop)
+	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(pki.PinnedMasterTLS(pki.Fingerprint(s.ca.Cert)))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	client := noryxv1.NewEnrollmentServiceClient(conn)
+	if _, err := client.Enroll(t.Context(), &noryxv1.EnrollRequest{NodeId: "n1", Secret: "wrong"}); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("wrong secret: %v", err)
+	}
+	if _, err := client.Enroll(t.Context(), &noryxv1.EnrollRequest{NodeId: "n1", CsrDer: make([]byte, 64<<10)}); status.Code(err) != codes.ResourceExhausted {
+		t.Errorf("request of 64 KiB: %v", err)
 	}
 }
