@@ -391,42 +391,20 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// recreateDatastore replaces the container of a datastore, like recreate does for servers:
-// the old one stays until the new one runs, and any failure brings it back as it was.
-func (d *Docker) recreateDatastore(ctx context.Context, spec runtime.DatastoreSpec, dir string, running bool) (err error) {
-	name, old := datastoreName(spec.ID), datastoreName(spec.ID)+"-old"
-	if running {
-		if _, err := d.cli.ContainerStop(ctx, name, client.ContainerStopOptions{Timeout: new(datastoreStop)}); err != nil {
+// recreateDatastore replaces the container of a datastore, see replace.
+func (d *Docker) recreateDatastore(ctx context.Context, spec runtime.DatastoreSpec, dir string, running bool) error {
+	name := datastoreName(spec.ID)
+	err := d.replace(ctx, name, running,
+		func(ctx context.Context) error {
+			_, err := d.cli.ContainerStop(ctx, name, client.ContainerStopOptions{Timeout: new(datastoreStop)})
 			return err
-		}
-	}
-	if _, err := d.cli.ContainerRename(ctx, name, client.ContainerRenameOptions{NewName: old}); err != nil {
-		return err
-	}
-	defer func() {
-		if err == nil {
-			return
-		}
-		ctx := context.WithoutCancel(ctx)
-		removeErr := d.forceRemove(ctx, name)
-		if cerrdefs.IsNotFound(removeErr) {
-			removeErr = nil
-		}
-		_, renameErr := d.cli.ContainerRename(ctx, old, client.ContainerRenameOptions{NewName: name})
-		if renameErr == nil && running {
-			_, renameErr = d.cli.ContainerStart(ctx, name, client.ContainerStartOptions{})
-		}
-		err = errors.Join(err, removeErr, renameErr)
-	}()
-	if err := d.createDatastoreContainer(ctx, spec, dir); err != nil {
-		return err
-	}
-	if running {
-		if _, err := d.cli.ContainerStart(ctx, name, client.ContainerStartOptions{}); err != nil {
+		},
+		func(ctx context.Context) error { return d.createDatastoreContainer(ctx, spec, dir) },
+		func(ctx context.Context) error {
+			_, err := d.cli.ContainerStart(ctx, name, client.ContainerStartOptions{})
 			return err
-		}
-	}
-	if _, err := d.cli.ContainerRemove(ctx, old, client.ContainerRemoveOptions{}); err != nil {
+		})
+	if err != nil {
 		return err
 	}
 	if spec.Port == 0 {
@@ -444,6 +422,10 @@ func (d *Docker) RemoveDatastore(ctx context.Context, id string) error {
 	}
 	dir, err := d.datastoreDir(spec)
 	if err != nil {
+		return err
+	}
+	// An old container that a replacement left would come back once the agent starts again.
+	if err := d.reconcile(ctx, datastoreName(id)); err != nil {
 		return err
 	}
 	if err := d.forceRemove(ctx, datastoreName(id)); err != nil {

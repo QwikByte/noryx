@@ -487,6 +487,10 @@ func (d *Docker) Remove(ctx context.Context, id string) error {
 	if _, err := d.dataPath(spec); err != nil { // e.g. a removed storage location; nothing is deleted yet
 		return err
 	}
+	// An old container that a replacement left would come back once the agent starts again.
+	if err := d.reconcile(ctx, containerName(id)); err != nil {
+		return err
+	}
 	if err := d.forceRemove(ctx, containerName(id)); err != nil {
 		if cerrdefs.IsConflict(err) {
 			return runtime.ErrNotFound // another request is removing it, which removes its data too

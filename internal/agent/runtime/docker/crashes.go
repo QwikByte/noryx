@@ -83,7 +83,11 @@ func (d *Docker) Watch(ctx context.Context) {
 		checks: map[string]*checks{}, restarting: map[string]bool{}, carried: map[string]int{},
 	}
 	var since time.Time
+	reconciled := false
 	for ctx.Err() == nil {
+		// What an agent that stopped while it replaced containers left is put right once the
+		// runtime answers.
+		reconciled = reconciled || d.reconcileAll(ctx) == nil
 		err := d.watch(ctx, w, &since)
 		if ctx.Err() == nil {
 			slog.Debug("Can't watch the servers for crashes", logging.Servers, "err", err)
