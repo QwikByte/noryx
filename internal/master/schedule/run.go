@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -144,7 +145,7 @@ func (j *journal) end(r *Run, err error) {
 }
 
 // clip shortens the error or note of a run to what is stored.
-func clip(msg string) string { return msg[:min(len(msg), maxError)] }
+func clip(msg string) string { return database.Clip(msg, maxError) }
 
 // record stores a run of a task, unless the task was deleted meanwhile, and forgets the
 // oldest runs beyond maxRuns.

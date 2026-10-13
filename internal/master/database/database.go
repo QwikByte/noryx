@@ -73,6 +73,43 @@ func migrate(db *sql.DB) error {
 	return nil
 }
 
+// InTx runs fn in a transaction, which is committed if fn succeeds and rolled back otherwise.
+func InTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	return tx.Commit()
+}
+
+// RowsAffected returns how many rows a statement changed, which SQLite always tells.
+func RowsAffected(res sql.Result) int64 {
+	n, _ := res.RowsAffected()
+	return n
+}
+
+// Clip shortens a text to at most n bytes and an ellipsis, at the start of a character, e.g. an
+// error to what is kept of it.
+func Clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && s[n]&0xC0 == 0x80 {
+		n--
+	}
+	return s[:n] + "…"
+}
+
+// Scanner is the row of a query, or the current one of several, e.g. for a function that
+// scans both.
+type Scanner interface{ Scan(dest ...any) error }
+
 // IDs returns the IDs that a query selects, e.g. to find references to what was deleted.
 func IDs(ctx context.Context, db *sql.DB, query string) (map[string]bool, error) {
 	rows, err := db.QueryContext(ctx, query)

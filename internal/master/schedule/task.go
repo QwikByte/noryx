@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/tag"
 )
@@ -271,11 +271,7 @@ func (s *Service) save(ctx context.Context, t Task, write func(tx *sql.Tx, sched
 	if err != nil {
 		return t, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return t, err
-	}
-	err = func() error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := write(tx, schedule, t.Settings)
 		if err != nil {
 			return err
@@ -302,10 +298,10 @@ func (s *Service) save(ctx context.Context, t Task, write func(tx *sql.Tx, sched
 				return err
 			}
 		}
-		return tx.Commit()
-	}()
+		return nil
+	})
 	if err != nil {
-		return t, errors.Join(constraint(err, t.Name), tx.Rollback())
+		return t, constraint(err, t.Name)
 	}
 	s.plan(t)
 	return s.Get(ctx, t.kind, t.ID)

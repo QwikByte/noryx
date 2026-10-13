@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -181,56 +182,55 @@ func (s store) save(ctx context.Context, id string, in Input, user string, creat
 	if err != nil {
 		return false, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	now := time.Now().Unix()
 	version, changed := int64(1), true
-	if create {
-		_, err = tx.ExecContext(ctx, `INSERT INTO file_sets (id, name, description, version, variables, created_at) VALUES (?, ?, ?, 1, ?, ?)`,
-			id, in.Name, in.Description, variables, now)
-	} else {
-		var current []byte
-		err = tx.QueryRowContext(ctx, `
-			SELECT s.version, v.files FROM file_sets s JOIN file_set_versions v ON v.set_id = s.id AND v.version = s.version WHERE s.id = ?`, id).
-			Scan(&version, &current)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return false, errNotFound
-		case err != nil:
-			return false, err
-		case version != in.Version:
-			return false, httpapi.Errorf(http.StatusConflict, "Someone saved the file set since you opened it. Open it again to see the changes.")
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		now := time.Now().Unix()
+		var err error
+		if create {
+			_, err = tx.ExecContext(ctx, `INSERT INTO file_sets (id, name, description, version, variables, created_at) VALUES (?, ?, ?, 1, ?, ?)`,
+				id, in.Name, in.Description, variables, now)
+		} else {
+			var current []byte
+			err = tx.QueryRowContext(ctx, `
+				SELECT s.version, v.files FROM file_sets s JOIN file_set_versions v ON v.set_id = s.id AND v.version = s.version WHERE s.id = ?`, id).
+				Scan(&version, &current)
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return errNotFound
+			case err != nil:
+				return err
+			case version != in.Version:
+				return httpapi.Errorf(http.StatusConflict, "Someone saved the file set since you opened it. Open it again to see the changes.")
+			}
+			if changed = string(current) != string(files); changed {
+				version++
+			}
+			_, err = tx.ExecContext(ctx, `UPDATE file_sets SET name = ?, description = ?, version = ?, variables = ? WHERE id = ?`,
+				in.Name, in.Description, version, variables, id)
 		}
-		if changed = string(current) != string(files); changed {
-			version++
+		if err != nil {
+			return unique(err, in.Name)
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE file_sets SET name = ?, description = ?, version = ?, variables = ? WHERE id = ?`,
-			in.Name, in.Description, version, variables, id)
-	}
-	if err != nil {
-		return false, unique(err, in.Name)
-	}
-	if changed {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO file_set_versions (set_id, version, files, username, created_at) VALUES (?, ?, ?, ?, ?)`,
-			id, version, files, user, now); err != nil {
-			return false, err
+		if changed {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO file_set_versions (set_id, version, files, username, created_at) VALUES (?, ?, ?, ?, ?)`,
+				id, version, files, user, now); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM file_set_versions WHERE set_id = ? AND version <= ?`, id, version-keepVersions); err != nil {
+				return err
+			}
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM file_set_versions WHERE set_id = ? AND version <= ?`, id, version-keepVersions); err != nil {
-			return false, err
+		if _, err := tx.ExecContext(ctx, `DELETE FROM file_set_targets WHERE set_id = ?`, id); err != nil {
+			return err
 		}
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM file_set_targets WHERE set_id = ?`, id); err != nil {
-		return false, err
-	}
-	for _, t := range in.Targets {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO file_set_targets (set_id, kind, value, role) VALUES (?, ?, ?, ?)`, id, t.Kind, t.Value, t.Role); err != nil {
-			return false, err
+		for _, t := range in.Targets {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO file_set_targets (set_id, kind, value, role) VALUES (?, ?, ?, ?)`, id, t.Kind, t.Value, t.Role); err != nil {
+				return err
+			}
 		}
-	}
-	return changed, tx.Commit()
+		return nil
+	})
+	return changed && err == nil, err
 }
 
 func (s store) delete(ctx context.Context, id string) error {
@@ -246,26 +246,21 @@ func (s store) delete(ctx context.Context, id string) error {
 
 // setSecret sets the value of a secret of a set that exists; a set has up to max secrets.
 func (s store) setSecret(ctx context.Context, id, name, value string, max int) (Secret, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Secret{}, err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
 	sec := Secret{Name: name, UpdatedAt: time.Now()}
-	var others int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM file_set_secrets WHERE set_id = ? AND name != ?`, id, name).Scan(&others); err != nil {
-		return sec, err
-	}
-	if others >= max {
-		return sec, httpapi.Errorf(http.StatusBadRequest, "A file set has up to %d secrets.", max)
-	}
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO file_set_secrets (set_id, name, value, updated_at) VALUES (?, ?, ?, ?)
-		ON CONFLICT (set_id, name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-		id, name, value, sec.UpdatedAt.Unix()); err != nil {
-		return sec, err
-	}
-	return sec, tx.Commit()
+	return sec, database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		var others int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM file_set_secrets WHERE set_id = ? AND name != ?`, id, name).Scan(&others); err != nil {
+			return err
+		}
+		if others >= max {
+			return httpapi.Errorf(http.StatusBadRequest, "A file set has up to %d secrets.", max)
+		}
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO file_set_secrets (set_id, name, value, updated_at) VALUES (?, ?, ?, ?)
+			ON CONFLICT (set_id, name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+			id, name, value, sec.UpdatedAt.Unix())
+		return err
+	})
 }
 
 func (s store) deleteSecret(ctx context.Context, id, name string) error {

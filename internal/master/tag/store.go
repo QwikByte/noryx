@@ -12,6 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -59,33 +60,27 @@ func (s *Store) Change(ctx context.Context, servers []Server, add, remove []stri
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	for _, srv := range servers {
-		for _, tag := range remove {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM server_tags WHERE node_id = ? AND server_id = ? AND tag = ?`, srv.NodeID, srv.ServerID, tag); err != nil {
-				return err
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		for _, srv := range servers {
+			for _, tag := range remove {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM server_tags WHERE node_id = ? AND server_id = ? AND tag = ?`, srv.NodeID, srv.ServerID, tag); err != nil {
+					return err
+				}
+			}
+			for _, tag := range add {
+				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO server_tags (node_id, server_id, tag) VALUES (?, ?, ?)`, srv.NodeID, srv.ServerID, tag); err != nil {
+					return err
+				}
 			}
 		}
-		for _, tag := range add {
-			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO server_tags (node_id, server_id, tag) VALUES (?, ?, ?)`, srv.NodeID, srv.ServerID, tag); err != nil {
-				return err
-			}
+		// Only the changed servers can have too many, as all others had few enough before.
+		var tooMany bool
+		err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server_tags GROUP BY node_id, server_id HAVING COUNT(*) > ?)`, MaxPerServer).Scan(&tooMany)
+		if err == nil && tooMany {
+			err = httpapi.Errorf(http.StatusBadRequest, "A server can have up to %d tags.", MaxPerServer)
 		}
-	}
-	// Only the changed servers can have too many, as all others had few enough before.
-	var tooMany bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server_tags GROUP BY node_id, server_id HAVING COUNT(*) > ?)`, MaxPerServer).Scan(&tooMany)
-	switch {
-	case err != nil:
 		return err
-	case tooMany:
-		return httpapi.Errorf(http.StatusBadRequest, "A server can have up to %d tags.", MaxPerServer)
-	}
-	return tx.Commit()
+	})
 }
 
 // Notes returns the notes of all servers that have some.
@@ -147,17 +142,14 @@ func (s *Store) Move(ctx context.Context, serverID, from, to string) error {
 
 // exec runs statements with the same arguments, all or none of them.
 func (s *Store) exec(ctx context.Context, args []any, statements ...string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
-			return err
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		for _, statement := range statements {
+			if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // Normalize trims and lowercases tags, and sorts them without duplicates. Tags consist of

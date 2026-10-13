@@ -332,21 +332,18 @@ func (s *Store) SetPinned(ctx context.Context, userID int64, servers []Server) e
 	if err := checkPinned(servers); err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	if _, err := tx.ExecContext(ctx, `DELETE FROM pinned_servers WHERE user_id = ?`, userID); err != nil {
-		return err
-	}
-	for i, srv := range servers {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO pinned_servers (user_id, position, node_id, server_id)
-			SELECT ?, ?, id, ? FROM nodes WHERE id = ?`, userID, i, srv.ServerID, srv.NodeID); err != nil {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM pinned_servers WHERE user_id = ?`, userID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for i, srv := range servers {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO pinned_servers (user_id, position, node_id, server_id)
+				SELECT ?, ?, id, ? FROM nodes WHERE id = ?`, userID, i, srv.ServerID, srv.NodeID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // SetAlerts stores which new warnings and errors pop up for a user.

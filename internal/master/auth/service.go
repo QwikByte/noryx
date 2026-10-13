@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/web"
 )
@@ -153,9 +154,9 @@ func (s *Service) Accounts(ctx context.Context) ([]Account, error) {
 // SetDisabled disables or enables a user. Disabling ends the user's sessions and revokes the
 // user's API tokens.
 func (s *Service) SetDisabled(ctx context.Context, id int64, disabled bool) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE users SET disabled = ? WHERE id = ?`, disabled, id)
-		if err == nil && rowsAffected(res) == 0 {
+		if err == nil && database.RowsAffected(res) == 0 {
 			return errNotFound
 		}
 		if err == nil && disabled {
@@ -171,7 +172,7 @@ func (s *Service) SetDisabled(ctx context.Context, id int64, disabled bool) erro
 // Delete deletes a user with its sessions and API tokens.
 func (s *Service) Delete(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
 	return err
@@ -216,9 +217,9 @@ func (s *Service) Setup(ctx context.Context, token, password string, ttl time.Du
 		return u, "", err
 	}
 	hash := hashPassword(password) // before the transaction, which keeps other writers waiting
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE token_hash = ?`, hashToken(token))
-		if err == nil && rowsAffected(res) == 0 {
+		if err == nil && database.RowsAffected(res) == 0 {
 			err = errInvalidSetup // used by a concurrent request
 		}
 		if err == nil {
@@ -254,7 +255,7 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, current, next, k
 	// A setup link would set the password again, and other sessions may belong to whoever
 	// knew the old one.
 	hash := hashPassword(next)
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, id)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE user_id = ?`, id)
@@ -344,9 +345,4 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 func hashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
-}
-
-func rowsAffected(res sql.Result) int64 {
-	n, _ := res.RowsAffected()
-	return n
 }

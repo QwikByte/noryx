@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -156,11 +157,11 @@ func now(t time.Time) map[string]any {
 func (x *scope) value(s string) (any, error) {
 	t, err := parse(s)
 	if err != nil {
-		return nil, bad("The template %q is invalid: %s.", clip(s, 60), err)
+		return nil, bad("The template %q is invalid: %s.", database.Clip(s, 60), err)
 	}
 	v, err := t.eval(x.lookup)
 	if err != nil {
-		return nil, bad("The template %q failed: %s.", clip(s, 60), err)
+		return nil, bad("The template %q failed: %s.", database.Clip(s, 60), err)
 	}
 	return v, nil
 }
@@ -332,7 +333,7 @@ func (r *run) end(rec int, outcome, detail string, out any) {
 		if b, err := json.Marshal(out); err == nil && len(b) <= maxOutput {
 			output = b
 		} else if err == nil {
-			output, _ = json.Marshal(clip(string(b), maxOutput))
+			output, _ = json.Marshal(database.Clip(string(b), maxOutput))
 		}
 	}
 	r.mu.Lock()
@@ -341,7 +342,7 @@ func (r *run) end(rec int, outcome, detail string, out any) {
 		return
 	}
 	s := &r.records[rec]
-	s.Outcome, s.Detail, s.Output, s.EndedAt = outcome, clip(detail, maxError), output, time.Now()
+	s.Outcome, s.Detail, s.Output, s.EndedAt = outcome, database.Clip(detail, maxError), output, time.Now()
 }
 
 // snapshot returns the records of the run so far.
@@ -402,7 +403,7 @@ func (r *run) execute(ctx context.Context) {
 	default:
 		slog.Info("A workflow ran", attrs...)
 	}
-	r.svc.finish(r, outcome, clip(msg, maxError))
+	r.svc.finish(r, outcome, database.Clip(msg, maxError))
 }
 
 var errCancelled = errors.New("cancelled")

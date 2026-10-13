@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -149,7 +150,7 @@ func runSwitch(ctx context.Context, x *scope, s Step, set *switchSettings) (any,
 			return nil, err
 		}
 		if equal(v, cv) {
-			return map[string]any{"case": text(cv), "detail": fmt.Sprintf("The case %q ran.", clip(text(cv), 100))}, x.steps(ctx, c.Steps)
+			return map[string]any{"case": text(cv), "detail": fmt.Sprintf("The case %q ran.", database.Clip(text(cv), 100))}, x.steps(ctx, c.Steps)
 		}
 	}
 	return map[string]any{"case": nil, "detail": "No case matched, the default ran."}, x.steps(ctx, s.Else)
@@ -461,7 +462,7 @@ func runTerminate(_ context.Context, x *scope, _ Step, set *terminateSettings) (
 	x.run.mu.Lock()
 	x.run.result = normalize(result)
 	x.run.mu.Unlock()
-	return map[string]any{"result": result}, &stop{failed: set.Failed, message: clip(msg, maxError)}
+	return map[string]any{"result": result}, &stop{failed: set.Failed, message: database.Clip(msg, maxError)}
 }
 
 type callSettings struct {

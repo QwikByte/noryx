@@ -21,6 +21,7 @@ import (
 	"unicode"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/plugin"
@@ -361,9 +362,7 @@ func (t Template) data() (string, error) {
 	return string(data), err
 }
 
-type scanner interface{ Scan(dest ...any) error }
-
-func scan(row scanner) (Template, error) {
+func scan(row database.Scanner) (Template, error) {
 	var t Template
 	var data string
 	var createdAt int64

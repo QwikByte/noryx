@@ -21,6 +21,7 @@ import (
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/schedule"
 )
@@ -492,7 +493,7 @@ func checkTemplates(settings any) error {
 	}
 	return templates(v, func(s string) error {
 		if _, err := parse(s); err != nil {
-			return bad("The template %q is invalid: %s.", clip(s, 60), err)
+			return bad("The template %q is invalid: %s.", database.Clip(s, 60), err)
 		}
 		return nil
 	})
@@ -512,15 +513,4 @@ func walk(steps []Step, fn func(*Step)) {
 			walk(b, fn)
 		}
 	}
-}
-
-// clip shortens a text to n bytes at most, at the start of a character.
-func clip(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	for n > 0 && s[n]&0xC0 == 0x80 {
-		n--
-	}
-	return s[:n] + "…"
 }

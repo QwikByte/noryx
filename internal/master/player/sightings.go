@@ -12,6 +12,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/network"
 )
 
@@ -61,54 +62,51 @@ func (s *Sightings) Record(ctx context.Context, nodeID string, at time.Time, ser
 		return nil
 	}
 	today := at.Unix() / daySeconds
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM player_sightings WHERE node_id = ? AND day = ?`, nodeID, today).Scan(&count); err != nil {
-		return err
-	}
-	update, err := tx.PrepareContext(ctx, `
-		UPDATE player_sightings SET last_seen = ?1, minutes = minutes + 1
-		WHERE name = ?2 AND node_id = ?3 AND server_id = ?4 AND day = ?5`)
-	if err != nil {
-		return err
-	}
-	defer update.Close()
-	insert, err := tx.PrepareContext(ctx, `
-		INSERT INTO player_sightings (name, node_id, server_id, day, first_seen, last_seen, minutes) VALUES (?, ?, ?, ?, ?, ?, 1)`)
-	if err != nil {
-		return err
-	}
-	defer insert.Close()
-	full := false
-	for _, srv := range servers {
-		if srv.GetProxy() {
-			continue // its players are those of the game servers of its network
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		var count int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM player_sightings WHERE node_id = ? AND day = ?`, nodeID, today).Scan(&count); err != nil {
+			return err
 		}
-		for _, name := range names(srv.GetPlayers().GetNames()) {
-			res, err := update.ExecContext(ctx, at.Unix(), name, nodeID, srv.GetId(), today)
-			if err != nil {
-				return err
+		update, err := tx.PrepareContext(ctx, `
+			UPDATE player_sightings SET last_seen = ?1, minutes = minutes + 1
+			WHERE name = ?2 AND node_id = ?3 AND server_id = ?4 AND day = ?5`)
+		if err != nil {
+			return err
+		}
+		defer update.Close()
+		insert, err := tx.PrepareContext(ctx, `
+			INSERT INTO player_sightings (name, node_id, server_id, day, first_seen, last_seen, minutes) VALUES (?, ?, ?, ?, ?, ?, 1)`)
+		if err != nil {
+			return err
+		}
+		defer insert.Close()
+		full := false
+		for _, srv := range servers {
+			if srv.GetProxy() {
+				continue // its players are those of the game servers of its network
 			}
-			switch n, _ := res.RowsAffected(); {
-			case n > 0:
-			case count >= maxPerDay:
-				full = true
-			default:
-				if _, err := insert.ExecContext(ctx, name, nodeID, srv.GetId(), today, at.Unix(), at.Unix()); err != nil {
+			for _, name := range names(srv.GetPlayers().GetNames()) {
+				res, err := update.ExecContext(ctx, at.Unix(), name, nodeID, srv.GetId(), today)
+				if err != nil {
 					return err
 				}
-				count++
+				switch n, _ := res.RowsAffected(); {
+				case n > 0:
+				case count >= maxPerDay:
+					full = true
+				default:
+					if _, err := insert.ExecContext(ctx, name, nodeID, srv.GetId(), today, at.Unix(), at.Unix()); err != nil {
+						return err
+					}
+					count++
+				}
 			}
 		}
-	}
-	if full {
-		s.warnFull(nodeID, today)
-	}
-	return tx.Commit()
+		if full {
+			s.warnFull(nodeID, today)
+		}
+		return nil
+	})
 }
 
 // names returns the valid names of players of a server, each once, and at most maxNames.

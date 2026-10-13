@@ -27,6 +27,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/node"
 )
@@ -262,7 +263,7 @@ func (s *Service) SetEndpoint(ctx context.Context, nodeID, endpoint string) (Mem
 		return Member{}, err
 	}
 	res, err := s.db.ExecContext(ctx, `UPDATE overlay_nodes SET endpoint = ? WHERE node_id = ?`, endpoint, nodeID)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotMember
 	}
 	if err != nil {
@@ -301,7 +302,7 @@ func (s *Service) Leave(ctx context.Context, nodeID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res, err := s.db.ExecContext(ctx, `DELETE FROM overlay_nodes WHERE node_id = ?`, nodeID)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotMember
 	}
 	if err != nil {
@@ -583,11 +584,6 @@ func (s *Service) call(ctx context.Context, nodeID string, fn func(context.Conte
 		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to let it join the private network.")
 	}
 	return err
-}
-
-func rowsAffected(res sql.Result) int64 {
-	n, _ := res.RowsAffected()
-	return n
 }
 
 // each calls fn for all members at the same time.

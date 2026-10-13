@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/files"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -63,7 +64,7 @@ func (s *Service) SwapProxy(ctx context.Context, id string, sw Swap) (Network, e
 		return current, httpapi.Errorf(http.StatusBadGateway, "The proxy was not changed: %s Apply the network again to bring the old one back.",
 			strings.TrimSuffix(message(err), ".")+".")
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE networks SET proxy_node_id = ?, proxy_server_id = ?, proxy_type = ? WHERE id = ?`,
 			n.Proxy.NodeID, n.Proxy.ServerID, n.ProxyType, n.ID); err != nil {
 			return err

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/operation"
 	"github.com/QwikByte/noryx/internal/master/tag"
@@ -134,7 +135,7 @@ func (s *Service) releaseNode(ctx context.Context, n Network, nodeID string, m m
 		if err := s.configureServers(ctx, kept, m, false); err != nil {
 			return err
 		}
-		return s.inTx(ctx, func(tx *sql.Tx) error { return save(ctx, tx, kept) })
+		return database.InTx(ctx, s.db, func(tx *sql.Tx) error { return save(ctx, tx, kept) })
 	}
 	operation.Step(ctx, "servers")
 	for i, b := range kept.Backends {
