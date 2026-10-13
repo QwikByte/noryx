@@ -20,6 +20,7 @@ import { CodeViewMenu } from "@/features/preferences/code-view"
 import { useServerUsage } from "@/features/usage/api"
 import { dayOf } from "@/lib/format"
 import { locale, msg, timeZone } from "@/lib/i18n"
+import { type StreamState, useEventStream } from "@/lib/use-event-stream"
 import { maximizedClass, useMaximized } from "@/lib/use-maximized"
 import { cn } from "@/lib/utils"
 import { earlierOutput, type Server, useSendCommand } from "./api"
@@ -28,8 +29,6 @@ import { ConsolePrompt } from "./console-prompt"
 import { serverType } from "./server-types"
 
 type LineKind = "log" | "command" | "output" | "error"
-type Connection = "connecting" | "live" | "ended" | "lost" | "failed"
-
 interface Line {
   id: number
   kind: LineKind
@@ -45,7 +44,7 @@ interface Line {
 const writtenAt = new Intl.DateTimeFormat(locale, { timeStyle: "medium", timeZone })
 const formatWritten = (time: string) => writtenAt.format(Number(time.slice(0, -6)))
 
-const connections: Record<Connection, { text: string; dot: string }> = {
+const connections: Record<StreamState, { text: string; dot: string }> = {
   connecting: { text: msg("Connecting…"), dot: "bg-console-warn animate-pulse" },
   live: { text: msg("Live"), dot: "bg-console-command shadow-[0_0_8px_var(--console-command)]" },
   ended: { text: msg("Showing the last output"), dot: "bg-console-muted" },
@@ -63,7 +62,6 @@ export function Console({ nodeId, server }: { nodeId: string; server: Server }) 
   const { can } = useAccess()
   const { settings, change } = useSettings()
   const [lines, setLines] = useState<Line[]>([])
-  const [connection, setConnection] = useState<Connection>("connecting")
   const [query, setQuery] = useState("")
   const [maximized, setMaximized] = useMaximized()
   const problems = settings.consoleFilter === "problems"
@@ -88,8 +86,6 @@ export function Console({ nodeId, server }: { nodeId: string; server: Server }) 
   const frame = useRef(0)
   // Commands are sent one after the other, so that they run and answer in the order typed.
   const queue = useRef(Promise.resolve())
-  // The ID of the latest line, so that connecting again continues after it.
-  const lastId = useRef("")
 
   const live = server.state !== "stopped"
   const proxy = serverType(server.type).proxy
@@ -112,38 +108,21 @@ export function Console({ nodeId, server }: { nodeId: string; server: Server }) 
     })
   }
 
-  // Connects again when the state of the server changes, e.g. when it starts again after a
-  // crash, and when the master renews the stream to check the access again. The console
-  // continues after the latest line; without one, it shows the last lines afresh.
-  useEffect(() => {
-    let source: EventSource
-    const connect = () => {
-      source = new EventSource(`/api/nodes/${nodeId}/servers/${server.id}/logs?colors=true&after=${lastId.current}`)
-      source.onopen = () => {
-        if (!lastId.current) {
-          pending.current = []
-          setLines([])
-          setEarlier("idle")
-        }
-        setConnection("live")
-      }
-      source.onmessage = (event) => {
-        lastId.current = event.lastEventId
-        append(line("log", event.data, event.lastEventId || undefined))
-      }
-      source.addEventListener("end", () => {
-        source.close()
-        setConnection("ended")
-      })
-      source.addEventListener("renew", () => {
-        source.close()
-        connect()
-      })
-      source.onerror = () => setConnection(source.readyState === EventSource.CLOSED ? "failed" : "lost")
-    }
-    connect()
-    return () => source.close()
-  }, [nodeId, server.id, server.state])
+  // Connects again when the state of the server changes, e.g. when it starts again after a crash,
+  // and continues after the latest line; without one, it shows the last lines afresh.
+  const connection = useEventStream(
+    `/api/nodes/${nodeId}/servers/${server.id}/logs?colors=true`,
+    {
+      onOpen: (resumed) => {
+        if (resumed) return
+        pending.current = []
+        setLines([])
+        setEarlier("idle")
+      },
+      onMessage: (data, id) => append(line("log", data, id || undefined)),
+    },
+    server.state,
+  )
 
   useLayoutEffect(() => {
     const el = viewport.current

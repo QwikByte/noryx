@@ -22,7 +22,7 @@ import type { Kind } from "@/features/plugins/api"
 import { preferencesQuery } from "@/features/preferences/api"
 import { validateServerSearch } from "@/features/servers/browse"
 import { firstTab } from "@/features/servers/tabs"
-import { ApiError, onOutdated } from "@/lib/api"
+import { ApiError, onOutdated, onSignedOut } from "@/lib/api"
 import { msg } from "@/lib/i18n"
 import { validateQuery } from "@/lib/search"
 
@@ -604,6 +604,9 @@ function leavingLoses() {
 
 // The panel is part of the master. Once the master runs another version, e.g. after an update,
 // the panel reloads to get the new one, as soon as that loses nothing.
+// A stream of events that the master refused as the session ended leads to the sign-in page, as a request does.
+onSignedOut(signInAgain)
+
 onOutdated(() => {
   if (!leavingLoses()) location.reload()
 })

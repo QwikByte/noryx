@@ -48,7 +48,11 @@ Each server has a live console in the panel: its output streams in as it happens
 through their console port (RCON), and to proxies through their own console, whose answer follows in the output. The
 agent keeps one console connection per game server for all its commands, so the server doesn't log a new one for each.
 Commands typed in quick succession run one after the other, in their order. Proxies created by earlier versions accept
-commands once they were created again, e.g. by saving their settings.
+commands once they were created again, e.g. by saving their settings. When the connection breaks, e.g. while the master
+restarts after an update, the console says so and connects again, continuing after the last line it showed, as do the
+log of a datastore and the live log; the prompt keeps working meanwhile. After a few minutes without success it waits
+until the master answers the panel again or the server's state changes, and once the session ended it leads to the
+sign-in.
 
 The output keeps the colours of the server and its plugins, and warnings and errors stand out. It can be searched,
 narrowed down to warnings and errors, which the console remembers, cleared and downloaded as a text file of what is

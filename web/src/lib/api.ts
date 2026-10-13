@@ -48,6 +48,28 @@ function setReachable(value: boolean) {
   reachableListeners.forEach((listener) => listener())
 }
 
+let signedOut: (error: ApiError) => void = () => {}
+
+/** Calls back when checkSignedIn finds that the session ended, which then is handled like a request that finds it. */
+export function onSignedOut(callback: (error: ApiError) => void) {
+  signedOut = callback
+}
+
+/**
+ * Whether the user is still signed in, e.g. after the master refused a stream of events, which EventSource doesn't
+ * tell why. While the master doesn't answer, e.g. as it restarts, the user counts as signed in.
+ */
+export async function checkSignedIn() {
+  try {
+    const res = await request("/auth/me")
+    if (res.status !== 401) return true
+    signedOut(await responseError(res))
+    return false
+  } catch {
+    return true
+  }
+}
+
 /** Sends a request to the master's REST API, with JSON as body. The session cookie is sent automatically. */
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const hasBody = init.body !== undefined
