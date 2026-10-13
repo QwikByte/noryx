@@ -115,6 +115,7 @@ export function FileBrowser({ files, path, server }: { files: ServerFiles; path:
   }
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- dropping files does what Upload does with the keyboard
     <section
       aria-labelledby="files-heading"
       className="relative"

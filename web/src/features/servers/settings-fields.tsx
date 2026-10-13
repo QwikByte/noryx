@@ -91,6 +91,7 @@ export function MemoryField({
         }}
       >
         <PopoverTrigger asChild>
+          {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger sets aria-expanded and aria-controls */}
           <Button id={id} type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
             {formatMegabytes(value)}
             <CaretUpDownIcon className="text-muted-foreground" />

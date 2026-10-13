@@ -3,14 +3,56 @@
   "plugins": [
     "react",
     "typescript",
-    "oxc"
+    "oxc",
+    "jsx-a11y"
   ],
   "rules": {
     "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
     "react/only-export-components": [
       "warn",
       {
         "allowConstantExport": true
+      }
+    ],
+    // Focus moves into what the user just opened, e.g. the first field of a dialog, as the dialog pattern of WAI-ARIA
+    // asks for.
+    "jsx-a11y/no-autofocus": "off",
+    // Roles stay where the native element can't do the same, e.g. "img" on charts drawn with SVG, "status" on live
+    // regions that aren't outputs of a form, and the combobox, listbox and meter the panel draws itself.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // Labels name the switches and checkboxes of Radix in them, which are buttons, with text that may be a few
+    // elements deep.
+    "jsx-a11y/label-has-associated-control": [
+      "warn",
+      {
+        "controlComponents": ["Checkbox", "Switch"],
+        "depth": 3
+      }
+    ],
+    // The options of a datalist are named by their values.
+    "jsx-a11y/control-has-associated-label": [
+      "warn",
+      {
+        "ignoreElements": ["audio", "canvas", "embed", "input", "textarea", "tr", "video", "option"]
+      }
+    ],
+    // Logs that scroll take the focus, so that the keyboard scrolls them too.
+    "jsx-a11y/no-noninteractive-tabindex": [
+      "warn",
+      {
+        "roles": ["tabpanel", "log"]
+      }
+    ],
+    // The lists of suggestions are listboxes of options, as eslint-plugin-jsx-a11y recommends allowing.
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": [
+      "warn",
+      {
+        "ul": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+        "ol": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+        "li": ["menuitem", "option", "row", "tab", "treeitem"],
+        "table": ["grid"],
+        "td": ["gridcell"]
       }
     ]
   },

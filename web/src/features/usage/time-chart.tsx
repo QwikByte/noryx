@@ -102,8 +102,10 @@ export function TimeChart<P extends HistoryPoint>({
           <span>{format(max / 2)}</span>
           <span className="translate-y-1/2">{format(0)}</span>
         </div>
+        {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the arrow keys read the values, as the pointer does */}
         <div
           role="group"
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the keyboard reads the chart once it has the focus
           tabIndex={0}
           aria-label={i18next.t("{{title}}, {{count}} values. Use the arrow keys to read them.", {
             title,

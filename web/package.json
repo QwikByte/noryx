@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint && i18next-cli lint && i18next-cli extract --ci --dry-run",
+    "lint": "oxlint --deny-warnings && i18next-cli lint && i18next-cli extract --ci --dry-run",
     "typecheck": "tsc -b",
     "i18n": "i18next-cli extract"
   },

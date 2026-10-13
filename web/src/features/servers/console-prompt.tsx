@@ -116,6 +116,7 @@ export function ConsolePrompt({
             {suggestions.map((s, i) => {
               const Icon = icons[s.kind]
               return (
+                // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the keys of the prompt choose an option, see onKeyDown
                 <li
                   key={s.value}
                   id={`${list}-${i}`}

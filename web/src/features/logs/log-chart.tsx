@@ -85,7 +85,7 @@ function HourChart({ buckets, onSelectHour }: { buckets: LogBucket[]; onSelectHo
             ))}
           </div>
           <div
-            role="list"
+            role="group"
             aria-label={t("Entries per hour, select an hour to show its entries")}
             className="relative flex h-full items-end gap-0.5"
           >
@@ -93,7 +93,6 @@ function HourChart({ buckets, onSelectHour }: { buckets: LogBucket[]; onSelectHo
               <button
                 key={b.start}
                 type="button"
-                role="listitem"
                 aria-label={t("{{hour}}: {{info}} info, {{warnings}} warnings, {{errors}} errors", {
                   hour: hourOf(b),
                   info: b.info + b.debug,
