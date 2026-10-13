@@ -5,6 +5,7 @@ import { ErrorPage } from "@/components/error-page"
 import { HubLayout } from "@/components/hub-layout"
 import { automation, home, library, startPage } from "@/components/navigation"
 import { NotFound } from "@/components/not-found"
+import { PagePending } from "@/components/page-pending"
 import { PageFocus } from "@/components/page-focus"
 import { DocumentTitle } from "@/components/page-title"
 import { Toaster } from "@/components/ui/sonner"
@@ -71,6 +72,9 @@ const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   ),
 })
 
+// The shape of a page fits only into the panel's shell, so what loads outside it, also the shell, shows nothing meanwhile.
+const outsideShell = () => null
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -95,6 +99,7 @@ const twoFactorRoute = createRoute({
     }
     if (!user.mustSetUpMfa) throw redirect({ to: search.redirect ?? "/" })
   },
+  pendingComponent: outsideShell,
   component: lazyRouteComponent(() => import("@/features/auth/two-factor-page"), "TwoFactorPage"),
 })
 
@@ -103,6 +108,7 @@ const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
   staticData: { title: msg("Set your password") },
+  pendingComponent: outsideShell,
   component: lazyRouteComponent(() => import("@/features/auth/setup-page"), "SetupPage"),
 })
 
@@ -121,6 +127,7 @@ const appRoute = createRoute({
     }
     if (user.mustSetUpMfa) throw redirect({ to: "/two-factor", search })
   },
+  pendingComponent: outsideShell,
   component: AppShell,
 })
 
@@ -584,6 +591,10 @@ export const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultErrorComponent: ErrorPage,
+  // A page whose code or data take longer than a moment shows its shape meanwhile, and then long enough not to flicker.
+  defaultPendingComponent: PagePending,
+  defaultPendingMs: 200,
+  defaultPendingMinMs: 400,
 })
 
 /** Whether leaving the page would lose something, e.g. unsaved changes or uploads, so that the browser asks first. */
