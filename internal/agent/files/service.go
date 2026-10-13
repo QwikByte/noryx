@@ -587,25 +587,10 @@ func sendChunks(r io.Reader, send func([]byte) error) error {
 }
 
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, fs.ErrNotExist):
-		return status.Error(codes.NotFound, "File or folder not found.")
-	case errors.Is(err, fs.ErrExist):
-		return status.Error(codes.AlreadyExists, "A file or folder with this name already exists.")
-	case errors.Is(err, fs.ErrPermission):
-		return status.Error(codes.PermissionDenied, "The agent isn't allowed to access this file.")
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, datadir.ErrLink):
-		return status.Error(codes.InvalidArgument, "This path leads through a link of the server, which the file manager doesn't follow.")
-	case strings.Contains(err.Error(), "path escapes from parent"): // os.Root, e.g. through a symbolic link
-		return status.Error(codes.InvalidArgument, "This path leads outside of the server folder.")
-	}
-	return status.Error(codes.Internal, err.Error())
+	return runtime.Status(err,
+		runtime.Meaning{Err: fs.ErrNotExist, Code: codes.NotFound, Text: "File or folder not found."},
+		runtime.Meaning{Err: fs.ErrExist, Code: codes.AlreadyExists, Text: "A file or folder with this name already exists."},
+		runtime.Meaning{Err: fs.ErrPermission, Code: codes.PermissionDenied, Text: "The agent isn't allowed to access this file."},
+		runtime.Meaning{Err: datadir.ErrLink, Code: codes.InvalidArgument, Text: "This path leads through a link of the server, which the file manager doesn't follow."},
+		runtime.Meaning{Err: runtime.ErrEscapes, Code: codes.InvalidArgument, Text: "This path leads outside of the server folder."})
 }

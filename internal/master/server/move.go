@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -340,14 +341,10 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 
 	progress := func(n int) { h.moves.update(mv.ServerID, func(m *Move) { m.Bytes += int64(n) }) }
 	h.moves.update(mv.ServerID, func(m *Move) { m.Phase = "copying" })
-	header := &noryxv1.Server{
-		Id: mv.ServerID, Name: src.GetName(), Type: src.GetType(), Version: src.GetVersion(), MemoryMb: src.GetMemoryMb(),
-		Port: req.Port, Storage: req.Storage, Java: src.GetJava(), RestartPolicy: src.GetRestartPolicy(),
-		AikarFlags: src.GetAikarFlags(), JvmOptions: src.GetJvmOptions(), CpuMillis: src.GetCpuMillis(), LoaderVersion: src.GetLoaderVersion(),
-		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(), ExtraPorts: src.GetExtraPorts(),
-		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
-		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(), ProcessLimit: src.GetProcessLimit(), InitMemoryMb: src.GetInitMemoryMb(),
-	}
+	// The server as its old node has it, so that no setting is left behind; the new node takes
+	// its settings and ignores its state.
+	header := proto.CloneOf(src)
+	header.Id, header.Port, header.Storage = mv.ServerID, req.Port, req.Storage
 	var res *noryxv1.ImportServerResponse
 	res, err = node.Relay(ctx,
 		func(ctx context.Context) (grpc.ServerStreamingClient[noryxv1.ArchiveDirectoryResponse], error) {

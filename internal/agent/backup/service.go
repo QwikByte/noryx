@@ -619,23 +619,7 @@ func (s *Service) lock(ctx context.Context, id string) (runtime.Server, func(), 
 }
 
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Server not found.")
-	case errors.Is(err, fs.ErrNotExist):
-		return status.Error(codes.NotFound, "Backup not found.")
-	case errors.Is(err, fs.ErrExist):
-		return status.Error(codes.AlreadyExists, "The backup exists already.")
-	case errors.Is(err, storage.ErrUnknown):
-		return status.Errorf(codes.InvalidArgument, "%s. Add it on the node with: noryx-agent storage add", err)
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	}
-	return status.Error(codes.Internal, err.Error())
+	return runtime.Status(err,
+		runtime.Meaning{Err: fs.ErrNotExist, Code: codes.NotFound, Text: "Backup not found."},
+		runtime.Meaning{Err: fs.ErrExist, Code: codes.AlreadyExists, Text: "The backup exists already."})
 }

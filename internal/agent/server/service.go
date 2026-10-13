@@ -239,30 +239,46 @@ func (s *Service) adopt(ctx context.Context, spec runtime.Spec, size int64, stre
 	return res.LeftOut, errors.Join(secrets.Take(none, dir), mcnet.KeepForwarding(none, dir, spec.Type))
 }
 
+// settings are the settings of a server that users choose, which the messages to create, change
+// and import one share.
+type settings interface {
+	GetName() string
+	GetVersion() string
+	GetMemoryMb() uint32
+	GetPort() uint32
+	GetJava() string
+	GetRestartPolicy() noryxv1.RestartPolicy
+	GetAikarFlags() bool
+	GetJvmOptions() []string
+	GetCpuMillis() uint32
+	GetLoaderVersion() string
+	GetStopTimeoutSeconds() uint32
+	GetTimeZone() string
+	GetExtraPorts() []*noryxv1.ExtraPort
+	GetHealthStartMinutes() uint32
+	GetCrashLimit() uint32
+	GetStableAfterMinutes() uint32
+	GetUnhealthyRestartMinutes() uint32
+	GetProcessLimit() uint32
+	GetInitMemoryMb() uint32
+}
+
+// withSettings returns spec with the settings that s has, all that users choose; toProto maps
+// them back.
+func withSettings(spec runtime.Spec, s settings) runtime.Spec {
+	spec.Name, spec.Version, spec.MemoryMB, spec.Port = s.GetName(), cmp.Or(s.GetVersion(), "LATEST"), s.GetMemoryMb(), s.GetPort()
+	spec.Java, spec.RestartPolicy, spec.AikarFlags = s.GetJava(), s.GetRestartPolicy(), s.GetAikarFlags()
+	spec.JVMOptions, spec.CPUMillis, spec.LoaderVersion = s.GetJvmOptions(), s.GetCpuMillis(), s.GetLoaderVersion()
+	spec.StopTimeout, spec.TimeZone, spec.ExtraPorts = s.GetStopTimeoutSeconds(), s.GetTimeZone(), extraPorts(s.GetExtraPorts())
+	spec.HealthStart, spec.CrashLimit, spec.StableAfter = s.GetHealthStartMinutes(), s.GetCrashLimit(), s.GetStableAfterMinutes()
+	spec.UnhealthyRestart, spec.ProcessLimit, spec.InitMemoryMB = s.GetUnhealthyRestartMinutes(), s.GetProcessLimit(), s.GetInitMemoryMb()
+	return spec
+}
+
 // newServer checks the request for a new server and returns the server's settings.
 func newServer(req *noryxv1.CreateServerRequest) (runtime.Spec, error) {
 	_, knownType := noryxv1.ServerType_name[int32(req.GetType())]
-	spec := runtime.Spec{
-		ID:            runtime.NewID(),
-		Name:          req.GetName(),
-		Type:          req.GetType(),
-		Version:       cmp.Or(req.GetVersion(), "LATEST"),
-		MemoryMB:      req.GetMemoryMb(),
-		Port:          req.GetPort(),
-		Storage:       req.GetStorage(),
-		Java:          req.GetJava(),
-		RestartPolicy: req.GetRestartPolicy(),
-		AikarFlags:    req.GetAikarFlags(),
-		JVMOptions:    req.GetJvmOptions(),
-		CPUMillis:     req.GetCpuMillis(),
-		LoaderVersion: req.GetLoaderVersion(),
-		StopTimeout:   req.GetStopTimeoutSeconds(),
-		TimeZone:      req.GetTimeZone(),
-		ExtraPorts:    extraPorts(req.GetExtraPorts()),
-		HealthStart:   req.GetHealthStartMinutes(),
-	}
-	spec.CrashLimit, spec.StableAfter, spec.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
-	spec.ProcessLimit, spec.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
+	spec := withSettings(runtime.Spec{ID: runtime.NewID(), Type: req.GetType(), Storage: req.GetStorage()}, req)
 	switch {
 	case !req.GetAcceptEula() && !req.GetType().Proxy():
 		return spec, status.Error(codes.InvalidArgument, "Accept the Minecraft EULA to create a game server.")
@@ -341,14 +357,7 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 	if h == nil {
 		return status.Error(codes.InvalidArgument, "the first message must describe the server")
 	}
-	spec := runtime.Spec{
-		ID: h.GetId(), Name: h.GetName(), Type: h.GetType(), Version: h.GetVersion(), MemoryMB: h.GetMemoryMb(), Port: h.GetPort(),
-		Storage: h.GetStorage(), Java: h.GetJava(), RestartPolicy: h.GetRestartPolicy(), AikarFlags: h.GetAikarFlags(),
-		JVMOptions: h.GetJvmOptions(), CPUMillis: h.GetCpuMillis(), LoaderVersion: h.GetLoaderVersion(),
-		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(), ExtraPorts: extraPorts(h.GetExtraPorts()),
-		HealthStart: h.GetHealthStartMinutes(), CrashLimit: h.GetCrashLimit(), StableAfter: h.GetStableAfterMinutes(),
-		UnhealthyRestart: h.GetUnhealthyRestartMinutes(), ProcessLimit: h.GetProcessLimit(), InitMemoryMB: h.GetInitMemoryMb(),
-	}
+	spec := withSettings(runtime.Spec{ID: h.GetId(), Type: h.GetType(), Storage: h.GetStorage()}, h)
 	_, knownType := noryxv1.ServerType_name[int32(spec.Type)]
 	switch {
 	case !runtime.ValidID(spec.ID):
@@ -427,14 +436,7 @@ func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerReq
 	if err != nil {
 		return nil, err
 	}
-	srv.Name, srv.Version, srv.MemoryMB, srv.Port = req.GetName(), cmp.Or(req.GetVersion(), "LATEST"), req.GetMemoryMb(), req.GetPort()
-	srv.Java, srv.RestartPolicy, srv.AikarFlags = req.GetJava(), req.GetRestartPolicy(), req.GetAikarFlags()
-	srv.JVMOptions, srv.CPUMillis, srv.LoaderVersion = req.GetJvmOptions(), req.GetCpuMillis(), req.GetLoaderVersion()
-	srv.StopTimeout, srv.TimeZone = req.GetStopTimeoutSeconds(), req.GetTimeZone()
-	srv.ExtraPorts = extraPorts(req.GetExtraPorts())
-	srv.HealthStart = req.GetHealthStartMinutes()
-	srv.CrashLimit, srv.StableAfter, srv.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
-	srv.ProcessLimit, srv.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
+	srv.Spec = withSettings(srv.Spec, req)
 	release, err := s.check(ctx, srv.Spec)
 	if err != nil {
 		return nil, err
@@ -869,26 +871,8 @@ func toProto(s runtime.Server) *noryxv1.Server {
 }
 
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown: // e.g. a refused archive
-		return err
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Server not found.")
-	case errors.Is(err, runtime.ErrNotRunning):
-		return status.Error(codes.FailedPrecondition, "Start the server to send commands.")
-	case errors.Is(err, runtime.ErrNotReady):
-		return status.Error(codes.FailedPrecondition, "The server is starting. Wait until it runs to send commands.")
-	case errors.Is(err, runtime.ErrUnsupported):
-		return status.Error(codes.FailedPrecondition, "This type of server does not support that.")
-	case errors.Is(err, storage.ErrUnknown):
-		return status.Errorf(codes.InvalidArgument, "%s. Add it on the node with: noryx-agent storage add", err)
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	default:
-		return status.Error(codes.Internal, err.Error())
-	}
+	return runtime.Status(err,
+		runtime.Meaning{Err: runtime.ErrNotRunning, Code: codes.FailedPrecondition, Text: "Start the server to send commands."},
+		runtime.Meaning{Err: runtime.ErrNotReady, Code: codes.FailedPrecondition, Text: "The server is starting. Wait until it runs to send commands."},
+		runtime.Meaning{Err: runtime.ErrUnsupported, Code: codes.FailedPrecondition, Text: "This type of server does not support that."})
 }

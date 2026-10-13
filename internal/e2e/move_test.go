@@ -3,6 +3,7 @@ package e2e
 import (
 	"archive/zip"
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +23,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
+	"github.com/QwikByte/noryx/internal/agent/storage"
 	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/network"
@@ -277,4 +280,52 @@ func announcing(size int, entries uint64) []byte {
 	end = le.AppendUint32(end, 0x06054b50) // the end, which leaves the numbers to the ZIP64 end
 	end = append(end, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0)
 	return append([]byte("PK\x03\x04"), append(make([]byte, size-4-len(end)), end...)...)
+}
+
+// A server keeps every setting as it moves: the master sends them all, and the new node takes
+// them all. Between them, the two servers set every setting that users choose, as Aikar's flags
+// and an initial heap exclude each other.
+func TestMoveKeepsSettings(t *testing.T) {
+	m := startMaster(t)
+	a1, a2 := m.startAgent(t, "node-1"), m.startAgent(t, "node-2")
+	conn, err := m.nodes.Conn(t.Context(), a1.node.ID)
+	check(t, err)
+	api := apiClient{t: t, url: m.panel(t).URL}
+	server := func(name string, port uint32, aikar bool, initMemory uint32) *noryxv1.CreateServerRequest {
+		return &noryxv1.CreateServerRequest{
+			Name: name, Type: noryxv1.ServerType_SERVER_TYPE_FABRIC, Version: "1.21.4", MemoryMb: 2048, Port: port, AcceptEula: true,
+			Java: "21", RestartPolicy: noryxv1.RestartPolicy_RESTART_POLICY_ON_CRASH, AikarFlags: aikar, JvmOptions: []string{"-Dnoryx.test=1"},
+			CpuMillis: 1500, LoaderVersion: "0.16.10", StopTimeoutSeconds: 90, TimeZone: "Europe/Berlin",
+			ExtraPorts:         []*noryxv1.ExtraPort{{Port: port + 1000, Protocol: "tcp", Label: "Map"}},
+			HealthStartMinutes: 7, CrashLimit: 4, StableAfterMinutes: 20, UnhealthyRestartMinutes: 6, ProcessLimit: 2048, InitMemoryMb: initMemory,
+		}
+	}
+	set := map[string]bool{}
+	for _, req := range []*noryxv1.CreateServerRequest{server("Survival", 25570, true, 0), server("Creative", 25571, false, 1024)} {
+		res, err := noryxv1.NewServerServiceClient(conn).CreateServer(t.Context(), req)
+		check(t, err)
+		id := res.GetServer().GetId()
+		before := a1.runtime.spec(id)
+		api.do("POST", "/api/nodes/"+a1.node.ID+"/servers/"+id+"/move", map[string]any{"node": a2.node.ID}, http.StatusAccepted, nil)
+		if mv := waitForMove(t, api, id); mv.Phase != "done" {
+			t.Fatalf("move = %+v", mv)
+		}
+		after := a2.runtime.spec(id)
+		// Empty is the default storage location.
+		before.Storage, after.Storage = cmp.Or(before.Storage, storage.Default), cmp.Or(after.Storage, storage.Default)
+		if !reflect.DeepEqual(before, after) {
+			t.Errorf("%s moved with\n%+v,\nwant\n%+v", req.GetName(), after, before)
+		}
+		v := reflect.ValueOf(before)
+		for i := range v.NumField() {
+			set[v.Type().Field(i).Name] = set[v.Type().Field(i).Name] || !v.Field(i).IsZero()
+		}
+	}
+	// What the agent or a network sets rather than users.
+	notChosen := []string{"BehindProxy", "ProxyOnNode", "BedrockPlayers", "Storage", "BedrockPort", "Overlay"}
+	for _, f := range reflect.VisibleFields(reflect.TypeFor[runtime.Spec]()) {
+		if !set[f.Name] && !slices.Contains(notChosen, f.Name) {
+			t.Errorf("no server of the test sets %s", f.Name)
+		}
+	}
 }
