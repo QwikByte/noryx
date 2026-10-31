@@ -75,9 +75,6 @@ func TestChangesWait(t *testing.T) {
 		}, http.StatusNoContent)
 	})
 	t.Run("inviting a user", func(t *testing.T) {
-		t.Skip("inviting doesn't take the lock of the changes of users and groups (#214), so a group that " +
-			"another change widens between the check and the invitation goes to the new user, whose setup " +
-			"link the inviter holds; unclear whether it should")
 		waits(t, func() *httptest.ResponseRecorder {
 			return call(h.invite, "", `{"username":"newbie","groups":["`+group.ID+`"]}`)
 		}, http.StatusCreated)

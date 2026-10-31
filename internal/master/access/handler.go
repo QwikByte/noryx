@@ -170,6 +170,8 @@ func (h *Handler) invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	h.changes.Lock()
+	defer h.changes.Unlock()
 	_, groups, err := h.state(ctx)
 	if err == nil {
 		err = grantable(From(ctx), groups, nil, req.Groups)
