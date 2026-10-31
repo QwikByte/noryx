@@ -4,7 +4,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/ed25519"
+	"crypto/rand"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"io"
 	"os"
@@ -15,6 +18,7 @@ import (
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/pki"
@@ -172,5 +176,55 @@ func TestMasterArchiveRefused(t *testing.T) {
 	asked := errors.New("no terminal")
 	if _, err := ReadMaster(bytes.NewReader(encrypted), func() (string, error) { return "", asked }, t.TempDir()); !errors.Is(err, asked) {
 		t.Errorf("without a passphrase: %v", err)
+	}
+}
+
+// hostKey writes a host key of SFTP into the data directory dir and returns it.
+func hostKey(t *testing.T, dir string) []byte {
+	t.Helper()
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := ssh.MarshalPrivateKey(key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := pem.EncodeToMemory(block)
+	if err := os.MkdirAll(filepath.Join(dir, SFTPDir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, SFTPDir, "host_key"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// The host key of SFTP goes with the archive, so that clients still trust a restored master;
+// a damaged one is refused.
+func TestMasterArchiveHostKey(t *testing.T) {
+	db, dir, _ := master(t)
+	out := t.TempDir()
+	if _, err := ReadMaster(bytes.NewReader(archiveOf(t, db, dir, "")), given(""), out); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(out, SFTPDir)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("an archive of a master without SFTP has its folder: %v", err)
+	}
+
+	key := hostKey(t, dir)
+	out = t.TempDir()
+	if _, err := ReadMaster(bytes.NewReader(archiveOf(t, db, dir, passphrase)), given(passphrase), out); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(out, SFTPDir, "host_key")); err != nil || !bytes.Equal(got, key) {
+		t.Errorf("restored host key %q, %v", got, err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, SFTPDir, "host_key"), []byte("not a key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadMaster(bytes.NewReader(archiveOf(t, db, dir, "")), given(""), t.TempDir()); err == nil || !strings.Contains(err.Error(), "host key") {
+		t.Errorf("an archive with a damaged host key: %v", err)
 	}
 }

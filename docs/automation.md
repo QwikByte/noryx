@@ -117,7 +117,8 @@ and configuration, which can hold passwords that weren't set through file sets.
 The master keeps users, nodes, networks, templates, file sets with their secrets, backup jobs, the storages for
 [copies of backups](#copies-of-backups) with their secret keys, schedules, settings and the log in its database, and the
 certificate authority (CA) that its agents trust in `pki`. Losing them means enrolling every node again, and losing
-track of the copies of backups. An archive of both holds every secret of the master, and **the CA's private key in it
+track of the copies of backups. An archive holds both, and the host key of [SFTP](servers.md#sftp) if the master has
+one, so that clients still trust a restored master. It holds every secret of the master, and **the CA's private key in it
 lets anyone who gets the archive control the agents of all nodes**, and with them every server. Keep archives as safe as
 the master itself.
 
@@ -156,8 +157,9 @@ sudo systemctl start noryx-master
 with `sudo -u noryx --preserve-env=NORYX_MASTER_PASSPHRASE noryx-master restore …` in scripts. It refuses while the
 master runs, and checks all of the archive before it replaces anything: that the passphrase is right, that nothing in it
 was changed or cut off, that it holds nothing but the database and the CA, that this version of the master can open the
-database and that the CA has its key. Then it replaces the database and the CA in the data directory, and keeps what it
-replaced in a folder `replaced-<time>` there; delete it once the master works, as it holds the private key of the CA it
+database and that the CA has its key. Then it replaces the database, the CA and, if the archive has one, the host key of
+SFTP in the data directory, and keeps what it replaced in a folder `replaced-<time>-…` there; delete it once the master
+works, as it holds the private key of the CA it
 had. An unencrypted archive can also be restored by hand:
 
 ```sh

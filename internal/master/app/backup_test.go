@@ -20,6 +20,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/auth"
 	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/settings"
+	"github.com/QwikByte/noryx/internal/master/sftp"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
@@ -279,5 +280,46 @@ func TestRestoreMaster(t *testing.T) {
 	}
 	if replaced, _ := filepath.Glob(filepath.Join(empty.dataDir, "replaced-*")); len(replaced) != 0 {
 		t.Errorf("replaced = %v", replaced)
+	}
+}
+
+// A restore takes the host key of SFTP from the archive, so that clients still trust the master,
+// and keeps the master's own if the archive has none.
+func TestRestoreMasterHostKey(t *testing.T) {
+	dir := t.TempDir()
+	keyOf := func(dataDir string) string {
+		t.Helper()
+		key, err := sftp.HostKey(filepath.Join(dataDir, backup.SFTPDir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sftp.Fingerprint(key)
+	}
+	old := config{dataDir: filepath.Join(dir, "old")}
+	newMaster(t, old.dataDir, "admin")
+	without := filepath.Join(dir, "without.tar.gz")
+	if err := backupMaster(t.Context(), old, without); err != nil {
+		t.Fatal(err)
+	}
+	oldKey := keyOf(old.dataDir)
+	with := filepath.Join(dir, "with.tar.gz")
+	if err := backupMaster(t.Context(), old, with); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{dataDir: filepath.Join(dir, "new")}
+	newMaster(t, cfg.dataDir, "other")
+	newKey := keyOf(cfg.dataDir)
+	if err := restoreMaster(cfg, without); err != nil {
+		t.Fatal(err)
+	}
+	if got := keyOf(cfg.dataDir); got != newKey {
+		t.Errorf("an archive without a host key replaced the master's: %s, want %s", got, newKey)
+	}
+	if err := restoreMaster(cfg, with); err != nil {
+		t.Fatal(err)
+	}
+	if got := keyOf(cfg.dataDir); got != oldKey {
+		t.Errorf("host key after restoring %s, want the archive's %s", got, oldKey)
 	}
 }

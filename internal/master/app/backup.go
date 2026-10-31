@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"golang.org/x/term"
@@ -86,14 +87,19 @@ func restoreMaster(cfg config, file string) error {
 		return fmt.Errorf("%s: %w. Nothing was replaced", file, err)
 	}
 
-	kept := filepath.Join(cfg.dataDir, "replaced-"+time.Now().Format("20060102-150405"))
-	if err := os.Mkdir(kept, 0o700); err != nil {
+	kept, err := os.MkdirTemp(cfg.dataDir, "replaced-"+time.Now().Format("20060102-150405")+"-")
+	if err != nil {
 		return err
 	}
-	moved, err := move(cfg.dataDir, kept)
+	// The host key of SFTP stays unless the archive has one.
+	names := restored
+	if _, err := os.Stat(filepath.Join(staged, backup.SFTPDir)); err == nil {
+		names = append(slices.Clone(restored), backup.SFTPDir)
+	}
+	moved, err := move(cfg.dataDir, kept, names)
 	var placed []string
 	if err == nil {
-		placed, err = move(staged, cfg.dataDir)
+		placed, err = move(staged, cfg.dataDir, names)
 	}
 	if err != nil {
 		// Put back what was there.
@@ -117,10 +123,10 @@ func restoreMaster(cfg config, file string) error {
 	return nil
 }
 
-// move moves those of the restored files that are in from to the folder to, and returns which.
-func move(from, to string) ([]string, error) {
+// move moves those of the files names that are in from to the folder to, and returns which.
+func move(from, to string, names []string) ([]string, error) {
 	var moved []string
-	for _, name := range restored {
+	for _, name := range names {
 		err := os.Rename(filepath.Join(from, name), filepath.Join(to, name))
 		switch {
 		case errors.Is(err, fs.ErrNotExist):

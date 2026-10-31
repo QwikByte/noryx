@@ -472,7 +472,8 @@ same kind, and deleting a copy the permission to delete backups.
 
 An archive of the master, of `noryx-master backup` or of its backup job, holds its database with every secret the
 master keeps, such as the secret keys of storages, the secrets of file sets, the passwords of databases, the forwarding
-secrets of networks and the secrets of two-factor authentication, and the private key of its certificate authority.
+secrets of networks and the secrets of two-factor authentication, the private key of its certificate authority and the
+host key of SFTP, if it has one.
 Whoever has the CA's key can issue certificates that the agents trust, and so control every node and its servers;
 anyone who gets an archive gets that. So only administrators can see, change and run the backup job of the master, as
 no permission that groups can get covers it, and API tokens can't; each run checks that the administrator who saved it

@@ -20,13 +20,15 @@ import (
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
-// An archive of the master is a .tar.gz with its database, master.db, and its certificate
-// authority, the folder pki, as noryx-master backup writes it, and the backup job of the
+// An archive of the master is a .tar.gz with its database, master.db, its certificate authority,
+// the folder pki, and the host key of SFTP, sftp/host_key, if it has one, so that clients still
+// trust a restored master. noryx-master backup writes it, and the backup job of the
 // master too. With a passphrase, the job encrypts it with age, so that `age -d` decrypts it as
 // well. It holds every secret of the master, and the CA's private key lets anyone control the
 // agents.
@@ -34,6 +36,9 @@ import (
 const (
 	masterDB = "master.db"
 	pkiDir   = "pki"
+	// SFTPDir is the folder of the data directory with the host key of SFTP.
+	SFTPDir     = "sftp"
+	sftpHostKey = SFTPDir + "/host_key"
 )
 
 var (
@@ -76,7 +81,18 @@ func WriteMaster(ctx context.Context, db *sql.DB, dataDir string, w io.Writer, p
 	if err == nil {
 		err = addFolder(archive, pkiDir, filepath.Join(dataDir, pkiDir))
 	}
+	if key := filepath.Join(dataDir, filepath.FromSlash(sftpHostKey)); err == nil && exists(key) {
+		err = archive.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: SFTPDir + "/", Mode: 0o700, ModTime: time.Now()})
+		if err == nil {
+			err = addFile(archive, sftpHostKey, key)
+		}
+	}
 	return errors.Join(err, archive.Close(), gz.Close(), out.Close())
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 type nopCloser struct{ io.Writer }
@@ -154,9 +170,9 @@ func ReadMaster(r io.Reader, passphrase func() (string, error), dir string) (Mas
 			return m, fmt.Errorf("read the archive: %w", err)
 		}
 		switch {
-		case h.Typeflag == tar.TypeDir && h.Name == pkiDir+"/":
-			err = os.MkdirAll(filepath.Join(dir, pkiDir), 0o700)
-		case h.Typeflag == tar.TypeReg && (h.Name == masterDB || pkiFile.MatchString(h.Name)):
+		case h.Typeflag == tar.TypeDir && (h.Name == pkiDir+"/" || h.Name == SFTPDir+"/"):
+			err = os.MkdirAll(filepath.Join(dir, strings.TrimSuffix(h.Name, "/")), 0o700)
+		case h.Typeflag == tar.TypeReg && (h.Name == masterDB || pkiFile.MatchString(h.Name) || h.Name == sftpHostKey):
 			if h.Name == masterDB {
 				m.Made = h.ModTime
 			}
@@ -229,6 +245,15 @@ func checkMaster(dir string) (*x509.Certificate, error) {
 	ca, err := pki.LoadKeyPair(filepath.Join(dir, pkiDir), "ca")
 	if err != nil {
 		return nil, fmt.Errorf("the archive holds no certificate authority with its key: %w", err)
+	}
+	if key := filepath.Join(dir, filepath.FromSlash(sftpHostKey)); exists(key) {
+		data, err := os.ReadFile(key) //nolint:gosec // extracted into a new folder
+		if err == nil {
+			_, err = ssh.ParsePrivateKey(data)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("the host key of SFTP in the archive is damaged: %w", err)
+		}
 	}
 	path := filepath.Join(dir, masterDB)
 	if _, err := os.Stat(path); err != nil {
