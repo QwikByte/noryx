@@ -382,6 +382,12 @@ const newBackupJobRoute = createRoute({
   staticData: { title: msg("Backups") },
   component: lazyRouteComponent(() => import("@/features/backups/backup-job-page"), "NewBackupJobPage"),
 })
+const masterBackupRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/backups/master",
+  staticData: { title: msg("Backups") },
+  component: lazyRouteComponent(() => import("@/features/backups/master-backup"), "MasterBackupPage"),
+})
 const backupJobRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/backups/$jobId",
@@ -561,6 +567,7 @@ export const router = createRouter({
       fileSetRoute,
       automationRoute.addChildren([backupJobsRoute, policiesRoute, workflowsRoute, agendaRoute]),
       newBackupJobRoute,
+      masterBackupRoute,
       backupJobRoute,
       newPolicyRoute,
       policyRoute,

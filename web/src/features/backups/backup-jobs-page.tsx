@@ -15,6 +15,7 @@ import { TaskCard } from "@/features/schedules/task-card"
 import { matches } from "@/lib/search"
 import { type CopyTo, describeRetention, describeSelection, type JobSettings, jobs, nothingSelected, storagesQuery } from "./api"
 import { GoneCopies } from "./copies"
+import { MasterBackupSection } from "./master-backup"
 import { StoragesSection } from "./storages"
 
 const route = getRouteApi("/_app/_automation/backups")
@@ -110,6 +111,7 @@ export function BackupJobsPage() {
           )}
         </>
       )}
+      <MasterBackupSection />
       <StoragesSection />
       <GoneCopies />
     </>

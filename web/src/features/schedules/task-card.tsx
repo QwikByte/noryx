@@ -38,6 +38,8 @@ export function TaskCard<S>({
   edit,
   confirmRun,
   manage,
+  servers = true,
+  children,
 }: {
   task: Task<S>
   taskApi: TaskApi<S>
@@ -49,6 +51,10 @@ export function TaskCard<S>({
   confirmRun?: string
   /** Whether the user may run, change and delete the task. */
   manage: boolean
+  /** Whether the task runs on servers; the backup job of the master doesn't. */
+  servers?: boolean
+  /** Further notes, e.g. a warning about its settings. */
+  children?: ReactNode
 }) {
   const run = taskApi.useRunTask()
   const changes = task.lastRun?.steps?.filter((step) => step.change) ?? []
@@ -81,8 +87,9 @@ export function TaskCard<S>({
           {describeSchedule(task.schedule)}
           <span className="truncate text-xs text-muted-foreground">{task.schedule.timeZone.replaceAll("_", " ")}</span>
         </p>
-        <TargetChips targets={task.targets} />
+        {servers && <TargetChips targets={task.targets} />}
       </div>
+      {children}
       {task.lastRun?.error && (
         <Callout tone="destructive" title={t("The last run failed")} className="py-3">
           <span className="whitespace-pre-line">{task.lastRun.error}</span>

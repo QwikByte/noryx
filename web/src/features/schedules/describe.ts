@@ -63,6 +63,7 @@ export const everyHours = (hours: number) => Array.from({ length: 24 / hours }, 
 /** The actions of steps, which the master names in English. */
 const stepActions = new Set<string>([
   msg("Back up server"),
+  msg("Back up the master"),
   msg("Restart server"),
   msg("Stop server"),
   msg("Start server"),
@@ -71,5 +72,8 @@ const stepActions = new Set<string>([
   msg("Update plugins"),
 ])
 
-/** A step as the panel tells it, e.g. "Restart server · lobby". */
-export const describeStep = (step: Step) => `${stepActions.has(step.action) ? t(step.action) : step.action} · ${step.server}`
+/** A step as the panel tells it, e.g. "Restart server · lobby", or only its action if it concerns no server. */
+export function describeStep(step: Step) {
+  const action = stepActions.has(step.action) ? t(step.action) : step.action
+  return step.server ? `${action} · ${step.server}` : action
+}

@@ -67,7 +67,8 @@ internal/master/
                        addresses servers reach them at, dumps, upgrades, rotating passwords and browsing tables
   schedule/            tasks that run on servers or nodes at set times: storage, scheduler, REST API
   backup/              backups of servers, backup jobs as scheduled tasks, and the copies of their backups in
-                       S3-compatible storage or on other nodes, with the storages for them
+                       S3-compatible storage or on other nodes, with the storages for them; backups of the master: its
+                       archive, encrypted with a passphrase, restoring it, and its backup job
   policy/              the panel's schedules (policies in the API): restarts with warnings, stops, starts, commands
   workflow/            workflows: triggers, steps with conditions, loops and variables, templates of data, runs and
                        webhooks
@@ -95,8 +96,8 @@ internal/agent/
   fileset/             files of file sets on servers: secrets filled in, the manifest that hides them, their state
   properties/          reads and updates server.properties, keeping comments
   plugin/              plugin and mod files of servers
-  backup/              backups of servers: selection, archives, restoring, and the store that keeps dumps and
-                       copies of backups of other nodes too
+  backup/              backups of servers: selection, archives, restoring, and the store that keeps dumps,
+                       copies of backups of other nodes and archives of the master too
   datastore/           datastores of networks: databases and users, dumps loaded as their users, tables shown read
                        only, the local CLI's part
   logs/                latest log entries in memory, log service, logging of every call

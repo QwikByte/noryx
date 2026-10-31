@@ -178,8 +178,9 @@ options of every program it installs name `--prereleases`.
 
 Commands run as the master's user `noryx`: `sudo -u noryx noryx-master logs` shows the log, `… user add <name>` creates
 an administrator, e.g. after losing access, `… node add <name> <agent-address> --public-enroll-addr <host:port>` adds a
-node and prints its join token for scripts, and `… backup <file>` saves the master's database and CA (see [Backing up
-the master](automation.md#backing-up-the-master)).
+node and prints its join token for scripts, `… backup <file>` saves the master's database and CA, and `… restore <file>`
+restores them from an archive of it or of the backup job of the master while the master is stopped (see [Backing up the
+master](automation.md#backing-up-the-master)).
 
 ### On a node
 

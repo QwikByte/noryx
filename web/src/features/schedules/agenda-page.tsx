@@ -10,12 +10,12 @@ import { Section } from "@/components/section"
 import type { Tone } from "@/components/tone"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
-import { jobs } from "@/features/backups/api"
+import { jobs, masterJobs } from "@/features/backups/api"
 import { type AutomationTask, useAutomationTasks } from "@/features/dashboard/tasks"
 import { policies } from "@/features/policies/api"
 import { upcomingQuery, type Workflow, workflowsQuery } from "@/features/workflows/api"
 import { dayOf, formatTime } from "@/lib/format"
-import { locale } from "@/lib/i18n"
+import { locale, msg } from "@/lib/i18n"
 import { today } from "./describe"
 
 /** A backup job, schedule or workflow, with its page and how it looks. */
@@ -34,12 +34,18 @@ interface Entry extends Item {
   times: string[]
 }
 
+const kinds: Record<AutomationTask["link"]["to"], string> = {
+  "/backups/$jobId": msg("Backup job"),
+  "/backups/master": msg("Backup of the master"),
+  "/policies/$policyId": msg("Schedule"),
+}
+
 const fromTask = (a: AutomationTask): Item => ({
   ...a,
   id: a.task.id,
   name: a.task.name,
   running: a.task.running,
-  kind: a.link.to === "/backups/$jobId" ? t("Backup job") : t("Schedule"),
+  kind: t(kinds[a.link.to]),
 })
 
 const fromWorkflow = (w: Workflow): Item => ({
@@ -91,6 +97,7 @@ export function AgendaPage() {
   const flows = useQuery({ ...workflowsQuery, enabled: canWorkflows })
   const upcoming = [
     useQuery({ ...jobs.upcomingQuery, enabled: canJobs }),
+    useQuery({ ...masterJobs.upcomingQuery, enabled: access.admin }),
     useQuery({ ...policies.upcomingQuery, enabled: canPolicies }),
     useQuery({ ...upcomingQuery, enabled: canWorkflows }),
   ]
@@ -99,6 +106,7 @@ export function AgendaPage() {
     ...upcoming,
     flows,
     useQuery({ ...jobs.tasksQuery, enabled: canJobs }),
+    useQuery({ ...masterJobs.tasksQuery, enabled: access.admin }),
     useQuery({ ...policies.tasksQuery, enabled: canPolicies }),
   ]
   const error = queries.find((q) => q.error)?.error

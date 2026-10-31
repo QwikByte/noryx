@@ -1,7 +1,7 @@
 import { CloudArrowUpIcon, PencilSimpleIcon, PlusIcon, ShieldCheckIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
-import { type FormEvent, type ReactElement, useState } from "react"
+import { type FormEvent, type ReactElement, type ReactNode, useState } from "react"
 import { toast } from "sonner"
 import { Callout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
@@ -254,9 +254,40 @@ const none = "none"
 /** Chooses where a job copies its backups to: nowhere, a storage, or another node in one of its storage locations. */
 export function CopyField({ value, onChange }: { value?: CopyTo; onChange: (copy?: CopyTo) => void }) {
   const manage = useManageCopies()
+  return (
+    <PlaceField id="job-copy" label={t("Copy to")} value={value} onChange={onChange} disabled={!manage}>
+      {t(
+        "Each backup of a server is copied away from its node, without the server's secrets, so that the server can be restored if its node is lost. The job keeps as many copies as backups. Storage is set up below the jobs on the Backups tab of the Automation. Copying needs the permission to see the backups of all servers.",
+      )}
+    </PlaceField>
+  )
+}
+
+/**
+ * Chooses a storage, or another node in one of its storage locations, e.g. for copies of backups; nowhere too unless
+ * the place is required.
+ */
+export function PlaceField({
+  id,
+  label,
+  value,
+  onChange,
+  required = false,
+  disabled = false,
+  children,
+}: {
+  id: string
+  label: string
+  value?: CopyTo
+  onChange: (place?: CopyTo) => void
+  required?: boolean
+  disabled?: boolean
+  /** Describes what goes there. */
+  children: ReactNode
+}) {
   const { data: storages = [] } = useQuery(storagesQuery)
   const { data: nodes = [] } = useQuery(nodesQuery)
-  const selected = value?.storage ? `storage:${value.storage}` : value?.node ? `node:${value.node}` : none
+  const selected = value?.storage ? `storage:${value.storage}` : value?.node ? `node:${value.node}` : required ? "" : none
   const node = nodes.find((n) => n.id === value?.node)
   const locations = [...new Set(["default", ...(node?.info?.storage.map((l) => l.name) ?? []), value?.location || "default"])]
 
@@ -267,14 +298,14 @@ export function CopyField({ value, onChange }: { value?: CopyTo; onChange: (copy
 
   return (
     <Field>
-      <FieldLabel htmlFor="job-copy">{t("Copy to")}</FieldLabel>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <div className="flex flex-wrap gap-3">
-        <Select value={selected} onValueChange={choose} disabled={!manage}>
-          <SelectTrigger id="job-copy" className="w-full sm:w-64">
-            <SelectValue />
+        <Select value={selected} onValueChange={choose} disabled={disabled}>
+          <SelectTrigger id={id} className="w-full sm:w-64">
+            <SelectValue placeholder={t("Choose a storage or node")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={none}>{t("Nowhere")}</SelectItem>
+            {!required && <SelectItem value={none}>{t("Nowhere")}</SelectItem>}
             {storages.length > 0 && (
               <SelectGroup>
                 <SelectLabel>{t("S3 storage")}</SelectLabel>
@@ -310,11 +341,7 @@ export function CopyField({ value, onChange }: { value?: CopyTo; onChange: (copy
           </Select>
         )}
       </div>
-      <FieldDescription>
-        {t(
-          "Each backup of a server is copied away from its node, without the server's secrets, so that the server can be restored if its node is lost. The job keeps as many copies as backups. Storage is set up below the jobs on the Backups tab of the Automation. Copying needs the permission to see the backups of all servers.",
-        )}
-      </FieldDescription>
+      <FieldDescription>{children}</FieldDescription>
     </Field>
   )
 }

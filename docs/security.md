@@ -409,9 +409,9 @@ disks, not from the provider: choose a storage that you trust with the data of t
 the configured endpoint, over HTTPS with a certificate the system trusts, follows no redirects, signs every request with
 AWS Signature Version 4 including the hash of its body, and accepts the endpoint, region, bucket and folder only in
 strict forms. The secret key of a storage is stored in the master's database like the forwarding secret, is part of
-`noryx-master backup`, and is never returned by the API or logged; endpoint, bucket and access key show to those who may
-see backup jobs. A compromised storage can only hand out archives of its own, which are restored like those of a
-compromised node.
+the [backups of the master](#backups-of-the-master), and is never returned by the API or logged; endpoint, bucket and
+access key show to those who may see backup jobs. A compromised storage can only hand out archives of its own, which are
+restored like those of a compromised node.
 
 Another node keeps copies apart from the backups of its own servers, out of reach of containers and the file manager,
 and never restores them itself: the master relays them, as agents never connect to each other. Its administrator can
@@ -431,6 +431,38 @@ checks that the user who saved the job last still has them. Seeing and restoring
 permission to see its backups, on the node it is on now; those of servers that are gone, whose scope is unknown, need it
 on all servers. Restoring needs the permission to restore backups of the server restored into, which must be of the
 same kind, and deleting a copy the permission to delete backups.
+
+## Backups of the master
+
+An archive of the master, of `noryx-master backup` or of its backup job, holds its database with every secret the
+master keeps, such as the secret keys of storages, the secrets of file sets, the passwords of databases, the forwarding
+secrets of networks and the secrets of two-factor authentication, and the private key of its certificate authority.
+Whoever has the CA's key can issue certificates that the agents trust, and so control every node and its servers;
+anyone who gets an archive gets that. So only administrators can see, change and run the backup job of the master, as
+no permission that groups can get covers it, and API tokens can't; each run checks that the administrator who saved it
+last still is one, so that the archives no longer go where a former administrator chose.
+
+The job encrypts its archives with [age](https://age-encryption.org) and a passphrase (scrypt, ChaCha20-Poly1305), so
+they leave the master encrypted only when a passphrase is set; the panel warns while none is. The passphrase is stored
+in the master's database like the secret keys of storages, so it is in the archives too, is never returned by the API,
+which only tells whether one is set, and is never logged; the log notes that it was set or removed. The master writes an
+archive in a temporary folder of its data directory, readable by itself only, streams it to the storage or node and
+deletes the folder. A storage gets the archives like [copies of backups](#copies-of-backups), as objects in the folder
+`master` of its folder. A node keeps them through its agent, in `<backups of the location>/master` of a storage
+location its administrator allowed, as files only the agent can read (mode `0600`), out of reach of containers and the
+file manager; the agent never reads or restores them, accepts only names that can't leave that folder, at most 16 GB
+while the space kept free stays free, and never replaces an archive. The node's administrator can read them there, so an
+archive without a passphrase gives them control over all other nodes. The job only deletes archives that it made and
+recorded, in the place it keeps them in.
+
+A compromised storage or node can delete or keep archives, but can't read or change encrypted ones: age authenticates
+every part of them, and `noryx-master restore` refuses an archive that was changed or cut off. An unencrypted archive
+could be swapped there for one with other users or another CA; restore archives without a passphrase only from places
+you trust. `noryx-master restore` runs on the master's host as the owner of its data directory, refuses while the
+master runs, which holds a lock on the data directory, and checks all of an archive in a folder of the data directory
+before it replaces anything: that it holds only the database and the files of the CA, without links or paths outside,
+that the database opens and is intact, and that the CA has its key. It names the fingerprint of the CA it restored,
+which agents only trust if they enrolled with it, and keeps what it replaced, with the CA's key, until it is deleted.
 
 ## Permissions
 

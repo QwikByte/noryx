@@ -33,6 +33,7 @@ export type Outcome = "succeeded" | "failed" | "skipped"
 export interface Step {
   /** What the master calls it, e.g. "Restart server". */
   action: string
+  /** The server and its node; empty for an action on none, e.g. backing up the master. */
   server: string
   node: string
   outcome: Outcome
@@ -62,7 +63,7 @@ export interface Upcoming {
   at: string
 }
 
-/** A task that runs on servers on a schedule: a backup job or a policy. */
+/** A task that runs on a schedule: a backup job, the backup job of the master or a policy. */
 export interface Task<S> {
   id: string
   name: string
@@ -77,9 +78,14 @@ export interface Task<S> {
   createdAt: string
   /** The user who saved it last, whose permissions its runs need if it backs up or updates. */
   savedBy?: string
+  /** Whether it keeps a secret, e.g. the passphrase of the backups of the master, which the master never shows. */
+  hasSecret: boolean
 }
 
-export type TaskInput<S> = Pick<Task<S>, "name" | "enabled" | "schedule" | "targets" | "settings">
+export type TaskInput<S> = Pick<Task<S>, "name" | "enabled" | "schedule" | "targets" | "settings"> & {
+  /** Replaces the secret of a task that keeps one; left out, it stays, and empty removes it. */
+  secret?: string
+}
 
 /** The time zone of the panel, which new schedules start with: the user's, else the browser's. */
 const localTimeZone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
