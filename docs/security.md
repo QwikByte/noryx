@@ -169,7 +169,7 @@ network, and the agent drops in nftables tables of its own whatever this bridge 
 another (`bridge noryx`) and whatever the node would route from one of these bridges to another (`inet
 noryx-networks`): when it starts, before each start of a server, and at boot with `noryx-isolate.service`, without
 which Podman doesn't start the servers. An agent that can't set up the tables, e.g. as the kernel lacks
-`nft_meta_bridge`, doesn't run. A network of the agent without such a bridge, e.g. of an older agent, is created again
+`nft_meta_bridge`, doesn't run. A network of the agent without such a bridge, e.g. one created by hand, is created again
 once no container uses it, and no server or datastore starts in it until then. The agent checks every answer of the
 runtime's socket and refuses one at which the other runtime answers, e.g. Podman behind Docker's socket, or a Podman
 older than 4.9 or rootless, as it relies on how each one keeps servers apart; whether Podman runs rootless, which

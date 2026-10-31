@@ -78,8 +78,7 @@ type ServerServiceClient interface {
 	// server, the data that follows is the archive. Unlike ImportServer, the archive is
 	// untrusted: the agent checks it like an archive of the file manager, leaves out the files
 	// with secrets and those it writes itself, and replaces the secrets and the forwarding
-	// settings in the others. Nothing of the server remains if that fails. Agents of older
-	// versions answer UNIMPLEMENTED.
+	// settings in the others. Nothing of the server remains if that fails.
 	CreateServerFromArchive(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[CreateServerFromArchiveRequest, CreateServerFromArchiveResponse], error)
 }
 
@@ -289,8 +288,7 @@ type ServerServiceServer interface {
 	// server, the data that follows is the archive. Unlike ImportServer, the archive is
 	// untrusted: the agent checks it like an archive of the file manager, leaves out the files
 	// with secrets and those it writes itself, and replaces the secrets and the forwarding
-	// settings in the others. Nothing of the server remains if that fails. Agents of older
-	// versions answer UNIMPLEMENTED.
+	// settings in the others. Nothing of the server remains if that fails.
 	CreateServerFromArchive(grpc.ClientStreamingServer[CreateServerFromArchiveRequest, CreateServerFromArchiveResponse]) error
 	mustEmbedUnimplementedServerServiceServer()
 }

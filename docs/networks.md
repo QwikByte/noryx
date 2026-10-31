@@ -53,8 +53,7 @@ restart, all of them when the forwarding changes. The proxy reloads its configur
 or renaming a server restarts it. If a node is offline, the change is saved and **Apply again** configures its servers
 later; until then, the network's page and the overview tell that its proxy may be out of date. The proxy reaches servers
 on other nodes at the host of their node's address and their port, so changing either configures the network again, as
-does restoring a backup of one of its servers. Proxies created by earlier versions are created again once, to read
-console commands.
+does restoring a backup of one of its servers.
 
 ## Copies of servers
 

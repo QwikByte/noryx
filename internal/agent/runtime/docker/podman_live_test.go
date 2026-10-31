@@ -190,8 +190,8 @@ func TestPodmanLive(t *testing.T) {
 
 // TestPodmanNetworksLive checks that containers in two networks of the agent can't reach each
 // other on Podman, also once the networks were inspected through Docker's API, after which
-// some versions no longer keep them apart, and that a network of an older agent without its
-// bridge is only created again once no container uses it. It writes the agent's table between
+// some versions no longer keep them apart, and that a network of the agent without its bridge,
+// e.g. one created by hand, is only created again once no container uses it. It writes the agent's table between
 // networks, which stays, and runs with NORYX_DOCKER_TEST=podman.
 func TestPodmanNetworksLive(t *testing.T) {
 	d := live(t)
@@ -235,7 +235,7 @@ func TestPodmanNetworksLive(t *testing.T) {
 		t.Error("reached a container in another network")
 	}
 
-	// A network of an older agent, without the bridge, which a container uses.
+	// A network created by hand, without the bridge, which a container uses.
 	old, user := proxyNetwork(runtime.NewID()), runtime.NewID()
 	t.Cleanup(func() { must(t, d.removeNetwork(context.WithoutCancel(ctx), old)) })
 	_, err = d.cli.NetworkCreate(ctx, old, client.NetworkCreateOptions{Driver: "bridge", Labels: map[string]string{labelManaged: "true"}})

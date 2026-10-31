@@ -166,6 +166,7 @@ func TestNetworkOf(t *testing.T) {
 		}, true},
 		{"modern without secret", func(r *noryxv1.ConfigureNetworkRequest) { r.ForwardingSecret = "" }, false},
 		{"unknown forwarding", func(r *noryxv1.ConfigureNetworkRequest) { r.Forwarding = 9 }, false},
+		{"no forwarding chosen", func(r *noryxv1.ConfigureNetworkRequest) { r.Forwarding = noryxv1.Forwarding_FORWARDING_UNSPECIFIED }, false},
 		{"try names an unknown server", func(r *noryxv1.ConfigureNetworkRequest) { r.Try = []string{"nope"} }, false},
 		{"try names a server twice", func(r *noryxv1.ConfigureNetworkRequest) { r.Try = []string{"lobby", "lobby"} }, false},
 		{"forced host with a port", func(r *noryxv1.ConfigureNetworkRequest) { r.ForcedHosts[0].Host = "survival.example.com:25565" }, false},
@@ -185,12 +186,7 @@ func TestNetworkOf(t *testing.T) {
 		}
 	}
 
-	// Older masters send a secret without forwarding, and let players join the first backend.
-	n, msg := networkOf(&noryxv1.ConfigureNetworkRequest{Id: id, ForwardingSecret: secret, Backends: backends})
-	if msg != "" || n.Forwarding != runtime.ForwardingModern || len(n.Try) != 1 || n.Try[0] != "lobby" {
-		t.Fatalf("network of an older master = %+v, %q", n, msg)
-	}
-	if n, _ := networkOf(&noryxv1.ConfigureNetworkRequest{Id: id, ProxyOnNode: true}); n.Forwarding != runtime.ForwardingNone || n.ProxyOnNode {
+	if n, _ := networkOf(&noryxv1.ConfigureNetworkRequest{Id: id, Forwarding: noryxv1.Forwarding_FORWARDING_NONE, ProxyOnNode: true}); n.Forwarding != runtime.ForwardingNone || n.ProxyOnNode {
 		t.Fatalf("leaving a network = %+v", n)
 	}
 }

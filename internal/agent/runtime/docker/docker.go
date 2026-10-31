@@ -436,19 +436,14 @@ func (d *Docker) Start(ctx context.Context, id string) error {
 	return notFound(err)
 }
 
-// Stop gives the server its stop timeout, which containers created by older agents don't
-// know, to save its worlds.
+// Stop gives the server the stop timeout its container carries to save its worlds.
 func (d *Docker) Stop(ctx context.Context, id string) error {
 	d.stopsOf(id).Add(1)
 	return d.stop(ctx, id)
 }
 
 func (d *Docker) stop(ctx context.Context, id string) error {
-	_, spec, err := d.inspect(ctx, id)
-	if err != nil {
-		return err
-	}
-	_, err = d.cli.ContainerStop(ctx, containerName(id), client.ContainerStopOptions{Timeout: new(stopSeconds(spec))})
+	_, err := d.cli.ContainerStop(ctx, containerName(id), client.ContainerStopOptions{})
 	return notFound(err)
 }
 
