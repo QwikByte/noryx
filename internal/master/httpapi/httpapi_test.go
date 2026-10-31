@@ -140,9 +140,11 @@ func TestBodyTime(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := http.Post(srv.URL, "application/json", strings.NewReader(`{"a": 1}`)); err != nil {
+	res, err := http.Post(srv.URL, "application/json", strings.NewReader(`{"a": 1}`))
+	if err != nil {
 		t.Fatal(err)
 	}
+	res.Body.Close()
 	if err := <-handled; err != nil {
 		t.Fatalf("a body sent in time: %v", err)
 	}
