@@ -4,7 +4,7 @@ import type { Network } from "@/features/networks/api"
 import type { ServerUsage } from "@/features/usage/api"
 import type { Cell } from "@/lib/csv"
 import { msg } from "@/lib/i18n"
-import { matches } from "@/lib/search"
+import { matches, searchParams } from "@/lib/search"
 import { type Order, orders, sortBy } from "@/lib/sort"
 import type { NodeServer, ServerState } from "./api"
 import { serverType, states } from "./server-types"
@@ -100,8 +100,7 @@ export interface ServerSearch {
 
 /** Reads the list's settings from the address. Each key must be set explicitly, see the login route. */
 export function validateServerSearch(search: Record<string, unknown>): ServerSearch {
-  const text = (key: string) => (typeof search[key] === "string" && search[key] ? search[key] : undefined)
-  const pick = <T extends string>(key: string, allowed: readonly T[]) => allowed.find((v) => v === search[key])
+  const { text, pick } = searchParams(search)
   return {
     q: text("q"),
     state: pick("state", states),

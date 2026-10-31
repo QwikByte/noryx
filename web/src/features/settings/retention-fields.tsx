@@ -4,9 +4,9 @@ import type { ReactNode } from "react"
 import { toast } from "sonner"
 import { Callout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { NumberInput } from "@/components/number-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useDeleteSeenPlayers } from "@/features/players/api"
 import type { Retention } from "./api"
@@ -118,19 +118,7 @@ function Amount({
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="number"
-          required
-          min={min}
-          max={max}
-          className="font-mono sm:w-32"
-          value={value}
-          onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-        />
-        <span className="text-sm text-muted-foreground">{unit}</span>
-      </div>
+      <NumberInput id={id} min={min} max={max} unit={unit} value={value} onChange={onChange} />
       <FieldDescription>{children}</FieldDescription>
     </Field>
   )

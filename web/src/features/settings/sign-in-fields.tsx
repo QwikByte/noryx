@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type ReactNode, useState } from "react"
+import { NumberInput } from "@/components/number-input"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { type MasterSettings, settingsQuery } from "./api"
 
@@ -135,19 +135,7 @@ function NumberField({
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="number"
-          required
-          min={min}
-          max={max}
-          className="font-mono sm:w-32"
-          value={value}
-          onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-        />
-        <span className="text-sm text-muted-foreground">{unit}</span>
-      </div>
+      <NumberInput id={id} min={min} max={max} unit={unit} value={value} onChange={onChange} />
       {children && <FieldDescription>{children}</FieldDescription>}
     </Field>
   )

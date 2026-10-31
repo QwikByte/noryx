@@ -1,4 +1,5 @@
 import { msg } from "@/lib/i18n"
+import { searchParams } from "@/lib/search"
 import type { Level, LogFilter, Source } from "./api"
 
 /** Time ranges the log page offers, with their length. */
@@ -27,8 +28,7 @@ const sources: Source[] = ["master", "agent"]
 
 /** Reads the filter from the address. Each key must be set explicitly, see the login route. */
 export function validateLogSearch(search: Record<string, unknown>): LogSearch {
-  const text = (key: string) => (typeof search[key] === "string" && search[key] ? search[key] : undefined)
-  const pick = <T extends string>(key: string, allowed: readonly T[]) => allowed.find((v) => v === search[key])
+  const { text, pick } = searchParams(search)
   const time = (key: string) => {
     const ms = Date.parse(text(key) ?? "")
     return Number.isNaN(ms) ? undefined : new Date(ms).toISOString()

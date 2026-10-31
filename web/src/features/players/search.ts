@@ -1,4 +1,5 @@
 import { useSortings } from "@/features/preferences/sorting"
+import { searchParams } from "@/lib/search"
 import { type Order, orders } from "@/lib/sort"
 
 export type OnlineSort = "name" | "server" | "network"
@@ -22,13 +23,13 @@ export interface PlayerSearch {
 }
 
 export function validatePlayerSearch(search: Record<string, unknown>): PlayerSearch {
-  const text = (v: unknown) => (typeof v === "string" && v ? v : undefined)
+  const { text, pick } = searchParams(search)
   return {
-    q: text(search.q),
-    tab: tabs.find((t) => t === search.tab),
-    network: text(search.network),
-    sort: sorts.find((s) => s === search.sort),
-    order: orders.find((o) => o === search.order),
+    q: text("q"),
+    tab: pick("tab", tabs),
+    network: text("network"),
+    sort: pick("sort", sorts),
+    order: pick("order", orders),
   }
 }
 

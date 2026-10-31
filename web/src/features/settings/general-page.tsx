@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { Callout, ErrorCallout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormSection } from "@/components/form-section"
+import { NumberInput } from "@/components/number-input"
 import { StatCard, StatStrip } from "@/components/stat-card"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
@@ -646,37 +647,5 @@ function PanelRestartNotice({ settings, master }: { settings: MasterSettings; ma
         </div>
       )}
     </Callout>
-  )
-}
-
-function NumberInput({
-  id,
-  min,
-  max,
-  unit,
-  value,
-  onChange,
-}: {
-  id: string
-  min: number
-  max: number
-  unit: string
-  value: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        id={id}
-        type="number"
-        required
-        min={min}
-        max={max}
-        className="font-mono sm:w-32"
-        value={value}
-        onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-      />
-      <span className="text-sm text-muted-foreground">{unit}</span>
-    </div>
   )
 }
