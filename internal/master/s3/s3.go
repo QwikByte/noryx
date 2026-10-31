@@ -78,6 +78,10 @@ type errorBody struct {
 
 func (b errorBody) err(status int) *Error { return &Error{status, b.Code, b.Message} }
 
+// Public tells the master's API that the answer of a storage may be shown as it is, e.g. that it
+// denied access, which helps an administrator to set up the storage.
+func (*Error) Public() {}
+
 func (e *Error) Error() string {
 	msg := "the storage answered " + strconv.Itoa(e.Status) + " " + http.StatusText(e.Status)
 	if e.Code != "" {

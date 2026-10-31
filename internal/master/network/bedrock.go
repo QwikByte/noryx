@@ -60,7 +60,7 @@ func (s *Service) provideBedrock(ctx context.Context, n Network) (bool, error) {
 	operation.Step(ctx, "bedrock")
 	changed, err := s.mods.Provide(ctx, plugin.Ref(n.Proxy), bedrockPlugins)
 	if err != nil {
-		return false, httpapi.Errorf(http.StatusBadGateway, "Geyser and Floodgate could not be installed: %s", message(err))
+		return false, httpapi.Errorf(http.StatusBadGateway, "Geyser and Floodgate could not be installed: %s", httpapi.Message(err))
 	}
 	return changed, nil
 }
@@ -74,7 +74,7 @@ func (s *Service) removeBedrock(ctx context.Context, n Network) error {
 	}
 	for _, project := range bedrockPlugins {
 		if err := ignoreMissing(s.mods.Uninstall(ctx, plugin.Ref(n.Proxy), project)); err != nil {
-			return httpapi.Errorf(http.StatusBadGateway, "Geyser and Floodgate could not be removed from the proxy: %s", message(err))
+			return httpapi.Errorf(http.StatusBadGateway, "Geyser and Floodgate could not be removed from the proxy: %s", httpapi.Message(err))
 		}
 	}
 	return nil

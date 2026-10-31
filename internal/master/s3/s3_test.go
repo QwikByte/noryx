@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/s3/s3test"
 )
 
@@ -150,3 +151,6 @@ func TestAddressing(t *testing.T) {
 		t.Fatalf("Delete = %v, requests %v", err, hosts)
 	}
 }
+
+// The answers of a storage are shown to administrators as they are, e.g. that it denied access.
+var _ httpapi.Public = (*Error)(nil)

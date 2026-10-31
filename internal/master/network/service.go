@@ -298,7 +298,7 @@ func (s *Service) update(ctx context.Context, current, n Network) (Network, erro
 	for _, b := range current.Backends {
 		if !slices.ContainsFunc(n.Backends, b.same) {
 			if err := s.leave(ctx, b); err != nil {
-				return current, httpapi.Errorf(http.StatusBadGateway, "%s could not be made standalone again: %s", b.Name, message(err))
+				return current, httpapi.Errorf(http.StatusBadGateway, "%s could not be made standalone again: %s", b.Name, httpapi.Message(err))
 			}
 		}
 	}
@@ -346,12 +346,12 @@ func (s *Service) Delete(ctx context.Context, id string) (warning string, err er
 			continue
 		}
 		if err := s.leave(ctx, b); err != nil && !skipped(b.Ref) {
-			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted, because %s could not be made standalone again: %s", b.Name, message(err))
+			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted, because %s could not be made standalone again: %s", b.Name, httpapi.Message(err))
 		}
 	}
 	if !offline {
 		if err := s.release(ctx, n, "proxy"); err != nil && !skipped(n.Proxy) {
-			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted: %s", message(err))
+			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted: %s", httpapi.Message(err))
 		}
 	}
 	if _, err = s.db.ExecContext(ctx, `DELETE FROM networks WHERE id = ?`, n.ID); err != nil || !offline {
@@ -388,7 +388,7 @@ func (s *Service) release(ctx context.Context, n Network, step string) error {
 	operation.Step(ctx, step)
 	detach := &noryxv1.ConfigureNetworkRequest{Id: n.Proxy.ServerID, Forwarding: noryxv1.Forwarding_FORWARDING_NONE}
 	if _, err := s.configure(ctx, n.Proxy, detach); ignoreMissing(err) != nil {
-		return httpapi.Errorf(http.StatusBadGateway, "The proxy could not be configured: %s", message(err))
+		return httpapi.Errorf(http.StatusBadGateway, "The proxy could not be configured: %s", httpapi.Message(err))
 	}
 	return nil
 }
@@ -1077,19 +1077,12 @@ type failed struct {
 }
 
 func (f *failed) Error() string {
-	return fmt.Sprintf("%s could not be configured: %s", f.what, strings.TrimSuffix(message(f.err), ".")+".")
+	return fmt.Sprintf("%s could not be configured: %s", f.what, strings.TrimSuffix(httpapi.Message(f.err), ".")+".")
 }
 
 func applyFailed(what string, err error) error { return &failed{what, err} }
 
 // message returns the message of an error of an agent or of the master.
-func message(err error) string {
-	if st, ok := status.FromError(err); ok {
-		return st.Message()
-	}
-	return err.Error()
-}
-
 // ignoreMissing ignores that the agent does not know a server, e.g. as it was deleted.
 func ignoreMissing(err error) error {
 	if status.Code(err) == codes.NotFound {

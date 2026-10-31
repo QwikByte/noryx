@@ -59,7 +59,7 @@ func (s *Service) RemoveNode(ctx context.Context, nodeID string, release bool, r
 	var kept []Network // those whose datastores may still be published for the node
 	for _, n := range networks {
 		if err := s.releaseNode(ctx, n, nodeID, m); err != nil {
-			return left, httpapi.Errorf(http.StatusBadGateway, "The node was not removed, as the network %q could not let go of it: %s", n.Name, message(err))
+			return left, httpapi.Errorf(http.StatusBadGateway, "The node was not removed, as the network %q could not let go of it: %s", n.Name, httpapi.Message(err))
 		}
 		switch {
 		case n.endsWith(nodeID):

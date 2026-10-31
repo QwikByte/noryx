@@ -223,7 +223,7 @@ func (s *Service) restart(ctx context.Context, servers []Backend) error {
 				_, err = noryxv1.NewServerServiceClient(conn).RestartServer(ctx, &noryxv1.RestartServerRequest{Id: b.ServerID})
 			}
 			if err != nil {
-				errs[i] = fmt.Errorf("%s: %s", b.Name, message(err))
+				errs[i] = fmt.Errorf("%s: %s", b.Name, httpapi.Message(err))
 			}
 		})
 	}
