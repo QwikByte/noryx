@@ -247,6 +247,24 @@ func (s *Service) each(ctx context.Context, query string, scan func(*sql.Rows) e
 	return rows.Err()
 }
 
+// members returns the IDs of the users in a group.
+func (s *Service) members(ctx context.Context, groupID string) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT user_id FROM group_members WHERE group_id = ?`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // setGroups replaces the groups of a user.
 func (s *Service) setGroups(ctx context.Context, userID int64, groupIDs []string) error {
 	err := database.InTx(ctx, s.db, func(tx *sql.Tx) error {

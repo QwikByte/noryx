@@ -441,7 +441,10 @@ log of a datastore and terminal commands such as `server logs`, end every 5 minu
 the permissions again; the console and the log connect again on their own and continue. Users can only grant
 permissions they have themselves, within their own scope, and only manage users who have no more permissions than they
 do, so no one can raise their own permissions. The groups that the settings preselect for invitations are only shown
-checked, of those the inviter may give: the invitation checks the groups it gets like any other.
+checked, of those the inviter may give: the invitation checks the groups it gets like any other. Changes of users and
+groups, invitations included, run one after the other, so no check passes against groups that another change alters
+meanwhile. A setup link ends when its user gets more permissions, with another group or a group that now gives more, as
+whoever created the link, e.g. by inviting the user, may not have them and would otherwise hold the new permissions too.
 The last enabled administrator can't be disabled, deleted or removed from the Administrators. The master logs every
 change with the user who made it, also denied attempts. An operation in progress can only be cancelled by the user who
 started it, in the panel or with the same API token, or by one who has the permissions it needed on what it is about,

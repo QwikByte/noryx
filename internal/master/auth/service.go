@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -190,6 +191,16 @@ func (s *Service) NewSetupLink(ctx context.Context, id int64) (SetupLink, error)
 		err = errNotFound
 	}
 	return link, err
+}
+
+// EndSetupLinks ends the setup links of users, e.g. as they get more permissions than whoever
+// created the links needed to have.
+func (s *Service) EndSetupLinks(ctx context.Context, ids ...int64) error {
+	list, err := json.Marshal(ids)
+	if err == nil {
+		_, err = s.db.ExecContext(ctx, `DELETE FROM setup_tokens WHERE user_id IN (SELECT value FROM json_each(?))`, list)
+	}
+	return err
 }
 
 // SetupUser returns the user a valid setup link belongs to.

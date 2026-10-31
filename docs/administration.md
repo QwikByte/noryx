@@ -153,7 +153,9 @@ first one or after losing access.
 ### Invitations
 
 New users get a setup link (valid for three days unless the settings say otherwise, usable once) to choose their
-password; the same link resets a forgotten password. **Invite user** preselects the groups that
+password; the same link resets a forgotten password. The link ends when the user gets more permissions before using it,
+with another group or a group that now gives more, as whoever created it may not have them: create a new link then.
+**Invite user** preselects the groups that
 **Settings → General** names, of those the inviter may
 give; groups deleted since are left out, and the inviter can still change them, within their own permissions as always. The token is in the link's fragment, which browsers don't send to servers, and the panel removes it
 from the address bar once it was read. Users change their own password on their account page (in the menu of their name

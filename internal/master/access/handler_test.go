@@ -518,21 +518,41 @@ func TestUsersStayWithinOwnScope(t *testing.T) {
 }
 
 // A setup link lets whoever holds it set the password of its user, and creating one only
-// needs to cover the user as the link is created.
+// needs to cover the user as the link is created. So the link ends once the user gets more,
+// with another group or a wider one; changes that give the user nothing more keep it.
 func TestSetupLinkOfPromotedUser(t *testing.T) {
-	t.Skip("a setup link that a manager created, e.g. by inviting a user, stays valid after an administrator " +
-		"gives the user more than the manager has, so the manager can sign in as the user; unclear whether " +
-		"giving a user groups should end the user's setup link")
 	t.Parallel()
-	c := newCast(t)
-	var link auth.SetupLink
-	w := c.send(request{"create a setup link", c.manager, "POST", userPath(c.weak, "/setup-link"), nil, 200, nil})
-	if err := json.Unmarshal(w.Body.Bytes(), &link); err != nil {
-		t.Fatal(err)
-	}
-	c.send(request{"make the user administrator", c.root, "PUT", userPath(c.weak, ""), map[string]any{"groups": []string{AdminGroup}}, 204, nil})
-	if _, err := c.users.SetupUser(t.Context(), link.Token); err == nil {
-		t.Error("the manager's setup link sets the password of an administrator")
+	restart := []Permission{ServersRestart}
+	for _, tc := range []struct {
+		name   string
+		change func(c *cast) request
+		valid  bool
+	}{
+		{"another group", func(c *cast) request {
+			return request{"make the user administrator", c.root, "PUT", userPath(c.weak, ""), map[string]any{"groups": []string{AdminGroup}}, 204, nil}
+		}, false},
+		{"a wider group", func(c *cast) request {
+			return request{"widen the user's group", c.root, "PUT", "/api/groups/" + c.n1Restart, groupInput("n1 restart", restart), 200, nil}
+		}, false},
+		{"a narrower group", func(c *cast) request {
+			return request{"narrow the user's group", c.root, "PUT", "/api/groups/" + c.n1Restart, groupInput("Lobby", restart, lobby), 200, nil}
+		}, true},
+		{"fewer groups", func(c *cast) request {
+			return request{"take the user's group", c.root, "PUT", userPath(c.weak, ""), map[string]any{"groups": []string{}}, 204, nil}
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCast(t)
+			var link auth.SetupLink
+			w := c.send(request{"create a setup link", c.manager, "POST", userPath(c.weak, "/setup-link"), nil, 200, nil})
+			if err := json.Unmarshal(w.Body.Bytes(), &link); err != nil {
+				t.Fatal(err)
+			}
+			c.send(tc.change(c))
+			if _, err := c.users.SetupUser(t.Context(), link.Token); (err == nil) != tc.valid {
+				t.Errorf("setup link valid = %v, want %v", err == nil, tc.valid)
+			}
+		})
 	}
 }
 
