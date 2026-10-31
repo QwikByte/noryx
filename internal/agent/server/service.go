@@ -125,7 +125,7 @@ func (s *Service) CreateServer(ctx context.Context, req *noryxv1.CreateServerReq
 	if err != nil {
 		return nil, err
 	}
-	if msg := properties.Check(spec, req.GetProperties()); msg != "" {
+	if msg := properties.CheckNew(spec, req.GetProperties()); msg != "" {
 		return nil, status.Error(codes.InvalidArgument, msg)
 	}
 	release, err := s.check(ctx, spec)
@@ -562,7 +562,7 @@ func (s *Service) ConfigureNetwork(ctx context.Context, req *noryxv1.ConfigureNe
 	restarted, err := s.rt.Configure(ctx, req.GetId(), network)
 	switch {
 	case errors.Is(err, runtime.ErrUnsupported):
-		return nil, status.Error(codes.FailedPrecondition, "Vanilla servers can't be part of a network, as they can't verify the players a proxy forwards.")
+		return nil, status.Error(codes.FailedPrecondition, "Vanilla servers can't be part of a network, as they can't verify the players a proxy forwards, nor Bedrock servers, as Bedrock players join a network through Geyser on its proxy.")
 	case errors.Is(err, mcnet.ErrModernOnly), errors.Is(err, runtime.ErrReload):
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	case err != nil:
@@ -725,6 +725,8 @@ func checkSettings(spec runtime.Spec, cpus uint32) string {
 	switch {
 	case !namePattern.MatchString(spec.Name):
 		return "Use 1-32 letters, digits, spaces, '.', '_' or '-' for the name."
+	case spec.Type.Bedrock() && !noryxv1.ValidBedrockVersion(spec.Version):
+		return "Enter a version of Bedrock Dedicated Server like 1.26.61.1 or PREVIEW, or leave it empty for the latest."
 	case !versionPattern.MatchString(spec.Version):
 		return "Enter a Minecraft version like 1.21.4, or leave it empty for the latest."
 	case spec.LoaderVersion != "" && !spec.Type.Modded():
@@ -756,6 +758,12 @@ func checkSettings(spec runtime.Spec, cpus uint32) string {
 		if msg := checkJVMOption(option); msg != "" {
 			return msg
 		}
+	}
+	if msg := (noryxv1.BedrockSettings{
+		Type: spec.Type, Port: spec.Port, MaxPlayers: spec.MaxPlayers, Java: spec.Java, AikarFlags: spec.AikarFlags, JVMOptions: len(spec.JVMOptions),
+		InitMemoryMB: spec.InitMemoryMB, LoaderVersion: spec.LoaderVersion, ExtraPorts: len(spec.ExtraPorts),
+	}).Problem(); msg != "" {
+		return msg
 	}
 	if msg := checkAdvanced(spec); msg != "" {
 		return msg

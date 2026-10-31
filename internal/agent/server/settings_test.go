@@ -29,9 +29,16 @@ func TestSettingsRoundTrip(t *testing.T) {
 	}
 	aikar := proto.CloneOf(all) // Aikar's flags take all of the memory as the initial heap
 	aikar.AikarFlags, aikar.InitMemoryMb = true, 0
+	// Bedrock servers take no settings of Java, but the number of players.
+	bedrock := &noryxv1.CreateServerRequest{
+		Name: "Bedrock", Type: noryxv1.ServerType_SERVER_TYPE_BEDROCK, Version: "1.26.61.1", MemoryMb: 2048, Port: 19132, AcceptEula: true,
+		Storage: "ssd", RestartPolicy: noryxv1.RestartPolicy_RESTART_POLICY_ON_CRASH, CpuMillis: 1500, StopTimeoutSeconds: 90,
+		TimeZone: "Europe/Berlin", HealthStartMinutes: 5, CrashLimit: 4, StableAfterMinutes: 15, UnhealthyRestartMinutes: 10,
+		ProcessLimit: 2048, MaxPlayers: 20,
+	}
 	archive := zipped(t, "world/level.dat", "level")
 	set := map[string]bool{}
-	for _, req := range []*noryxv1.CreateServerRequest{all, aikar} {
+	for _, req := range []*noryxv1.CreateServerRequest{all, aikar, bedrock} {
 		from := &slowRuntime{dir: t.TempDir()}
 		source := NewService(from, nil, nil)
 		if _, err := source.CreateServer(t.Context(), req); err != nil {

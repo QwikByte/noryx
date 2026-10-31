@@ -36,7 +36,7 @@ var Secret = noryxv1.SecretProperties
 // locked returns the properties the manager sets itself, with the reason; changing
 // them would break the server or its console.
 func locked(spec runtime.Spec) map[string]string {
-	l := maps.Clone(noryxv1.ManagedProperties)
+	l := maps.Clone(noryxv1.ManagedPropertiesOf(spec.Type))
 	if spec.BehindProxy {
 		l["online-mode"] = "The proxy of the server's network authenticates players."
 	}
@@ -100,6 +100,16 @@ func Check(spec runtime.Spec, changes map[string]string) string {
 		return "Proxies have no server.properties."
 	}
 	return validate(changes, locked(spec))
+}
+
+// CheckNew returns a message for the operator if the properties can't be written before the
+// first start of a new server. Bedrock Dedicated Server brings its server.properties with its
+// download, which it doesn't unpack where one exists already.
+func CheckNew(spec runtime.Spec, changes map[string]string) string {
+	if spec.Type.Bedrock() && len(changes) > 0 {
+		return "A Bedrock server writes its server.properties when it starts for the first time. Change its properties then."
+	}
+	return Check(spec, changes)
 }
 
 // Write sets properties in server.properties, which is created if it doesn't exist yet,

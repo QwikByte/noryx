@@ -31,14 +31,15 @@ func mayHaveCrashed(c container.Summary) bool {
 	return !healthy && c.State != container.StateCreated && !strings.HasPrefix(c.Status, "Exited (0)")
 }
 
-// healthCheck is the health check of a game server: that of its image, with the server's start
-// period, in which failures don't count. Docker and Podman get it alike, so that they behave the
+// healthCheck is the health check of a game server, also of a Bedrock server: that of its
+// image, with the server's start period, in which failures don't count. Docker and Podman get it alike, so that they behave the
 // same; proxies keep that of their image.
 func healthCheck(spec runtime.Spec) *container.HealthConfig {
-	if images[spec.Type].ref != serverImage {
+	ref := images[spec.Type].ref
+	if ref == proxyImage || imageChecks[ref] == nil {
 		return nil
 	}
-	check := *imageChecks[serverImage]
+	check := *imageChecks[ref]
 	check.StartPeriod = noryxv1.HealthStart(spec.HealthStart)
 	return &check
 }

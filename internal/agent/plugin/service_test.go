@@ -21,8 +21,8 @@ import (
 func TestEveryServerTypeHasAFolder(t *testing.T) {
 	for value, name := range noryxv1.ServerType_name {
 		typ := noryxv1.ServerType(value)
-		if _, ok := Folder(typ); !ok && typ != noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED && typ != noryxv1.ServerType_SERVER_TYPE_VANILLA {
-			t.Errorf("%s has no folder for plugins or mods", name)
+		if _, ok := Folder(typ); ok != typ.Addons() {
+			t.Errorf("%s: folder for plugins or mods %v, but loads them %v", name, ok, typ.Addons())
 		}
 	}
 }

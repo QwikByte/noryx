@@ -1,6 +1,7 @@
 // Package docker runs Minecraft servers as containers of Docker, or of Podman through its
-// Docker-compatible API, based on the itzg/minecraft-server and itzg/mc-proxy images, which
-// cover all common server types. Where Podman differs, podman.go makes up for it.
+// Docker-compatible API, based on the itzg/minecraft-server, itzg/mc-proxy and
+// itzg/minecraft-bedrock-server images, which cover all common server types. Where Podman
+// differs, podman.go makes up for it.
 package docker
 
 import (
@@ -45,8 +46,9 @@ const (
 	managed = labelManaged + "=true"
 
 	// Images are named with their registry, as Podman doesn't assume Docker Hub.
-	serverImage = "docker.io/itzg/minecraft-server"
-	proxyImage  = "docker.io/itzg/mc-proxy"
+	serverImage  = "docker.io/itzg/minecraft-server"
+	proxyImage   = "docker.io/itzg/mc-proxy"
+	bedrockImage = "docker.io/itzg/minecraft-bedrock-server"
 
 	maxLineBytes = 1 << 20
 )
@@ -54,10 +56,15 @@ const (
 // image describes how a server type maps onto the itzg images.
 type image struct {
 	ref  string // without tag
-	typ  string // value of the TYPE variable
-	port int    // port inside the container
+	typ  string // value of the TYPE variable, empty for Bedrock servers
+	port int    // TCP port inside the container
 	data string // data directory inside the container
 }
+
+// asUser reports whether the image runs as imageUser from the start, without capabilities.
+// Only the server image starts as root to hand its data to the server's user. The others read
+// console commands from their standard input, as they have no RCON.
+func (img image) asUser() bool { return img.ref == proxyImage || img.ref == bedrockImage }
 
 // loaderVariables are the variables of the server image that select the version of a mod loader.
 var loaderVariables = map[noryxv1.ServerType]string{
@@ -73,10 +80,11 @@ var serverCapabilities = []string{"CHOWN", "SETUID", "SETGID"}
 
 // The proxy image would download and configure as root in a directory it handed to its
 // user before, which root without DAC_OVERRIDE can't write to. So proxies run as that
-// user from the start, which owns their data, and need no capabilities.
+// user from the start, which owns their data, and need no capabilities. Bedrock servers run
+// as the same user, which their image keeps rather than switching to the owner of the data.
 const (
-	proxyUID  = 1000
-	proxyUser = "1000:1000"
+	imageUID  = 1000
+	imageUser = "1000:1000"
 )
 
 var images = map[noryxv1.ServerType]image{
@@ -92,6 +100,7 @@ var images = map[noryxv1.ServerType]image{
 	noryxv1.ServerType_SERVER_TYPE_VELOCITY:   {proxyImage, "VELOCITY", 25565, "/server"},
 	noryxv1.ServerType_SERVER_TYPE_BUNGEECORD: {proxyImage, "BUNGEECORD", 25577, "/server"},
 	noryxv1.ServerType_SERVER_TYPE_WATERFALL:  {proxyImage, "WATERFALL", 25577, "/server"},
+	noryxv1.ServerType_SERVER_TYPE_BEDROCK:    {bedrockImage, "", noryxv1.BedrockContainerPort, "/data"},
 }
 
 // Docker implements runtime.Runtime with Docker or Podman. Container labels are the only
@@ -110,6 +119,7 @@ type Docker struct {
 	stops sync.Map
 	// replacing holds the names of the containers being replaced; see replace.
 	replacing sync.Map
+	public    netip.Addr // see Options
 }
 
 // Options choose the runtime.
@@ -119,12 +129,16 @@ type Options struct {
 	// Socket is the path of the runtime's Unix socket. Empty means Docker's of the DOCKER_HOST
 	// variable or /var/run/docker.sock, or Podman's PodmanSocket.
 	Socket string
+	// PublicAddress is the IPv4 address at which players reach the node, which Bedrock servers
+	// tell them, e.g. the public one of a node behind NAT. Invalid means the node's own on its
+	// route to the internet.
+	PublicAddress netip.Addr
 }
 
 // New returns the runtime; it connects with the first call, so it starts while the runtime
 // doesn't run yet.
 func New(locations *storage.Locations, opts Options) (*Docker, error) {
-	d := &Docker{storage: locations, consoles: rcon.NewConsoles()}
+	d := &Docker{storage: locations, consoles: rcon.NewConsoles(), public: opts.PublicAddress}
 	clientOpts := []client.Opt{client.FromEnv, client.WithResponseHook(d.check)}
 	if opts.Podman {
 		d.podman = &podman{}
@@ -289,6 +303,9 @@ func (d *Docker) createContainer(ctx context.Context, spec runtime.Spec, netName
 	if err != nil {
 		return err
 	}
+	if spec.Type.Bedrock() {
+		opts.Config.Env = append(opts.Config.Env, "SERVER_UDP_PORTS="+udpPorts(spec, d.publicAddress()))
+	}
 	for _, name := range also {
 		opts.NetworkingConfig.EndpointsConfig[name] = &network.EndpointSettings{}
 	}
@@ -298,14 +315,8 @@ func (d *Docker) createContainer(ctx context.Context, spec runtime.Spec, netName
 	return err
 }
 
-// containerOptions describes the container of a server with the data at path, in the
-// network netName.
-func containerOptions(spec runtime.Spec, path, netName string) (client.ContainerCreateOptions, error) {
-	img := images[spec.Type]
-	specJSON, err := json.Marshal(spec)
-	if err != nil {
-		return client.ContainerCreateOptions{}, err
-	}
+// javaEnv returns the variables of the server and proxy images for a server.
+func javaEnv(spec runtime.Spec, img image) []string {
 	env := []string{"TYPE=" + img.typ, "VERSION=" + spec.Version, fmt.Sprintf("MEMORY=%dM", spec.MemoryMB)}
 	if !spec.Type.Proxy() { // as the operator accepted the EULA when creating the server
 		env = append(env, "EULA=TRUE")
@@ -328,6 +339,24 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 	if len(spec.JVMOptions) > 0 {
 		env = append(env, "JVM_OPTS="+strings.Join(spec.JVMOptions, " "))
 	}
+	return env
+}
+
+// containerOptions describes the container of a server with the data at path, in the
+// network netName.
+func containerOptions(spec runtime.Spec, path, netName string) (client.ContainerCreateOptions, error) {
+	img := images[spec.Type]
+	specJSON, err := json.Marshal(spec)
+	if err != nil {
+		return client.ContainerCreateOptions{}, err
+	}
+	env := javaEnv(spec, img)
+	if spec.Type.Bedrock() {
+		// The image sets the properties of these variables on every start, and keeps its default
+		// ports. Players join over NetherNet at the TCP port, the only way from Bedrock Dedicated
+		// Server 1.26.60 on; the operator accepted the EULA when creating the server.
+		env = []string{"VERSION=" + spec.Version, "EULA=TRUE", "TRANSPORT=nethernet", fmt.Sprintf("MAX_PLAYERS=%d", noryxv1.BedrockPlayers(spec.MaxPlayers))}
+	}
 	if spec.TimeZone != "" {
 		env = append(env, "TZ="+spec.TimeZone)
 	}
@@ -345,6 +374,15 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 		bedrock := network.MustParsePort(fmt.Sprintf("%d/udp", spec.BedrockPort))
 		exposed[bedrock], published[bedrock] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(spec.BedrockPort))}}
 	}
+	for p := spec.Port; spec.Type.Bedrock() && p <= noryxv1.LastPort(spec.Type, spec.Port, spec.MaxPlayers); p++ {
+		// Each player of a Bedrock server plays over a UDP port of their own, from the server's
+		// port on, at the same port inside the container, which the server tells them.
+		udp, err := network.ParsePort(fmt.Sprintf("%d/udp", p))
+		if err != nil {
+			return client.ContainerCreateOptions{}, err
+		}
+		exposed[udp], published[udp] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(p))}}
+	}
 	for _, p := range spec.ExtraPorts {
 		// Plugins listen at the same port inside the container, which is public like the server's
 		// own, also for a backend whose own port only its proxy reaches.
@@ -355,8 +393,8 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 		exposed[extra], published[extra] = struct{}{}, []network.PortBinding{{HostPort: strconv.Itoa(int(p.Port))}}
 	}
 	user, capAdd := "", serverCapabilities
-	if img.ref == proxyImage {
-		user, capAdd = proxyUser, nil
+	if img.asUser() {
+		user, capAdd = imageUser, nil
 	}
 	return client.ContainerCreateOptions{
 		Name: containerName(spec.ID),
@@ -366,8 +404,9 @@ func containerOptions(spec runtime.Spec, path, netName string) (client.Container
 			Env:          env,
 			Labels:       map[string]string{labelManaged: "true", labelSpec: string(specJSON)},
 			ExposedPorts: exposed,
-			// Proxies read console commands from their standard input, as they have no RCON.
-			OpenStdin: spec.Type.Proxy(),
+			// Proxies and Bedrock servers read console commands from their standard input, as
+			// they have no RCON.
+			OpenStdin: img.asUser(),
 			// Also when Docker stops the container by itself, e.g. as its daemon stops.
 			StopTimeout: new(stopSeconds(spec)),
 			Healthcheck: healthCheck(spec),

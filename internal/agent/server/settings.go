@@ -36,6 +36,7 @@ type settings interface {
 	GetUnhealthyRestartMinutes() uint32
 	GetProcessLimit() uint32
 	GetInitMemoryMb() uint32
+	GetMaxPlayers() uint32
 }
 
 // withSettings returns spec with the settings of a request, which checkSettings checks. It
@@ -47,6 +48,7 @@ func withSettings(spec runtime.Spec, s settings) runtime.Spec {
 	spec.StopTimeout, spec.TimeZone, spec.ExtraPorts = s.GetStopTimeoutSeconds(), s.GetTimeZone(), extraPorts(s.GetExtraPorts())
 	spec.HealthStart, spec.CrashLimit, spec.StableAfter = s.GetHealthStartMinutes(), s.GetCrashLimit(), s.GetStableAfterMinutes()
 	spec.UnhealthyRestart, spec.ProcessLimit, spec.InitMemoryMB = s.GetUnhealthyRestartMinutes(), s.GetProcessLimit(), s.GetInitMemoryMb()
+	spec.MaxPlayers = s.GetMaxPlayers()
 	return spec
 }
 
@@ -72,6 +74,6 @@ func toProto(s runtime.Server) *noryxv1.Server {
 		Overlay: s.Overlay != "", Unhealthy: s.Unhealthy, StopTimeoutSeconds: s.StopTimeout, TimeZone: s.TimeZone,
 		ExtraPorts:         protoPorts(s.ExtraPorts),
 		HealthStartMinutes: s.HealthStart, CrashLimit: s.CrashLimit, StableAfterMinutes: s.StableAfter, UnhealthyRestartMinutes: s.UnhealthyRestart,
-		ProcessLimit: s.ProcessLimit, InitMemoryMb: s.InitMemoryMB,
+		ProcessLimit: s.ProcessLimit, InitMemoryMb: s.InitMemoryMB, MaxPlayers: s.MaxPlayers,
 	}
 }

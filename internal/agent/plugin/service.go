@@ -298,7 +298,7 @@ func (s *Service) open(ctx context.Context, id string) (*datadir.Dir, string, no
 	}
 	folder, ok := Folder(srv.Type)
 	if !ok {
-		return nil, "", 0, status.Error(codes.FailedPrecondition, "Vanilla servers can't load plugins or mods.")
+		return nil, "", 0, status.Error(codes.FailedPrecondition, "Vanilla and Bedrock servers can't load plugins or mods.")
 	}
 	dir, err := s.rt.Data(ctx, id)
 	if err != nil {

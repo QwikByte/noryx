@@ -23,10 +23,14 @@ func protoPorts(ports []runtime.ExtraPort) []*noryxv1.ExtraPort {
 	return extra
 }
 
-// portsOf returns the ports of the node that the settings of a server take: its own and its
-// extra ports. The Bedrock port of a proxy is its network's.
+// portsOf returns the ports of the node that the settings of a server take: its own, those of
+// the players of a Bedrock server and its extra ports. The Bedrock port of a proxy is its
+// network's.
 func portsOf(spec runtime.Spec) []uint32 {
-	ports := []uint32{spec.Port}
+	var ports []uint32
+	for port := spec.Port; port <= noryxv1.LastPort(spec.Type, spec.Port, spec.MaxPlayers); port++ {
+		ports = append(ports, port)
+	}
 	for _, p := range spec.ExtraPorts {
 		ports = append(ports, p.Port)
 	}

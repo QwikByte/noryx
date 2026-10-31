@@ -39,7 +39,7 @@ const (
 	hangarIcons = "hangar/"
 )
 
-var errVanilla = httpapi.Errorf(http.StatusConflict, "Vanilla servers can't load plugins or mods.")
+var errVanilla = httpapi.Errorf(http.StatusConflict, "Vanilla and Bedrock servers can't load plugins or mods.")
 
 // Nodes provides the nodes and connections to their agents.
 type Nodes interface {

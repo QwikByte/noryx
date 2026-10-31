@@ -44,6 +44,21 @@ var commands = map[noryxv1.PlayerAction]string{
 	noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_OFF:    "whitelist off",
 }
 
+// bedrockCommands are the console commands of Bedrock Dedicated Server for the actions it has:
+// no bans, and its allowlist instead of the whitelist. Its commands have no namespace.
+var bedrockCommands = map[noryxv1.PlayerAction]string{
+	noryxv1.PlayerAction_PLAYER_ACTION_KICK:             "kick",
+	noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ADD:    "allowlist add",
+	noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_REMOVE: "allowlist remove",
+	noryxv1.PlayerAction_PLAYER_ACTION_OP:               "op",
+	noryxv1.PlayerAction_PLAYER_ACTION_DEOP:             "deop",
+	noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ON:     "allowlist on",
+	noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_OFF:    "allowlist off",
+}
+
+// allowlistFile is the whitelist of Bedrock Dedicated Server, its allowlist.
+const allowlistFile = "allowlist.json"
+
 var formatting = regexp.MustCompile(`§.`)
 
 type Service struct {
@@ -65,11 +80,14 @@ func NewService(rt runtime.Runtime) *Service {
 }
 
 func (s *Service) GetPlayerLists(ctx context.Context, req *noryxv1.GetPlayerListsRequest) (*noryxv1.GetPlayerListsResponse, error) {
-	_, dir, err := s.open(ctx, req.GetServerId())
+	srv, dir, err := s.open(ctx, req.GetServerId())
 	if err != nil {
 		return nil, err
 	}
 	defer dir.Close()
+	if srv.Type.Bedrock() {
+		return bedrockLists(dir)
+	}
 	res := &noryxv1.GetPlayerListsResponse{}
 	var errs [5]error
 	res.Banned, errs[0] = readList(dir, bannedFile)
@@ -141,8 +159,11 @@ func problem(c *noryxv1.PlayerChange) string {
 
 // change makes a valid change on a server: at once if it runs, otherwise once it does.
 func (s *Service) change(ctx context.Context, srv runtime.Server, dir *datadir.Dir, c *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+	if msg := c.BedrockProblem(); srv.Type.Bedrock() && msg != "" {
+		return nil, status.Error(codes.FailedPrecondition, msg)
+	}
 	if srv.State == running {
-		return s.run(ctx, srv.ID, dir, c)
+		return s.run(ctx, srv, dir, c)
 	}
 	if c.GetAction() == noryxv1.PlayerAction_PLAYER_ACTION_KICK {
 		return nil, status.Error(codes.FailedPrecondition, "The server doesn't run.")
@@ -161,7 +182,8 @@ func (s *Service) change(ctx context.Context, srv runtime.Server, dir *datadir.D
 // run changes a player on a running server. Changes of the whitelist hold the server's lock,
 // as those of Bedrock players replace its file, which the server overwrites when its list
 // changes; bans and pardons hold it to note the pardons that end temporary bans.
-func (s *Service) run(ctx context.Context, id string, dir *datadir.Dir, change *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+func (s *Service) run(ctx context.Context, srv runtime.Server, dir *datadir.Dir, change *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+	id := srv.ID
 	switch change.GetAction() {
 	case noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ADD, noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_REMOVE,
 		noryxv1.PlayerAction_PLAYER_ACTION_BAN, noryxv1.PlayerAction_PLAYER_ACTION_PARDON:
@@ -174,7 +196,7 @@ func (s *Service) run(ctx context.Context, id string, dir *datadir.Dir, change *
 	if bedrockWhitelist(change) {
 		return s.whitelistBedrock(ctx, id, dir, change)
 	}
-	out, err := s.rt.SendCommand(ctx, id, command(change))
+	out, err := s.rt.SendCommand(ctx, id, command(srv.Type, change))
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
@@ -284,7 +306,7 @@ func (s *Service) applyLocked(ctx context.Context, srv runtime.Server) time.Time
 		if bedrockWhitelist(change) {
 			_, err = s.whitelistBedrock(changeCtx, srv.ID, dir, change)
 		} else {
-			_, err = s.rt.SendCommand(changeCtx, srv.ID, command(change))
+			_, err = s.rt.SendCommand(changeCtx, srv.ID, command(srv.Type, change))
 		}
 		cancel()
 		if err != nil {
@@ -336,8 +358,28 @@ func (s *Service) open(ctx context.Context, id string) (runtime.Server, *datadir
 	return srv, dir, nil
 }
 
-// command returns the console command of a valid change. Minecraft's own commands keep
-// the lists in their files, also where plugins replace them.
-func command(c *noryxv1.PlayerChange) string {
+// command returns the console command of a valid change on a server of the type. Minecraft's
+// own commands keep the lists in their files, also where plugins replace them.
+func command(typ noryxv1.ServerType, c *noryxv1.PlayerChange) string {
+	if typ.Bedrock() {
+		return strings.TrimSpace(bedrockCommands[c.GetAction()] + " " + c.GetName() + " " + c.GetReason())
+	}
 	return strings.TrimSpace("minecraft:" + commands[c.GetAction()] + " " + c.GetName() + " " + c.GetReason())
+}
+
+// bedrockLists returns the allowlist of a Bedrock server as its whitelist, and the changes that
+// wait for it. Bedrock Dedicated Server has no bans, keeps its operators by their Xbox user IDs
+// only, and no cache of the players who joined.
+func bedrockLists(dir *datadir.Dir) (*noryxv1.GetPlayerListsResponse, error) {
+	res := &noryxv1.GetPlayerListsResponse{}
+	var errs [3]error
+	res.Whitelisted, errs[0] = readList(dir, allowlistFile)
+	var props map[string]string
+	props, errs[1] = properties.Read(dir)
+	res.WhitelistEnabled = props["allow-list"] == "true"
+	res.Pending, errs[2] = readPending(dir)
+	if err := errors.Join(errs[:]...); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return res, nil
 }

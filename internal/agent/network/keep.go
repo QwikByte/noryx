@@ -77,6 +77,9 @@ func KeepForwarding(current, restored *datadir.Dir, typ noryxv1.ServerType) erro
 	}
 	changes := map[string]string{}
 	for key, def := range leftProperties {
+		if typ.Bedrock() && key != "online-mode" {
+			continue // Bedrock players have no secure profiles
+		}
 		value := func(props map[string]string) string {
 			if v, ok := props[key]; ok {
 				return v

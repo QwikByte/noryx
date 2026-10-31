@@ -226,8 +226,8 @@ func (st *serverState) measure(ctx context.Context, rt runtime.Runtime, srv runt
 	}
 	stats.CpuMillis, stats.NetworkReceivedBytesPerSecond, stats.NetworkSentBytesPerSecond = st.rates(u, now)
 	stats.Running, stats.MemoryBytes, stats.MemoryLimitBytes, stats.CpuLimitMillis = true, u.MemoryBytes, u.MemoryLimit, srv.CPUMillis
-	if srv.State != noryxv1.ServerState_SERVER_STATE_RUNNING {
-		return stats // starting servers don't answer yet
+	if srv.State != noryxv1.ServerState_SERVER_STATE_RUNNING || srv.Type.Bedrock() {
+		return stats // starting servers don't answer yet; Bedrock servers have neither Java's status nor RCON
 	}
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()

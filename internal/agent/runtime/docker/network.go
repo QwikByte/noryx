@@ -31,6 +31,9 @@ func (d *Docker) Configure(ctx context.Context, id string, network runtime.Netwo
 	if err != nil {
 		return false, err
 	}
+	if spec.Type.Bedrock() {
+		return false, runtime.ErrUnsupported
+	}
 	if c, err = d.attach(ctx, c, network.Datastores); err != nil {
 		return false, err
 	}
@@ -212,10 +215,10 @@ func (d *Docker) release(ctx context.Context, proxyID string, backends []runtime
 
 // prepare readies a server that is about to start. On Podman, the servers are kept apart
 // again, in case the tables of the agent were removed, and its networks must have the bridges
-// that the tables match. A proxy gets its data handed to the user it runs as, and listens on
-// the port its container publishes, as the default configuration of the Velocity image listens
-// on another one. A stopped proxy of an older agent, which ran it as root, is created again to
-// run as that user.
+// that the tables match. A proxy or Bedrock server gets its data handed to the user it runs as,
+// and a proxy listens on the port its container publishes, as the default configuration of the
+// Velocity image listens on another one. A stopped proxy of an older agent, which ran it as
+// root, is created again to run as that user.
 func (d *Docker) prepare(ctx context.Context, id string) error {
 	if d.podman != nil {
 		if err := Isolate(); err != nil {
@@ -226,7 +229,7 @@ func (d *Docker) prepare(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := d.checkNetworks(ctx, c); err != nil || !spec.Type.Proxy() {
+	if err := d.checkNetworks(ctx, c); err != nil || !images[spec.Type].asUser() {
 		return err
 	}
 	path, err := d.dataPath(spec)
@@ -238,13 +241,13 @@ func (d *Docker) prepare(ctx context.Context, id string) error {
 		return err
 	}
 	defer data.Close()
-	if err := data.HandOver(proxyUID, proxyUID); err != nil {
+	if err := data.HandOver(imageUID, imageUID); err != nil || !spec.Type.Proxy() {
 		return err
 	}
 	if _, err := mcnet.ProxyBind(data, spec.Type, images[spec.Type].port); err != nil {
 		return err
 	}
-	if c.Config.User != proxyUser && !c.State.Running {
+	if c.Config.User != imageUser && !c.State.Running {
 		return d.recreate(ctx, c, spec, false)
 	}
 	return nil
