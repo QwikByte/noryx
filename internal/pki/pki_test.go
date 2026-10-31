@@ -32,7 +32,6 @@ func TestMutualTLS(t *testing.T) {
 	master := holder(t, must(ca.MasterCertificate()))
 	node1, node2 := enrollNode(t, ca, "node-1"), enrollNode(t, ca, "node-2")
 	agent := AgentServerTLS(holder(t, node1), ca.Cert)
-	fingerprint := Fingerprint(ca.Cert)
 
 	tests := []struct {
 		name           string
@@ -42,9 +41,9 @@ func TestMutualTLS(t *testing.T) {
 		{"master reaches agent", NodeClientTLS(master, ca.Cert, "node-1"), agent, false},
 		{"node cannot command agent", NodeClientTLS(holder(t, node2), ca.Cert, "node-1"), agent, true},
 		{"master rejects wrong node identity", NodeClientTLS(master, ca.Cert, "node-2"), agent, true},
-		{"enrollment with pinned CA", PinnedMasterTLS(fingerprint), MasterServerTLS(master), false},
-		{"enrollment rejects other CA", PinnedMasterTLS(fingerprint[1:] + "0"), MasterServerTLS(master), true},
-		{"enrollment rejects node posing as master", PinnedMasterTLS(fingerprint), MasterServerTLS(holder(t, withCA(node2, ca))), true},
+		{"enrollment with the CA of the token", EnrollmentTLS(ca.Cert), MasterServerTLS(master), false},
+		{"enrollment rejects other CA", EnrollmentTLS(newCA(t).Cert), MasterServerTLS(master), true},
+		{"enrollment rejects node posing as master", EnrollmentTLS(ca.Cert), MasterServerTLS(holder(t, withCA(node2, ca))), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

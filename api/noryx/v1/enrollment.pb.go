@@ -84,11 +84,11 @@ func (x *EnrollRequest) GetCsrDer() []byte {
 }
 
 type EnrollResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	CertificateDer   []byte                 `protobuf:"bytes,1,opt,name=certificate_der,json=certificateDer,proto3" json:"certificate_der,omitempty"`
-	CaCertificateDer []byte                 `protobuf:"bytes,2,opt,name=ca_certificate_der,json=caCertificateDer,proto3" json:"ca_certificate_der,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The node's certificate, issued by the CA of the join token.
+	CertificateDer []byte `protobuf:"bytes,1,opt,name=certificate_der,json=certificateDer,proto3" json:"certificate_der,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *EnrollResponse) Reset() {
@@ -128,13 +128,6 @@ func (x *EnrollResponse) GetCertificateDer() []byte {
 	return nil
 }
 
-func (x *EnrollResponse) GetCaCertificateDer() []byte {
-	if x != nil {
-		return x.CaCertificateDer
-	}
-	return nil
-}
-
 var File_noryx_v1_enrollment_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_enrollment_proto_rawDesc = "" +
@@ -143,10 +136,9 @@ const file_noryx_v1_enrollment_proto_rawDesc = "" +
 	"\rEnrollRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x16\n" +
 	"\x06secret\x18\x02 \x01(\tR\x06secret\x12\x17\n" +
-	"\acsr_der\x18\x03 \x01(\fR\x06csrDer\"g\n" +
+	"\acsr_der\x18\x03 \x01(\fR\x06csrDer\"9\n" +
 	"\x0eEnrollResponse\x12'\n" +
-	"\x0fcertificate_der\x18\x01 \x01(\fR\x0ecertificateDer\x12,\n" +
-	"\x12ca_certificate_der\x18\x02 \x01(\fR\x10caCertificateDer2P\n" +
+	"\x0fcertificate_der\x18\x01 \x01(\fR\x0ecertificateDer2P\n" +
 	"\x11EnrollmentService\x12;\n" +
 	"\x06Enroll\x12\x17.noryx.v1.EnrollRequest\x1a\x18.noryx.v1.EnrollResponseB0Z.github.com/QwikByte/noryx/api/noryx/v1;noryxv1b\x06proto3"
 

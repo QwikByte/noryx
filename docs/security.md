@@ -21,12 +21,13 @@ A compromised node can't make its certificate seem to expire sooner or later tha
 ## Enrollment
 
 Adding a node creates a single-use join token (valid for one hour unless the settings say otherwise, stored only as a
-hash). It contains the master address, the node ID, the secret and the CA fingerprint. The agent creates its key pair
-locally, sends a CSR and pins the CA fingerprint, so the exchange can't be intercepted. Private keys never leave the
-node. The master checks the token before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds. As
-the port of enrollment is open to the internet and serves nothing else, its connections are bounded: 10 seconds for the
-TLS handshake, 4 calls at once of up to 64 KiB each, a minute without calls and 5 minutes in all, and a client that
-doesn't answer the master's pings for 20 seconds, or pings more often than every 5 minutes, is cut off.
+hash). It contains the master address, the node ID, the secret and the master's CA certificate. The agent creates its
+key pair locally, sends a CSR and only trusts a master certificate issued by that CA, checked by Go's standard
+verification, so the exchange can't be intercepted. Private keys never leave the node. The master checks the token
+before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds. As the port of enrollment is open to
+the internet and serves nothing else, its connections are bounded: 10 seconds for the TLS handshake, 4 calls at once of
+up to 64 KiB each, a minute without calls and 5 minutes in all, and a client that doesn't answer the master's pings for
+20 seconds, or pings more often than every 5 minutes, is cut off.
 
 ## Agents only obey the master
 

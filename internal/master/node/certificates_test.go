@@ -63,8 +63,8 @@ func TestCertificateExpiryIsStored(t *testing.T) {
 	}
 }
 
-// The enrollment port serves Enroll to agents that pin the CA, and refuses requests far larger
-// than one.
+// The enrollment port serves Enroll to agents that trust the CA of their join token, and refuses
+// requests far larger than one.
 func TestEnrollmentServer(t *testing.T) {
 	s := newTestService(t)
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -74,7 +74,7 @@ func TestEnrollmentServer(t *testing.T) {
 	srv := s.EnrollmentServer()
 	go srv.Serve(lis) //nolint:errcheck // ends with Stop
 	t.Cleanup(srv.Stop)
-	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(pki.PinnedMasterTLS(pki.Fingerprint(s.ca.Cert)))))
+	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(pki.EnrollmentTLS(s.ca.Cert))))
 	if err != nil {
 		t.Fatal(err)
 	}

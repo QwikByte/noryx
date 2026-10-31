@@ -19,6 +19,6 @@ message EnrollRequest {
 }
 
 message EnrollResponse {
+  // The node's certificate, issued by the CA of the join token.
   bytes certificate_der = 1;
-  bytes ca_certificate_der = 2;
 }

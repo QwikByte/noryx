@@ -250,7 +250,7 @@ func (s *Service) NewJoinToken(ctx context.Context, id string) (JoinToken, error
 	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
-	token := enrollment.Token{Master: s.config.EnrollAddr(), NodeID: id, Secret: secret, CAFingerprint: pki.Fingerprint(s.ca.Cert)}
+	token := enrollment.Token{Master: s.config.EnrollAddr(), NodeID: id, Secret: secret, CA: s.ca.Cert.Raw}
 	return JoinToken{token, expires}, err
 }
 
@@ -314,7 +314,7 @@ func (s *Service) Enroll(ctx context.Context, req *noryxv1.EnrollRequest) (*nory
 	if c, err := x509.ParseCertificate(cert); err == nil {
 		s.seen(ctx, req.GetNodeId(), c.NotAfter)
 	}
-	return &noryxv1.EnrollResponse{CertificateDer: cert, CaCertificateDer: s.ca.Cert.Raw}, nil
+	return &noryxv1.EnrollResponse{CertificateDer: cert}, nil
 }
 
 func (s *Service) List(ctx context.Context) ([]Node, error) {
