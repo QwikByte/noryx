@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/datastore"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/tag"
@@ -270,24 +269,5 @@ func TestPasswords(t *testing.T) {
 	}
 	if got := passwords(before, nil); len(got) != 1 {
 		t.Errorf("new = %v", got)
-	}
-}
-
-// Older agents would write binary files empty and refuse passwords, so they get neither.
-func TestOlderAgents(t *testing.T) {
-	sv := &survey{nodes: map[string]string{"old": "node-1"}, agents: map[string]*noryxv1.ListFileSetsResponse{
-		"old": {}, "new": {BinaryFiles: true, DatabasePasswords: true},
-	}}
-	text := rendered{files: []*noryxv1.FileSetFile{{Path: "a.yml", Content: "{{secret:db}}"}}, secrets: map[string]string{"secret:db": "x"}}
-	binary := rendered{files: []*noryxv1.FileSetFile{{Path: "a.png", Data: []byte("x")}}}
-	password := rendered{secrets: map[string]string{"datastore:main.lp.password": "x"}}
-	if sv.unable("old", text) != nil || sv.unable("new", binary) != nil || sv.unable("new", password) != nil {
-		t.Error("an agent was refused what it can do")
-	}
-	if err := sv.unable("old", binary); err == nil || !strings.Contains(err.Error(), "node-1") {
-		t.Errorf("binary file for an older agent: %v", err)
-	}
-	if sv.unable("old", password) == nil {
-		t.Error("password for an older agent")
 	}
 }

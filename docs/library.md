@@ -61,9 +61,8 @@ code; a new file's folder can be chosen on a server too. A set keeps the newest 
 them; the history shows what each version changed and loads an older one into the editor to save it as the newest. A
 save based on an older version than the newest is refused, so that it can't undo what someone else saved. A set has up
 to 100 files of up to 1 MiB, 3 MiB in all: text files (UTF-8 without NUL bytes) and binary files, e.g. images, which the
-panel never shows as text but previews if they are images, downloads and replaces, and which servers get as they are;
-agents of older versions get none, as they would write them empty, and the state of the set tells to update them. A file
-can be written only to servers that don't have it, for files that plugins rewrite. Files that Noryx writes itself
+panel never shows as text but previews if they are images, downloads and replaces, and which servers get as they are. A
+file can be written only to servers that don't have it, for files that plugins rewrite. Files that Noryx writes itself
 (`server.properties`, `eula.txt`, `velocity.toml`, BungeeCord's `config.yml`, `spigot.yml`, `config/paper-global.yml`,
 the lists of players, `noryx-*` files), those with secrets of the server, `.jar`, `.zip` and `.class` files, and
 archives, Java classes and programs under any name can't be part of a set; plugins come from the **Plugins** page, with
@@ -105,7 +104,7 @@ the agents only, like a secret, and the file that holds it is hidden on the serv
 name in the server's network, so a set for several networks uses the datastore of each. Only those who may manage
 datastores may add a password to a set or change a file that holds one, which the log records, and apply a set that puts
 passwords on servers; others may change the rest of the set. A new password of a database makes the servers that have it
-outdated, until the set is applied again. Agents of older versions get no passwords.
+outdated, until the set is applied again.
 
 ### Problems
 

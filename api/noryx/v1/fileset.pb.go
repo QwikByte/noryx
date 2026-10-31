@@ -148,7 +148,6 @@ type FileSetFile struct {
 	// Writes the file only if the server has none, for files that plugins rewrite.
 	OnlyIfMissing bool `protobuf:"varint,3,opt,name=only_if_missing,json=onlyIfMissing,proto3" json:"only_if_missing,omitempty"`
 	// The content of a binary file, e.g. an image, instead of content; nothing is filled in.
-	// Agents that don't report binary_files in ListFileSetsResponse ignore it.
 	Data          []byte `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -574,14 +573,9 @@ func (*ListFileSetsRequest) Descriptor() ([]byte, []int) {
 type ListFileSetsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Only servers that have files of sets.
-	Servers []*ServerFileSets `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
-	// The agent writes binary files (FileSetFile.data). Older agents would write them empty,
-	// so the master sends them none.
-	BinaryFiles bool `protobuf:"varint,2,opt,name=binary_files,json=binaryFiles,proto3" json:"binary_files,omitempty"`
-	// The agent fills in the passwords of databases. Older agents refuse them.
-	DatabasePasswords bool `protobuf:"varint,3,opt,name=database_passwords,json=databasePasswords,proto3" json:"database_passwords,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	Servers       []*ServerFileSets `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListFileSetsResponse) Reset() {
@@ -619,20 +613,6 @@ func (x *ListFileSetsResponse) GetServers() []*ServerFileSets {
 		return x.Servers
 	}
 	return nil
-}
-
-func (x *ListFileSetsResponse) GetBinaryFiles() bool {
-	if x != nil {
-		return x.BinaryFiles
-	}
-	return false
-}
-
-func (x *ListFileSetsResponse) GetDatabasePasswords() bool {
-	if x != nil {
-		return x.DatabasePasswords
-	}
-	return false
 }
 
 type ServerFileSets struct {
@@ -867,11 +847,9 @@ const file_noryx_v1_fileset_proto_rawDesc = "" +
 	"\adry_run\x18\x04 \x01(\bR\x06dryRun\"J\n" +
 	"\x15RemoveFileSetResponse\x121\n" +
 	"\achanges\x18\x01 \x03(\v2\x17.noryx.v1.FileSetChangeR\achanges\"\x15\n" +
-	"\x13ListFileSetsRequest\"\x9c\x01\n" +
+	"\x13ListFileSetsRequest\"J\n" +
 	"\x14ListFileSetsResponse\x122\n" +
-	"\aservers\x18\x01 \x03(\v2\x18.noryx.v1.ServerFileSetsR\aservers\x12!\n" +
-	"\fbinary_files\x18\x02 \x01(\bR\vbinaryFiles\x12-\n" +
-	"\x12database_passwords\x18\x03 \x01(\bR\x11databasePasswords\"[\n" +
+	"\aservers\x18\x01 \x03(\v2\x18.noryx.v1.ServerFileSetsR\aservers\"[\n" +
 	"\x0eServerFileSets\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
 	"\x04sets\x18\x02 \x03(\v2\x18.noryx.v1.AppliedFileSetR\x04sets\"\x8a\x01\n" +

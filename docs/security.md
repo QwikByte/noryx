@@ -314,8 +314,7 @@ their placeholders, which the master fills in for the databases of a server's ow
 password or changes a file with one, and applying a set that puts passwords on servers, need the permission to manage
 datastores, and the log records which passwords a set uses, so that nobody who may not see a password gets it onto a
 server they control and reads it there. The master sends them in the field of secrets, and the agent only accepts
-passwords of the form the master generates and hides the files like those with secrets. Agents tell the master that they
-write binary files and fill in passwords; older ones, which would write binary files empty, get neither.
+passwords of the form the master generates and hides the files like those with secrets.
 
 ## Templates
 

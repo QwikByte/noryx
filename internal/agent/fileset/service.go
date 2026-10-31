@@ -141,7 +141,7 @@ func (s *Service) ListFileSets(ctx context.Context, _ *noryxv1.ListFileSetsReque
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	res := &noryxv1.ListFileSetsResponse{BinaryFiles: true, DatabasePasswords: true}
+	res := &noryxv1.ListFileSetsResponse{}
 	for _, srv := range servers {
 		sets, err := s.list(ctx, srv.ID)
 		switch {
