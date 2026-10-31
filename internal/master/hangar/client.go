@@ -167,9 +167,10 @@ type Client struct {
 	projects map[string]project // by ID
 }
 
-// New returns a client for the API and CDN at the given base URLs.
+// New returns a client for the API and CDN at the given base URLs. Calls of the API get
+// modrinth.Timeout, downloads modrinth.DownloadTimeout, through their context.
 func New(api, cdn string) *Client {
-	return &Client{api: api, cdn: cdn, http: &http.Client{Timeout: 2 * time.Minute}, projects: map[string]project{}}
+	return &Client{api: api, cdn: cdn, http: &http.Client{}, projects: map[string]project{}}
 }
 
 // Search finds plugins for the platforms of the loaders; categories and the Minecraft
@@ -317,7 +318,7 @@ func (c *Client) Download(ctx context.Context, f modrinth.File) ([]byte, error) 
 	if !c.OnCDN(f.URL) || f.Size > modrinth.MaxFileSize || len(f.Hashes.SHA256) != sha256.Size*2 {
 		return nil, httpapi.Errorf(http.StatusBadGateway, "%s can't be downloaded: it isn't on Hangar's CDN or is larger than %d MB.", f.Filename, modrinth.MaxFileSize>>20)
 	}
-	data, err := c.fetch(ctx, f.URL, modrinth.MaxFileSize)
+	data, err := c.fetch(ctx, f.URL, modrinth.MaxFileSize, modrinth.DownloadTimeout(f.Size))
 	if err != nil {
 		return nil, err
 	}
@@ -342,11 +343,13 @@ func (c *Client) Icon(ctx context.Context, name string) ([]byte, string, error) 
 	if !iconName.MatchString(name) {
 		return nil, "", httpapi.Errorf(http.StatusNotFound, "Icon not found.")
 	}
-	data, err := c.fetch(ctx, c.cdn+"avatars/project/"+name, maxIconBytes)
+	data, err := c.fetch(ctx, c.cdn+"avatars/project/"+name, maxIconBytes, modrinth.Timeout)
 	return data, iconTypes[name[strings.LastIndexByte(name, '.')+1:]], err
 }
 
 func (c *Client) call(ctx context.Context, path string, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, modrinth.Timeout)
+	defer cancel()
 	res, err := c.do(ctx, c.api+path)
 	if err != nil {
 		return err
@@ -358,7 +361,9 @@ func (c *Client) call(ctx context.Context, path string, out any) error {
 	return nil
 }
 
-func (c *Client) fetch(ctx context.Context, fileURL string, limit int64) ([]byte, error) {
+func (c *Client) fetch(ctx context.Context, fileURL string, limit int64, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	res, err := c.do(ctx, fileURL)
 	if err != nil {
 		return nil, err

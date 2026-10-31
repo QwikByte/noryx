@@ -30,7 +30,9 @@ const (
 	DefaultAPI = "https://api.modrinth.com/v2"
 	DefaultCDN = "https://cdn.modrinth.com/"
 	// MaxFileSize matches the limit of the agents.
-	MaxFileSize      = 256 << 20
+	MaxFileSize = 256 << 20
+	// Timeout bounds a call of an API; downloads get DownloadTimeout.
+	Timeout          = 2 * time.Minute
 	maxResponseBytes = 16 << 20
 	maxIconBytes     = 1 << 20
 	pageSize         = 20
@@ -184,9 +186,20 @@ type Client struct {
 	releasesAt time.Time
 }
 
-// New returns a client for the API and CDN at the given base URLs.
+// New returns a client for the API and CDN at the given base URLs. Calls of the API get Timeout,
+// downloads DownloadTimeout, through their context.
 func New(api, cdn string) *Client {
-	return &Client{api: api, cdn: cdn, http: &http.Client{Timeout: 2 * time.Minute}}
+	return &Client{api: api, cdn: cdn, http: &http.Client{}}
+}
+
+// DownloadTimeout is how long the download of a file of size bytes may take: Timeout and a second
+// for each 256 KiB, so that only links slower than 256 KiB/s fail. A file of up to MaxFileSize
+// gets about 19 minutes, as does one of unknown size.
+func DownloadTimeout(size int64) time.Duration {
+	if size <= 0 || size > MaxFileSize {
+		size = MaxFileSize
+	}
+	return Timeout + time.Duration(size>>18)*time.Second
 }
 
 // Search finds server-side plugins and mods. Without a query, the most downloaded
@@ -328,7 +341,7 @@ func (c *Client) Download(ctx context.Context, f File) ([]byte, error) {
 	if !c.OnCDN(f.URL) || f.Size > MaxFileSize || len(f.Hashes.SHA512) != sha512.Size*2 {
 		return nil, httpapi.Errorf(http.StatusBadGateway, "%s can't be downloaded: it isn't on Modrinth's CDN or is larger than %d MB.", f.Filename, MaxFileSize>>20)
 	}
-	data, err := c.fetch(ctx, f.URL, MaxFileSize)
+	data, err := c.fetch(ctx, f.URL, MaxFileSize, DownloadTimeout(f.Size))
 	if err != nil {
 		return nil, err
 	}
@@ -364,12 +377,14 @@ func (c *Client) Icon(ctx context.Context, name string) ([]byte, string, error) 
 	if !iconName.MatchString(name) {
 		return nil, "", httpapi.Errorf(http.StatusNotFound, "Icon not found.")
 	}
-	data, err := c.fetch(ctx, c.cdn+"data/"+name, maxIconBytes)
+	data, err := c.fetch(ctx, c.cdn+"data/"+name, maxIconBytes, Timeout)
 	return data, iconTypes[name[strings.LastIndexByte(name, '.')+1:]], err
 }
 
-// call sends a request to the API and decodes its JSON response into out.
+// call sends a request to the API and decodes its JSON response into out, within Timeout.
 func (c *Client) call(ctx context.Context, method, path string, body, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	defer cancel()
 	var r io.Reader
 	if body != nil {
 		r = strings.NewReader(jsonText(body))
@@ -385,8 +400,10 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any) e
 	return nil
 }
 
-// fetch downloads a file of up to limit bytes.
-func (c *Client) fetch(ctx context.Context, fileURL string, limit int64) ([]byte, error) {
+// fetch downloads a file of up to limit bytes within timeout.
+func (c *Client) fetch(ctx context.Context, fileURL string, limit int64, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	res, err := c.do(ctx, http.MethodGet, fileURL, nil)
 	if err != nil {
 		return nil, err
