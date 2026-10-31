@@ -51,9 +51,6 @@ const (
 	minCPUMillis  = 100
 )
 
-// errUnknownType is returned for server types of newer masters.
-var errUnknownType = status.Error(codes.FailedPrecondition, "This node's agent doesn't know this server type yet. Update it first.")
-
 var (
 	namePattern    = regexp.MustCompile(`^[\pL\pN][\pL\pN _.-]{0,31}$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
@@ -242,37 +239,10 @@ func (s *Service) adopt(ctx context.Context, spec runtime.Spec, size int64, stre
 
 // newServer checks the request for a new server and returns the server's settings.
 func newServer(req *noryxv1.CreateServerRequest) (runtime.Spec, error) {
-	_, knownType := noryxv1.ServerType_name[int32(req.GetType())]
-	spec := runtime.Spec{
-		ID:            runtime.NewID(),
-		Name:          req.GetName(),
-		Type:          req.GetType(),
-		Version:       cmp.Or(req.GetVersion(), "LATEST"),
-		MemoryMB:      req.GetMemoryMb(),
-		Port:          req.GetPort(),
-		Storage:       req.GetStorage(),
-		Java:          req.GetJava(),
-		RestartPolicy: req.GetRestartPolicy(),
-		AikarFlags:    req.GetAikarFlags(),
-		JVMOptions:    req.GetJvmOptions(),
-		CPUMillis:     req.GetCpuMillis(),
-		LoaderVersion: req.GetLoaderVersion(),
-		StopTimeout:   req.GetStopTimeoutSeconds(),
-		TimeZone:      req.GetTimeZone(),
-		ExtraPorts:    extraPorts(req.GetExtraPorts()),
-		HealthStart:   req.GetHealthStartMinutes(),
+	if !req.GetAcceptEula() && !req.GetType().Proxy() {
+		return runtime.Spec{}, status.Error(codes.InvalidArgument, "Accept the Minecraft EULA to create a game server.")
 	}
-	spec.CrashLimit, spec.StableAfter, spec.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
-	spec.ProcessLimit, spec.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
-	switch {
-	case !req.GetAcceptEula() && !req.GetType().Proxy():
-		return spec, status.Error(codes.InvalidArgument, "Accept the Minecraft EULA to create a game server.")
-	case req.GetType() == noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED:
-		return spec, status.Error(codes.InvalidArgument, "Choose a server type.")
-	case !knownType:
-		return spec, errUnknownType
-	}
-	return spec, nil
+	return withSettings(runtime.Spec{ID: runtime.NewID(), Type: req.GetType(), Storage: req.GetStorage()}, req), checkType(req.GetType())
 }
 
 func (s *Service) writeProperties(ctx context.Context, id string, changes map[string]string) error {
@@ -342,22 +312,12 @@ func (s *Service) ImportServer(stream noryxv1.ServerService_ImportServerServer) 
 	if h == nil {
 		return status.Error(codes.InvalidArgument, "the first message must describe the server")
 	}
-	spec := runtime.Spec{
-		ID: h.GetId(), Name: h.GetName(), Type: h.GetType(), Version: h.GetVersion(), MemoryMB: h.GetMemoryMb(), Port: h.GetPort(),
-		Storage: h.GetStorage(), Java: h.GetJava(), RestartPolicy: h.GetRestartPolicy(), AikarFlags: h.GetAikarFlags(),
-		JVMOptions: h.GetJvmOptions(), CPUMillis: h.GetCpuMillis(), LoaderVersion: h.GetLoaderVersion(),
-		StopTimeout: h.GetStopTimeoutSeconds(), TimeZone: h.GetTimeZone(), ExtraPorts: extraPorts(h.GetExtraPorts()),
-		HealthStart: h.GetHealthStartMinutes(), CrashLimit: h.GetCrashLimit(), StableAfter: h.GetStableAfterMinutes(),
-		UnhealthyRestart: h.GetUnhealthyRestartMinutes(), ProcessLimit: h.GetProcessLimit(), InitMemoryMB: h.GetInitMemoryMb(),
-	}
-	_, knownType := noryxv1.ServerType_name[int32(spec.Type)]
-	switch {
-	case !runtime.ValidID(spec.ID):
+	spec := withSettings(runtime.Spec{ID: h.GetId(), Type: h.GetType(), Storage: h.GetStorage()}, h)
+	if !runtime.ValidID(spec.ID) {
 		return status.Error(codes.InvalidArgument, "invalid server ID")
-	case spec.Type == noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED:
-		return status.Error(codes.InvalidArgument, "Choose a server type.")
-	case !knownType:
-		return errUnknownType
+	}
+	if err := checkType(spec.Type); err != nil {
+		return err
 	}
 	release, err := s.check(ctx, spec)
 	if err != nil {
@@ -428,14 +388,7 @@ func (s *Service) UpdateServer(ctx context.Context, req *noryxv1.UpdateServerReq
 	if err != nil {
 		return nil, err
 	}
-	srv.Name, srv.Version, srv.MemoryMB, srv.Port = req.GetName(), cmp.Or(req.GetVersion(), "LATEST"), req.GetMemoryMb(), req.GetPort()
-	srv.Java, srv.RestartPolicy, srv.AikarFlags = req.GetJava(), req.GetRestartPolicy(), req.GetAikarFlags()
-	srv.JVMOptions, srv.CPUMillis, srv.LoaderVersion = req.GetJvmOptions(), req.GetCpuMillis(), req.GetLoaderVersion()
-	srv.StopTimeout, srv.TimeZone = req.GetStopTimeoutSeconds(), req.GetTimeZone()
-	srv.ExtraPorts = extraPorts(req.GetExtraPorts())
-	srv.HealthStart = req.GetHealthStartMinutes()
-	srv.CrashLimit, srv.StableAfter, srv.UnhealthyRestart = req.GetCrashLimit(), req.GetStableAfterMinutes(), req.GetUnhealthyRestartMinutes()
-	srv.ProcessLimit, srv.InitMemoryMB = req.GetProcessLimit(), req.GetInitMemoryMb()
+	srv.Spec = withSettings(srv.Spec, req)
 	release, err := s.check(ctx, srv.Spec)
 	if err != nil {
 		return nil, err
@@ -854,19 +807,6 @@ func runsCode(option string) bool {
 		return codeFlag.MatchString(strings.TrimLeft(flag, "+-"))
 	}
 	return codeOption.MatchString(name)
-}
-
-func toProto(s runtime.Server) *noryxv1.Server {
-	return &noryxv1.Server{
-		Id: s.ID, Name: s.Name, Type: s.Type, Version: s.Version, MemoryMb: s.MemoryMB, Port: s.Port, State: s.State,
-		Storage: cmp.Or(s.Storage, storage.Default), Java: s.Java, RestartPolicy: s.RestartPolicy, AikarFlags: s.AikarFlags,
-		JvmOptions: s.JVMOptions, CpuMillis: s.CPUMillis, Crashes: uint32(s.Crashes), ExitCode: int32(s.ExitCode), //nolint:gosec // small numbers
-		LoaderVersion: s.LoaderVersion, BedrockPort: s.BedrockPort, RefusedJvmOptions: refusedOptions(s.JVMOptions),
-		Overlay: s.Overlay != "", Unhealthy: s.Unhealthy, StopTimeoutSeconds: s.StopTimeout, TimeZone: s.TimeZone,
-		ExtraPorts:         protoPorts(s.ExtraPorts),
-		HealthStartMinutes: s.HealthStart, CrashLimit: s.CrashLimit, StableAfterMinutes: s.StableAfter, UnhealthyRestartMinutes: s.UnhealthyRestart,
-		ProcessLimit: s.ProcessLimit, InitMemoryMb: s.InitMemoryMB,
-	}
 }
 
 // known are the errors of servers that the service answers with a code and a text.

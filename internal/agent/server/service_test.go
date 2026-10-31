@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -12,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/agent/datadir"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
@@ -173,9 +176,11 @@ func TestNetworkOf(t *testing.T) {
 	}
 }
 
-// slowRuntime creates servers slowly, as Docker does while it pulls an image.
+// slowRuntime creates servers slowly, as Docker does while it pulls an image, and keeps their
+// data in dir.
 type slowRuntime struct {
 	runtime.Runtime
+	dir     string
 	mu      sync.Mutex
 	servers []runtime.Server
 }
@@ -196,6 +201,25 @@ func (r *slowRuntime) Create(_ context.Context, spec runtime.Spec) error {
 	defer r.mu.Unlock()
 	r.servers = append(r.servers, runtime.Server{Spec: spec})
 	return nil
+}
+
+func (r *slowRuntime) Update(_ context.Context, spec runtime.Spec) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	i := slices.IndexFunc(r.servers, func(srv runtime.Server) bool { return srv.ID == spec.ID })
+	if i < 0 {
+		return runtime.ErrNotFound
+	}
+	r.servers[i].Spec = spec
+	return nil
+}
+
+func (r *slowRuntime) Data(_ context.Context, id string) (*datadir.Dir, error) {
+	path := filepath.Join(r.dir, id)
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return nil, err
+	}
+	return datadir.Open(path)
 }
 
 // Of concurrent requests for the same port, e.g. after a double click, only one creates a
