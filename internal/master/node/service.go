@@ -132,6 +132,8 @@ type Service struct {
 	// gen counts the changes and removals of connections, so that Conn doesn't store a
 	// connection to a node that changed while it was loaded.
 	gen uint64
+	// loaded, if set, runs whenever Conn loaded a node, so that tests can change it meanwhile.
+	loaded func()
 	// expiries are expiries of node certificates that are stored already, so that checking a
 	// node writes to the database only once it presents a newer certificate.
 	expiries map[string]time.Time
@@ -372,6 +374,9 @@ func (s *Service) Conn(ctx context.Context, id string) (grpc.ClientConnInterface
 		n, err := s.Get(ctx, id)
 		if err != nil {
 			return nil, err
+		}
+		if s.loaded != nil {
+			s.loaded()
 		}
 		if n.EnrolledAt == nil {
 			return nil, httpapi.Errorf(http.StatusConflict, "Node %q has not been enrolled yet.", n.Name)

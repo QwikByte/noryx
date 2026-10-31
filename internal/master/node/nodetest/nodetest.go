@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"net"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -37,10 +38,17 @@ func New(t testing.TB, db *sql.DB) *Nodes {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := node.NewService(db, ca, holder, nil)
+	s := node.NewService(db, ca, holder, config{})
 	t.Cleanup(s.Close)
 	return &Nodes{Service: s, db: db, ca: ca}
 }
+
+// config is what the settings of the master tell about nodes.
+type config struct{}
+
+func (config) EnrollAddr() string          { return "master.example.com:7444" }
+func (config) JoinTokenTTL() time.Duration { return time.Hour }
+func (config) NodeDefaults() node.Limits   { return node.Limits{} }
 
 // Add adds an enrolled node, named like its ID, whose agent serves what register registers
 // until the test ends; without register, nothing answers at its address. It returns the
