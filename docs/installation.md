@@ -158,7 +158,8 @@ after updating it on its host, a release can be tried on one node first. The che
 e.g. for a master without internet access. While GitHub's API limits the requests of the master's IP address (60 an
 hour, shared with everything behind the same address), the master reads only the version from the release page, and the
 panel links to the release notes on GitHub. On the command line, `… | sudo bash -s -- update` updates what is
-installed; update the master first, then the nodes.
+installed; update the master first, then the nodes. The installer never replaces a master with an older version, which
+couldn't open the database once a newer one changed it.
 
 ### Pre-releases
 

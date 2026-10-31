@@ -143,9 +143,22 @@ wait_for_packages() {
   ((i == 0)) || printf '\n'
 }
 
+# keep_master_newer dies before an installed master would be replaced by an older version, which
+# can't open the database once a newer one changed it. Package managers differ here: apt and
+# pacman would go back.
+keep_master_newer() {
+  local current
+  current=$(noryx-master --version 2>/dev/null) || return 0
+  current=${current##* }
+  [[ "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || return 0
+  [ "$(printf '%s\n' "$current" "$version" | tr - '~' | sort -V | tail -n 1 | tr '~' -)" = "$version" ] ||
+    die "noryx-master $current is installed, which is newer than $version. The master can't go back to an older version, as the newer one may have changed its database."
+}
+
 # install_package downloads a package of the release, verifies its checksum and installs or updates it.
 install_package() {
   local file="$1_${version#v}_linux_${arch}.$format"
+  [ "$1" != noryx-master ] || keep_master_newer
   log "Installing $1 $version"
   fetch -o "$tmp/$file" "$REPO/releases/download/$version/$file"
   (cd "$tmp" && grep -E "^[0-9a-f]{64}  $file\$" checksums.txt | sha256sum -c --strict --quiet) ||
