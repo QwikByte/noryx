@@ -127,7 +127,7 @@ export function ConditionField({ value, onChange }: { value: PolicySettings; onC
   )
 }
 
-const defaultBackup: JobSettings = { selection: defaultSelection, location: "", keep: 7 }
+const defaultBackup: JobSettings = { selection: defaultSelection, datastores: [], location: "", keep: 7, keepDays: 0, keepWeeks: 0, keepMonths: 0 }
 
 /** Whether a schedule backs up each server first, and what and where, as a backup job would. */
 export function BackupFields({ value, onChange }: { value?: JobSettings; onChange: (backup?: JobSettings) => void }) {

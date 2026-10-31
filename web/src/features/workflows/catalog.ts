@@ -418,7 +418,11 @@ export const kinds: Record<string, KindInfo> = {
     icon: ArchiveIcon,
     tone: "success",
     group: "servers",
-    create: () => ({ ...servers(), backup: { selection: defaultSelection, location: "", keep: 7 }, label: "" }),
+    create: () => ({
+      ...servers(),
+      backup: { selection: defaultSelection, datastores: [], location: "", keep: 7, keepDays: 0, keepWeeks: 0, keepMonths: 0 },
+      label: "",
+    }),
     outputs: onServers,
   },
   player: {

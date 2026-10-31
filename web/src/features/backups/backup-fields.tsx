@@ -77,7 +77,7 @@ export function SelectionField({
         description={t("Folders that are big and easy to replace, like the tiles of a map plugin or logs. Restoring leaves them as they are.")}
         pick={t("Files and folders to leave out")}
         example="plugins/dynmap/web/tiles"
-        paths={value.exclude ?? []}
+        paths={value.exclude}
         server={server}
         onChange={(exclude) => onChange({ ...value, exclude })}
         errors={errorAt?.("exclude")}
@@ -199,7 +199,7 @@ export function RetentionField({ value, onChange }: { value: JobSettings; onChan
               min={0}
               max={1000}
               className="font-mono"
-              value={value[key] ?? 0}
+              value={value[key]}
               onChange={(e) => onChange({ [key]: e.target.valueAsNumber || 0 } as Partial<JobSettings>)}
             />
           </Field>
