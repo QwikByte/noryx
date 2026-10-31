@@ -167,13 +167,13 @@ in the sidebar), which signs them out everywhere else.
 ### Sessions
 
 The account page lists where the user is signed in: each session with its browser and operating system, as far as the
-master recognises them in the browser's User-Agent, the address it was last used from and when, and when it started;
-sessions that started before Noryx noted this show it from their next use on. **Sign out** ends one of them, e.g. in a
-lost or shared browser, and **Sign out everywhere else** all but the current one. Neither needs the password, as they
-only take rights away. Users only see and end their own sessions. Behind a reverse proxy, the addresses are those of the
-clients only if `--trusted-proxy` names the proxy (see [Installation](installation.md)). The API lists the sessions with
-`GET /api/auth/sessions`, ends one with `DELETE /api/auth/sessions/<id>` and all others with
-`DELETE /api/auth/sessions`. If the settings end sessions without use, the account page says after how long.
+master recognises them in the browser's User-Agent, the address it was last used from and when, and when it started.
+**Sign out** ends one of them, e.g. in a lost or shared browser, and **Sign out everywhere else** all but the current
+one. Neither needs the password, as they only take rights away. Users only see and end their own sessions. Behind a
+reverse proxy, the addresses are those of the clients only if `--trusted-proxy` names the proxy (see
+[Installation](installation.md)). The API lists the sessions with `GET /api/auth/sessions`, ends one with
+`DELETE /api/auth/sessions/<id>` and all others with `DELETE /api/auth/sessions`. If the settings end sessions without
+use, the account page says after how long.
 
 ### API tokens
 

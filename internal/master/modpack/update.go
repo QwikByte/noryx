@@ -64,7 +64,7 @@ func (s *Service) prepare(ctx context.Context, nodeID, serverID, version string,
 	case err != nil:
 		return update{}, err
 	case !ok:
-		return update{}, httpapi.Errorf(http.StatusNotFound, "The server wasn't created from a modpack, or before Noryx remembered modpacks.")
+		return update{}, httpapi.Errorf(http.StatusNotFound, "The server wasn't created from a modpack.")
 	case !modrinth.ValidProjectID(version):
 		return update{}, httpapi.Errorf(http.StatusBadRequest, "Choose a version of the modpack.")
 	case version == from.version:
