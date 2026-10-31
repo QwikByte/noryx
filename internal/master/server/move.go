@@ -226,21 +226,24 @@ func (h *Handler) checkMove(ctx context.Context, from, id string, req *moveReque
 	if err != nil {
 		return nil, err
 	}
-	used := slices.IndexFunc(list.GetServers(), func(s *noryxv1.Server) bool { return s.Uses(req.Port) })
+	last := noryxv1.LastPort(source.GetType(), req.Port, source.GetMaxPlayers())
+	used, port := usedBy(list.GetServers(), req.Port, last)
 	switch {
+	case !info.Creates(source.GetType()):
+		return nil, httpapi.Errorf(http.StatusConflict, "The agent of %s doesn't know %s servers yet. Update it first.", to.Name, typeName(source.GetType()))
 	case !slices.ContainsFunc(info.GetStorage(), func(l *noryxv1.StorageLocation) bool { return l.GetName() == req.Storage }):
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Choose a storage location of %s.", to.Name)
 	case info.GetCpuCount() > 0 && source.GetCpuMillis() > info.GetCpuCount()*1000:
 		return nil, httpapi.Errorf(http.StatusConflict, "%s has %d CPU cores. Lower the CPU limit of the server first.", to.Name, info.GetCpuCount())
-	case used >= 0:
-		return nil, httpapi.Errorf(http.StatusConflict, "Port %d is used by %q on %s. Choose another port.", req.Port, list.GetServers()[used].GetName(), to.Name)
+	case used != nil:
+		return nil, httpapi.Errorf(http.StatusConflict, "Port %d is used by %q on %s. Choose another port.", port, used.GetName(), to.Name)
 	case slices.ContainsFunc(list.GetServers(), func(s *noryxv1.Server) bool { return s.GetId() == id }):
 		return nil, httpapi.Errorf(http.StatusConflict, "The server exists on %s already.", to.Name)
 	}
 	if err := h.checkExtraPorts(ctx, to.ID, list.GetServers(), source.GetExtraPorts(), req.Port, 0); err != nil {
 		return nil, err
 	}
-	return h.checkLimits(ctx, to.ID, "", req.Port, source.GetMemoryMb())
+	return h.checkLimits(ctx, to.ID, "", req.Port, last, source.GetMemoryMb())
 }
 
 // find returns a server of a node.

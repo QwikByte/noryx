@@ -43,15 +43,19 @@ var noRelease = func() {}
 
 // checkLimits enforces the port range and the memory limit of a node, which its datastores
 // share, for a server that is created (serverID is empty) or changed, and reserves its memory until release is
-// called, once the operation that creates or changes it ended. A change that needs no
+// called, once the operation that creates or changes it ended. The server uses the ports from
+// port to last, which differ for the players of a Bedrock server. A change that needs no
 // more memory is always allowed, e.g. on a node whose limit was lowered.
-func (h *Handler) checkLimits(ctx context.Context, nodeID, serverID string, port, memoryMB uint32) (release func(), err error) {
+func (h *Handler) checkLimits(ctx context.Context, nodeID, serverID string, port, last, memoryMB uint32) (release func(), err error) {
 	n, err := h.nodes.Get(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
-	if n.PortMin != nil && (port < *n.PortMin || port > *n.PortMax) {
+	switch {
+	case n.PortMin != nil && (port < *n.PortMin || port > *n.PortMax):
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Choose a port from %d to %d, the port range of %s.", *n.PortMin, *n.PortMax, n.Name)
+	case n.PortMin != nil && last > *n.PortMax:
+		return nil, httpapi.Errorf(http.StatusBadRequest, "The players of the server take the ports up to %d, beyond the port range of %s, which ends at %d. Choose a lower port or fewer players.", last, n.Name, *n.PortMax)
 	}
 	if n.MemoryReserveMB == nil {
 		return noRelease, nil

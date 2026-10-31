@@ -940,7 +940,9 @@ func (s *Service) backend(ctx context.Context, ref Ref, forwarding string) (*nor
 		return nil, err
 	}
 	switch typ := srv.GetType(); {
-	case typ.Proxy() || typ == noryxv1.ServerType_SERVER_TYPE_VANILLA:
+	case typ.Bedrock():
+		return nil, httpapi.Errorf(http.StatusBadRequest, "Bedrock servers can't be part of a network. Bedrock players join a network through Geyser on its proxy instead.")
+	case !typ.Backend():
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Only Paper and its forks, Fabric, Quilt, Forge and NeoForge servers can verify the players a proxy forwards.")
 	case typ.Fabric() && forwarding != Modern:
 		return nil, errFabricMode

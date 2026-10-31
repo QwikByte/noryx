@@ -401,8 +401,11 @@ func (h *Handler) checkInto(ctx context.Context, r *http.Request, nodeID, server
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if source.GetType().Proxy() != target.GetType().Proxy() {
+	switch from, to := source.GetType(), target.GetType(); {
+	case from.Proxy() != to.Proxy():
 		return nil, nil, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of proxies into proxies, and those of game servers into game servers.")
+	case from.Bedrock() != to.Bedrock():
+		return nil, nil, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of Bedrock servers into Bedrock servers, and those of Java servers into Java servers.")
 	}
 	c, err := h.client(ctx, r.PathValue("node"))
 	var list *noryxv1.ListBackupsResponse

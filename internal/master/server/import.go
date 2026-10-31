@@ -66,7 +66,11 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 	release := noRelease
 	if err == nil {
 		var reserved func()
-		if reserved, err = h.checkLimits(ctx, nodeID, "", req.Port, req.MemoryMB); err == nil {
+		typ := noryxv1.ParseServerType(req.Type)
+		if err = h.checkType(ctx, nodeID, typ); err == nil {
+			reserved, err = h.checkLimits(ctx, nodeID, "", req.Port, noryxv1.LastPort(typ, req.Port, req.MaxPlayers), req.MemoryMB)
+		}
+		if err == nil {
 			release = reserved
 		}
 	}
@@ -78,7 +82,7 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 			AcceptEula: req.AcceptEULA, Storage: req.Storage, Java: req.Java, RestartPolicy: policy, AikarFlags: req.AikarFlags,
 			JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout,
 			TimeZone: req.TimeZone, HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
-			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
+			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB, MaxPlayers: req.MaxPlayers,
 		}}, archive)
 	}
 	var tooLarge *http.MaxBytesError

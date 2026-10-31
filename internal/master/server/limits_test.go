@@ -47,7 +47,7 @@ func (a limitsAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc
 
 func TestCheckLimitsCountsContainers(t *testing.T) {
 	check := func(h *Handler, serverID string, memoryMB uint32) (func(), error) {
-		return h.checkLimits(t.Context(), "n1", serverID, 25565, memoryMB)
+		return h.checkLimits(t.Context(), "n1", serverID, 25565, 25565, memoryMB)
 	}
 	// Two servers with 1 GB fit the 2355 MB left for servers, but their containers don't:
 	// they may use 1536 MB each.

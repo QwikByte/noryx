@@ -280,9 +280,9 @@ func (x *scope) power(ctx context.Context, s Servers, what string, warnings []ui
 			return nil, err
 		}
 		err = server.Countdown(ctx, time.Now().Add(time.Duration(warnings[0])*time.Minute), warnings, func(minutes uint32) {
-			commands, _ := how.Commands(msg, minutes)
 			for _, srv := range list {
 				if server.Warnable(srv.Server) {
+					commands, _ := how.Commands(srv.GetType(), msg, minutes)
 					_ = x.call(ctx, srv, actionTimeout, func(ctx context.Context, c noryxv1.ServerServiceClient) error {
 						for _, command := range commands {
 							if _, err := c.SendCommand(ctx, &noryxv1.SendCommandRequest{Id: srv.GetId(), Command: command}); err != nil {
@@ -402,7 +402,7 @@ func runMessage(ctx context.Context, x *scope, _ Step, s *messageSettings) (any,
 		}
 		var commands []string
 		if err == nil {
-			commands, err = m.Commands(target)
+			commands, err = m.CommandsOn(srv.GetType(), target)
 		}
 		if err != nil {
 			return nil, err

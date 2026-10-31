@@ -88,8 +88,10 @@ func (w Warnings) Validate() error {
 func (w Warnings) Message(action, message string) (string, error) {
 	message = cmp.Or(strings.TrimSpace(message), map[string]string{"restart": w.Restart, "stop": w.Stop}[action])
 	err := CheckWarning(message)
-	if err == nil {
-		_, err = w.Commands(message, maxWarningMinutes) // the longest number of minutes
+	for _, typ := range []noryxv1.ServerType{noryxv1.ServerType_SERVER_TYPE_PAPER, noryxv1.ServerType_SERVER_TYPE_BEDROCK} {
+		if err == nil {
+			_, err = w.Commands(typ, message, maxWarningMinutes) // the longest number of minutes
+		}
 	}
 	return message, err
 }
@@ -102,11 +104,11 @@ func CheckWarning(message string) error {
 	return nil
 }
 
-// Commands returns the console commands that warn the players that minutes are left, which
-// network.Message makes, so that the message never becomes JSON by hand.
-func (w Warnings) Commands(message string, minutes uint32) ([]string, error) {
+// Commands returns the console commands that warn the players of a server of the type that
+// minutes are left, which network.Message makes, so that the message never becomes JSON by hand.
+func (w Warnings) Commands(typ noryxv1.ServerType, message string, minutes uint32) ([]string, error) {
 	text := strings.ReplaceAll(message, "{minutes}", strconv.FormatUint(uint64(minutes), 10))
-	return network.Message{Kind: w.Kind, Text: text}.Commands(network.Everyone)
+	return network.Message{Kind: w.Kind, Text: text}.CommandsOn(typ, network.Everyone)
 }
 
 // Warnable tells whether the players of a server can be warned: it is a running game server.
@@ -205,12 +207,12 @@ func (h *Handler) countdown(ctx context.Context, w *warning, servers []tag.Serve
 	total := int64(w.Minutes)
 	return Countdown(ctx, time.Now().Add(w.duration()), w.steps(), func(minutes uint32) {
 		operation.Count(ctx, total-int64(minutes), total, "minutes")
-		commands, _ := w.how.Commands(w.Message, minutes) // check made sure they fit
 		var wg sync.WaitGroup
 		for _, s := range warned {
 			wg.Go(func() {
 				ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 				defer cancel()
+				commands, _ := w.how.Commands(s.typ, w.Message, minutes) // check made sure they fit
 				c, err := h.serverClient(ctx, s.NodeID)
 				for _, command := range commands {
 					if err == nil {
@@ -226,11 +228,17 @@ func (h *Handler) countdown(ctx context.Context, w *warning, servers []tag.Serve
 	})
 }
 
+// warned is a server whose players are warned, with its type, which decides the commands.
+type warned struct {
+	tag.Server
+	typ noryxv1.ServerType
+}
+
 // warnable returns the servers among servers whose players can be warned. Nodes that can't be
 // reached are left out.
-func (h *Handler) warnable(ctx context.Context, servers []tag.Server) []tag.Server {
+func (h *Handler) warnable(ctx context.Context, servers []tag.Server) []warned {
 	var nodes []string
-	var out []tag.Server
+	var out []warned
 	for _, s := range servers {
 		if !slices.Contains(nodes, s.NodeID) {
 			nodes = append(nodes, s.NodeID)
@@ -246,7 +254,7 @@ func (h *Handler) warnable(ctx context.Context, servers []tag.Server) []tag.Serv
 		cancel()
 		for _, srv := range res.GetServers() {
 			if s := (tag.Server{NodeID: nodeID, ServerID: srv.GetId()}); Warnable(srv) && slices.Contains(servers, s) {
-				out = append(out, s)
+				out = append(out, warned{s, srv.GetType()})
 			}
 		}
 	}

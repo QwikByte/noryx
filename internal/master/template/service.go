@@ -283,6 +283,8 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Keep the description below 500 characters."
 	case typ == noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED:
 		return "Choose the software of the servers."
+	case typ.Bedrock() && !noryxv1.ValidBedrockVersion(t.Version):
+		return "Enter a version of Bedrock Dedicated Server like 1.26.61.1 or PREVIEW, or leave it empty for the latest."
 	case !versionPattern.MatchString(t.Version):
 		return "Enter a Minecraft version like 1.21.4, or leave it empty for the latest."
 	case t.MemoryMB < noryxv1.MinMemoryMB || t.MemoryMB > noryxv1.MaxMemoryMB:
@@ -311,6 +313,10 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return "Use at most 32 JVM options."
 	case typ.Proxy() && len(t.Properties) > 0:
 		return "Proxies have no server.properties."
+	case typ.Bedrock() && len(t.Properties) > 0:
+		return "Bedrock servers write their server.properties when they start for the first time, so templates can't set its properties."
+	case !typ.Addons() && len(in.Plugins) > 0:
+		return "Vanilla and Bedrock servers can't load plugins or mods."
 	case len(t.Properties) > maxProperties:
 		return "Use at most 200 properties."
 	case len(in.Plugins) > maxPlugins:
@@ -319,6 +325,11 @@ func check(t Template, typ noryxv1.ServerType, in Input) string {
 		return fmt.Sprintf("Use at most %d tags.", tag.MaxPerServer)
 	}
 	if msg := noryxv1.CheckExtraPorts(server.ProtoPorts(t.ExtraPorts), 0, 0); msg != "" {
+		return msg
+	}
+	if msg := (noryxv1.BedrockSettings{
+		Type: typ, Java: t.Java, AikarFlags: t.AikarFlags, JVMOptions: len(t.JVMOptions), InitMemoryMB: t.InitMemoryMB, ExtraPorts: len(t.ExtraPorts),
+	}).Problem(); msg != "" {
 		return msg
 	}
 	for key, value := range t.Properties {

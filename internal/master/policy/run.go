@@ -78,9 +78,9 @@ func (p Policies) Run(ctx context.Context, t schedule.Task, servers schedule.Ser
 			r.report(warnErr)
 		}
 		err := server.Countdown(ctx, at, s.Warnings, func(minutes uint32) {
-			commands, _ := how.Commands(message, minutes)
 			for _, srv := range list {
 				if warnErr == nil && server.Warnable(srv.Server) && concerns(s, srv) {
+					commands, _ := how.Commands(srv.GetType(), message, minutes)
 					_ = p.call(ctx, srv, command, commands...) // a server that misses a warning restarts anyway
 				}
 			}

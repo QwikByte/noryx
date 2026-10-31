@@ -47,3 +47,24 @@ func TestRuntimeOf(t *testing.T) {
 		}
 	}
 }
+
+// Agents that don't tell their types create those that came before Bedrock servers.
+func TestCreates(t *testing.T) {
+	older, newer := &GetInfoResponse{}, &GetInfoResponse{ServerTypes: []ServerType{ServerType_SERVER_TYPE_PAPER, ServerType_SERVER_TYPE_BEDROCK}}
+	for _, tc := range []struct {
+		info *GetInfoResponse
+		typ  ServerType
+		want bool
+	}{
+		{older, ServerType_SERVER_TYPE_PAPER, true},
+		{older, ServerType_SERVER_TYPE_QUILT, true},
+		{older, ServerType_SERVER_TYPE_BEDROCK, false},
+		{older, ServerType_SERVER_TYPE_UNSPECIFIED, false},
+		{newer, ServerType_SERVER_TYPE_BEDROCK, true},
+		{newer, ServerType_SERVER_TYPE_VELOCITY, false},
+	} {
+		if got := tc.info.Creates(tc.typ); got != tc.want {
+			t.Errorf("%v creates %v: %v", tc.info.GetServerTypes(), tc.typ, got)
+		}
+	}
+}

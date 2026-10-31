@@ -136,7 +136,10 @@ func TestValidateWarnings(t *testing.T) {
 	if err := w.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := w.Commands(w.Restart, 5); err != nil || !slices.Equal(got, []string{`minecraft:title @a actionbar {"text":"Neustart in 5 Minuten"}`}) {
+	if got, err := w.Commands(noryxv1.ServerType_SERVER_TYPE_PAPER, w.Restart, 5); err != nil || !slices.Equal(got, []string{`minecraft:title @a actionbar {"text":"Neustart in 5 Minuten"}`}) {
+		t.Fatalf("commands %q, %v", got, err)
+	}
+	if got, err := w.Commands(noryxv1.ServerType_SERVER_TYPE_BEDROCK, w.Restart, 5); err != nil || !slices.Equal(got, []string{`titleraw @a actionbar {"rawtext":[{"text":"Neustart in 5 Minuten"}]}`}) {
 		t.Fatalf("commands %q, %v", got, err)
 	}
 }

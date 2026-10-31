@@ -19,8 +19,8 @@ import (
 func TestEveryServerTypeHasLoaders(t *testing.T) {
 	for value, name := range noryxv1.ServerType_name {
 		typ := noryxv1.ServerType(value)
-		if len(Loaders(typ)) == 0 && typ != noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED && typ != noryxv1.ServerType_SERVER_TYPE_VANILLA {
-			t.Errorf("%s has no loaders", name)
+		if loads := len(Loaders(typ)) > 0; loads != typ.Addons() {
+			t.Errorf("%s: loaders %v, but loads plugins or mods %v", name, Loaders(typ), typ.Addons())
 		}
 	}
 	if !slices.Contains(AllLoaders("mods"), "quilt") || slices.Contains(AllLoaders("plugins"), "quilt") {

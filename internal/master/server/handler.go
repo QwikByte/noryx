@@ -229,6 +229,9 @@ type settings struct {
 	TimeZone string `json:"timeZone"`
 	// ExtraPorts are ports of plugins, e.g. of a web map, which the node publishes.
 	ExtraPorts []ExtraPort `json:"extraPorts"`
+	// MaxPlayers is how many players a Bedrock server lets join at once, each over a UDP port of
+	// their own after its port; 0 for other servers.
+	MaxPlayers uint32 `json:"maxPlayers"`
 	advanced
 }
 
@@ -254,8 +257,8 @@ func toView(s *noryxv1.Server) view {
 			Java: s.GetJava(), LoaderVersion: s.GetLoaderVersion(), RestartPolicy: s.GetRestartPolicy().Slug(), AikarFlags: s.GetAikarFlags(),
 			JVMOptions: append([]string{}, s.GetJvmOptions()...), CPULimit: float64(s.GetCpuMillis()) / 1000,
 			StopTimeout: stopSeconds(s.GetStopTimeoutSeconds()), TimeZone: s.GetTimeZone(),
-			ExtraPorts: extraPortsOf(s),
-			advanced:   advancedOf(s),
+			ExtraPorts: extraPortsOf(s), MaxPlayers: s.GetMaxPlayers(),
+			advanced: advancedOf(s),
 		},
 	}
 }
@@ -440,11 +443,18 @@ func (h *Handler) checkCreate(r *http.Request, req createRequest) (newServer, er
 	if err == nil && (len(req.Plugins) > 0 || req.Modpack != nil) && !grants.On(access.Plugins, n.nodeID, "") {
 		err = access.Denied(access.Plugins)
 	}
+	typ := noryxv1.ParseServerType(req.Type)
+	if err == nil && len(req.Plugins) > 0 && !typ.Addons() {
+		err = httpapi.Errorf(http.StatusBadRequest, "Vanilla and Bedrock servers can't load plugins or mods.")
+	}
+	if err == nil && req.Modpack == nil {
+		err = h.checkType(ctx, n.nodeID, typ)
+	}
 	if err == nil {
 		err = h.checkExtraPorts(ctx, n.nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, 0)
 	}
 	if err == nil {
-		n.release, err = h.checkLimits(ctx, n.nodeID, "", req.Port, req.MemoryMB)
+		n.release, err = h.checkLimits(ctx, n.nodeID, "", req.Port, noryxv1.LastPort(typ, req.Port, req.MaxPlayers), req.MemoryMB)
 	}
 	if n.Modpack != nil && n.HealthStart == 0 {
 		n.HealthStart = modpack.HealthStart
@@ -476,7 +486,7 @@ func (n newServer) request() *noryxv1.CreateServerRequest {
 		LoaderVersion: n.LoaderVersion, StopTimeoutSeconds: n.StopTimeout, TimeZone: n.TimeZone,
 		ExtraPorts:         ProtoPorts(n.ExtraPorts),
 		HealthStartMinutes: n.HealthStart, CrashLimit: n.CrashLimit, StableAfterMinutes: n.StableAfter,
-		UnhealthyRestartMinutes: n.UnhealthyRestart, ProcessLimit: n.ProcessLimit, InitMemoryMb: n.InitMemoryMB,
+		UnhealthyRestartMinutes: n.UnhealthyRestart, ProcessLimit: n.ProcessLimit, InitMemoryMb: n.InitMemoryMB, MaxPlayers: n.MaxPlayers,
 	}
 }
 
@@ -608,7 +618,7 @@ func (h *Handler) duplicate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	source := list.GetServers()[i]
-	release, err := h.checkLimits(ctx, nodeID, "", req.Port, source.GetMemoryMb())
+	release, err := h.checkLimits(ctx, nodeID, "", req.Port, noryxv1.LastPort(source.GetType(), req.Port, source.GetMaxPlayers()), source.GetMemoryMb())
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -697,7 +707,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	release := noRelease
 	if err == nil {
-		release, err = h.checkLimits(ctx, nodeID, id, req.Port, req.MemoryMB)
+		release, err = h.checkLimits(ctx, nodeID, id, req.Port, noryxv1.LastPort(current.GetType(), req.Port, req.MaxPlayers), req.MemoryMB)
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
@@ -718,6 +728,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 				ExtraPorts:         ProtoPorts(req.ExtraPorts),
 				HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
 				UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
+				MaxPlayers: req.MaxPlayers,
 			})
 			return err
 		})

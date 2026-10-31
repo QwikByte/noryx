@@ -70,3 +70,34 @@ func extraPortsWarning(want int, got *noryxv1.Server) string {
 	}
 	return "The agent of the node is too old for extra ports, so the server publishes none. Update the agent first, then add them in the server's settings."
 }
+
+// usedBy returns the first of servers that uses a port from first to last, and that port; nil
+// if none does.
+func usedBy(servers []*noryxv1.Server, first, last uint32) (*noryxv1.Server, uint32) {
+	for port := first; port <= last; port++ {
+		if i := slices.IndexFunc(servers, func(s *noryxv1.Server) bool { return s.Uses(port) }); i >= 0 {
+			return servers[i], port
+		}
+	}
+	return nil, 0
+}
+
+// checkType fails unless the agent of a node creates servers of the type, which agents of
+// older versions don't for Bedrock servers.
+func (h *Handler) checkType(ctx context.Context, nodeID string, typ noryxv1.ServerType) error {
+	conn, err := h.nodes.Conn(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	info, err := noryxv1.NewNodeServiceClient(conn).GetInfo(ctx, &noryxv1.GetInfoRequest{})
+	if err != nil || info.Creates(typ) || typ == noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED {
+		return err
+	}
+	return httpapi.Errorf(http.StatusConflict, "The agent of the node doesn't know %s servers yet. Update it first.", typeName(typ))
+}
+
+// typeName names a type of server in a message, e.g. Bedrock.
+func typeName(typ noryxv1.ServerType) string {
+	slug := typ.Slug()
+	return strings.ToUpper(slug[:1]) + slug[1:]
+}
