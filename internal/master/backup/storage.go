@@ -223,7 +223,7 @@ func (c *Copies) deleteStorage(ctx context.Context, id string) error {
 		return err
 	}
 	if len(jobs) > 0 {
-		return httpapi.Errorf(http.StatusConflict, "%s copies backups there. Choose another place for its copies first.", strings.Join(jobs, ", "))
+		return httpapi.Errorf(http.StatusConflict, "%s keeps backups there. Choose another place for them first.", strings.Join(jobs, ", "))
 	}
 	res, err := c.db.ExecContext(ctx, `DELETE FROM backup_storages WHERE id = ?`, id)
 	if err != nil {
@@ -235,9 +235,10 @@ func (c *Copies) deleteStorage(ctx context.Context, id string) error {
 	return nil
 }
 
-// copyingTo returns the names of the backup jobs that copy their backups to a storage.
+// copyingTo returns the names of the backup jobs that copy their backups to a storage, and of
+// the backup job of the master if it keeps its archives there.
 func (c *Copies) copyingTo(ctx context.Context, storageID string) ([]string, error) {
-	rows, err := c.db.QueryContext(ctx, `SELECT name, settings FROM tasks WHERE kind = ? ORDER BY name`, TaskKind)
+	rows, err := c.db.QueryContext(ctx, `SELECT name, settings FROM tasks WHERE kind IN (?, ?) ORDER BY name`, TaskKind, MasterTaskKind)
 	if err != nil {
 		return nil, err
 	}
@@ -245,11 +246,14 @@ func (c *Copies) copyingTo(ctx context.Context, storageID string) ([]string, err
 	var names []string
 	for rows.Next() {
 		var name, raw string
-		var s JobSettings
+		var s struct {
+			Copy *CopyTo `json:"copy"` // of a backup job
+			To   CopyTo  `json:"to"`   // of the master's
+		}
 		if err := rows.Scan(&name, &raw); err != nil {
 			return nil, err
 		}
-		if json.Unmarshal([]byte(raw), &s) == nil && s.Copy != nil && s.Copy.Storage == storageID {
+		if json.Unmarshal([]byte(raw), &s) == nil && (s.Copy != nil && s.Copy.Storage == storageID || s.To.Storage == storageID) {
 			names = append(names, name)
 		}
 	}

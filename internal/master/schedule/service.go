@@ -66,6 +66,13 @@ type Pruning interface {
 	Prune(settings json.RawMessage, exists Exists) (json.RawMessage, []string)
 }
 
+// Secrets is implemented by the kinds of tasks that keep a secret apart from their settings,
+// e.g. the passphrase that encrypts the backups of the master. Runs get it with Task.Secret; the
+// API only tells whether a task has one. CheckSecret checks a new one.
+type Secrets interface {
+	CheckSecret(secret string) error
+}
+
 // Exists tells which nodes and datastores exist, by their IDs.
 type Exists struct {
 	Nodes, Datastores map[string]bool
@@ -335,8 +342,8 @@ func (s *Service) execute(ctx context.Context, id string, at time.Time, user str
 		slog.Warn("Can't run a scheduled task", "task_id", id, "err", err)
 		return
 	}
-	t.withdrawn = withdrawn
 	run := &journal{}
+	t.withdrawn, t.journal = withdrawn, run
 	k := s.kinds[t.kind]
 	if optional, _ := k.(OptionalTargets); len(t.Targets) == 0 && (optional == nil || !optional.TargetsOptional(t.Settings)) {
 		run.note("It has no targets left, e.g. as their network was deleted. Choose servers, tags or networks for it.")
@@ -370,7 +377,11 @@ func (s *Service) authorize(ctx context.Context, t Task, perms []access.Permissi
 		return err
 	}
 	for _, p := range perms {
-		if !g.Has(p) {
+		switch {
+		case g.Has(p):
+		case p == access.Administrators:
+			return fmt.Errorf("%s, who saved it last, is no longer an administrator; an administrator has to save it again", t.SavedBy)
+		default:
 			return fmt.Errorf("%s, who saved it last, no longer has the permission %q on all servers; save it again with that permission", t.SavedBy, access.Label(p))
 		}
 	}

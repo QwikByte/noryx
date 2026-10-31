@@ -480,18 +480,32 @@ func (c *chunks[T, PT]) Read(p []byte) (int, error) {
 // upload sends an archive that r reads to the agent of a node as a backup of one of its
 // servers, which header describes. The agent discards what it received if reading fails.
 func upload(ctx context.Context, conn grpc.ClientConnInterface, header *noryxv1.ImportBackupHeader, r io.Reader, progress func(int64)) (*noryxv1.Backup, error) {
+	res, err := send(ctx, noryxv1.NewBackupServiceClient(conn).ImportBackup,
+		&noryxv1.ImportBackupRequest{Content: &noryxv1.ImportBackupRequest_Header{Header: header}},
+		func(data []byte) *noryxv1.ImportBackupRequest {
+			return &noryxv1.ImportBackupRequest{Content: &noryxv1.ImportBackupRequest_Data{Data: data}}
+		}, r, progress)
+	return res.GetBackup(), err
+}
+
+// send opens a stream to an agent, sends the header and then what r reads in chunks, which
+// data wraps, and returns the agent's answer. progress tells how much it sent. If reading
+// fails, it cancels the stream, so that the agent discards what it received.
+func send[Req, Res any](ctx context.Context, open func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[Req, Res], error),
+	header *Req, data func([]byte) *Req, r io.Reader, progress func(int64),
+) (*Res, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	up, err := noryxv1.NewBackupServiceClient(conn).ImportBackup(ctx)
+	up, err := open(ctx)
 	if err == nil {
-		err = up.Send(&noryxv1.ImportBackupRequest{Content: &noryxv1.ImportBackupRequest_Header{Header: header}})
+		err = up.Send(header)
 	}
 	var sent int64
 	for err == nil {
 		chunk := make([]byte, chunkSize) // gRPC may still hold the one sent before
 		n, readErr := io.ReadFull(r, chunk)
 		if n > 0 {
-			if err = up.Send(&noryxv1.ImportBackupRequest{Content: &noryxv1.ImportBackupRequest_Data{Data: chunk[:n]}}); err == nil {
+			if err = up.Send(data(chunk[:n])); err == nil {
 				sent += int64(n)
 				progress(sent)
 			}
@@ -500,14 +514,13 @@ func upload(ctx context.Context, conn grpc.ClientConnInterface, header *noryxv1.
 			break
 		}
 		if readErr != nil {
-			return nil, readErr // cancels the upload
+			return nil, readErr // cancels the stream
 		}
 	}
-	if err != nil && !errors.Is(err, io.EOF) { // io.EOF: the agent ended the upload, and its answer tells why
+	if err != nil && !errors.Is(err, io.EOF) { // io.EOF: the agent ended the stream, and its answer tells why
 		return nil, err
 	}
-	res, err := up.CloseAndRecv()
-	return res.GetBackup(), err
+	return up.CloseAndRecv()
 }
 
 // registerCopies registers the routes of the copies of backups and of the storages for them.

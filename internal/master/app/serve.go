@@ -207,7 +207,8 @@ func (m *master) start(ctx context.Context) error {
 	copies := backup.NewCopies(db, nodes, nil)
 	jobs := backup.NewJobs(nodes, datastores, copies)
 	tasks := schedule.NewService(db, nodes, tags, networks, accessService, map[string]schedule.Kind{
-		backup.TaskKind: jobs, policy.TaskKind: policy.New(nodes, networks, usageStore, jobs, plugins, conf),
+		backup.TaskKind: jobs, backup.MasterTaskKind: backup.NewMasterJob(db, m.cfg.dataDir, copies),
+		policy.TaskKind: policy.New(nodes, networks, usageStore, jobs, plugins, conf),
 	}, moves.Busy)
 	if err := tasks.Start(ctx); err != nil {
 		return err
@@ -410,8 +411,12 @@ func API(s Services) *http.ServeMux {
 	fileset.NewHandler(s.FileSets, s.Operations).Register(m)
 	datastore.NewHandler(s.Datastores, s.Operations, s.Tidy).Register(m)
 	backup.NewHandler(s.Nodes, s.Networks, s.Operations, s.Moves.Check, s.Copies).Register(m)
-	schedule.NewHandler(s.Tasks, backup.TaskKind, access.BackupJobsView, access.BackupJobsManage).Register(m, "/api/backup-jobs")
-	schedule.NewHandler(s.Tasks, policy.TaskKind, access.PoliciesView, access.PoliciesManage).Register(m, "/api/policies")
+	schedule.NewHandler(s.Tasks, backup.TaskKind, access.Everywhere(access.BackupJobsView), access.Everywhere(access.BackupJobsManage)).
+		Register(m, "/api/backup-jobs")
+	// Its archives hold the CA's private key, with which anyone controls the agents.
+	schedule.NewHandler(s.Tasks, backup.MasterTaskKind, access.AdminsOnly, access.AdminsOnly).Register(m, "/api/master-backups")
+	schedule.NewHandler(s.Tasks, policy.TaskKind, access.Everywhere(access.PoliciesView), access.Everywhere(access.PoliciesManage)).
+		Register(m, "/api/policies")
 	workflow.NewHandler(s.Workflows).Register(m)
 	update.NewHandler(s.Updates).Register(m)
 	usage.NewHandler(s.Usage).Register(m)
