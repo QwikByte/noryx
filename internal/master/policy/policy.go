@@ -67,8 +67,6 @@ type Settings struct {
 	Message string `json:"message"`
 	// Commands are the console commands of the command action, sent one after the other.
 	Commands []string `json:"commands"`
-	// Command is the console command of policies saved before they could have several.
-	Command string `json:"command,omitempty"`
 	// Rolling, unless 0, restarts the running game servers of networks this many at a time,
 	// so that their players move to other servers first; see network.RollingRestart.
 	Rolling int `json:"rolling,omitempty"`
@@ -81,15 +79,10 @@ type Settings struct {
 	Backup *backup.JobSettings `json:"backup,omitempty"`
 }
 
-// decode reads the settings of a policy, also of one saved before it could have several
-// commands.
+// decode reads the settings of a policy.
 func decode(raw json.RawMessage) (Settings, error) {
 	var s Settings
 	err := json.Unmarshal(raw, &s)
-	if s.Command != "" && len(s.Commands) == 0 {
-		s.Commands = []string{s.Command}
-	}
-	s.Command = ""
 	return s, err
 }
 

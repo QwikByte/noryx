@@ -20,11 +20,9 @@ var errNoSuchSession = httpapi.Errorf(http.StatusNotFound, "This session has end
 // Session is a sign-in of a user, as the user's account page lists it. Only its own user sees it.
 type Session struct {
 	// ID names the session. Unlike its token and the token's hash, it can't sign in.
-	ID string `json:"id"`
-	// CreatedAt is zero for sessions that started before Noryx noted it, LastUsedAt for those
-	// not used since.
-	CreatedAt  time.Time `json:"createdAt,omitzero"`
-	LastUsedAt time.Time `json:"lastUsedAt,omitzero"`
+	ID         string    `json:"id"`
+	CreatedAt  time.Time `json:"createdAt"`
+	LastUsedAt time.Time `json:"lastUsedAt"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 	Client
 	// Current marks the session of the request.
@@ -102,7 +100,7 @@ func (s *Service) Sessions(ctx context.Context, userID int64, current string) ([
 		if err := rows.Scan(&ss.ID, &created, &used, &expires, &ss.IP, &ss.Browser, &ss.OS, &ss.Current); err != nil {
 			return nil, err
 		}
-		ss.CreatedAt, ss.LastUsedAt, ss.ExpiresAt = unixOrZero(created), unixOrZero(used), time.Unix(expires, 0)
+		ss.CreatedAt, ss.LastUsedAt, ss.ExpiresAt = time.Unix(created, 0), time.Unix(used, 0), time.Unix(expires, 0)
 		sessions = append(sessions, ss)
 	}
 	return sessions, rows.Err()

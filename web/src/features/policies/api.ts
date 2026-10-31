@@ -24,9 +24,7 @@ export interface PolicySettings {
   /** The warning; {minutes} is replaced by the minutes left. Empty is the text of the settings when the schedule runs. */
   message: string
   /** The console commands of the command action, sent one after the other. */
-  commands?: string[]
-  /** The console command of schedules saved before they could have several. */
-  command?: string
+  commands: string[]
   /**
    * Unless 0, a restart restarts the running game servers of networks this many at a time, so that their players
    * move to other servers first.
@@ -73,9 +71,6 @@ export const warns = (s: Pick<PolicySettings, "action" | "condition">) => (s.act
 export const conditional = (action: PolicyAction) => action !== "start"
 export const backsUp = (action: PolicyAction) => action !== "start" && action !== "command"
 
-/** The console commands of a policy, also of one saved with a single one. */
-export const commandsOf = (s: PolicySettings) => s.commands ?? (s.command ? [s.command] : [])
-
 /** Whether a policy needs more permissions than the one to manage schedules: to back up, change settings or manage plugins. */
 export const needsMore = (s: PolicySettings) => !!s.backup || s.action === "image" || s.action === "plugins"
 
@@ -89,7 +84,7 @@ export const emptyPolicy: TaskInput<PolicySettings> = {
 
 /** Describes what a policy does, e.g. "Restart with warnings 10, 5, 1 min before, server by server in networks". */
 export function describePolicy(s: PolicySettings): string {
-  const commands = commandsOf(s)
+  const { commands } = s
   const action =
     s.action === "command"
       ? commands.length === 1

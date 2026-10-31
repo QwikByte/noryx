@@ -293,7 +293,7 @@ func TestBackups(t *testing.T) {
 	policy := map[string]any{
 		"name": "Broadcast", "enabled": true, "schedule": job["schedule"],
 		"targets":  []map[string]string{{"nodeId": srv.NodeID, "serverId": srv.ServerID}},
-		"settings": map[string]any{"action": "command", "command": "say Vote for us!"},
+		"settings": map[string]any{"action": "command", "commands": []string{"say Vote for us!"}},
 	}
 	api.do("POST", "/api/policies", policy, http.StatusCreated, &task)
 	run(t, api, "/api/policies/"+task.ID)
@@ -388,7 +388,7 @@ func TestPolicies(t *testing.T) {
 	// Policies are validated, and backup jobs are separate from them.
 	api.do("POST", "/api/policies", policy("Closing", map[string]any{"action": "stop"}), http.StatusConflict, nil)
 	api.do("POST", "/api/policies", policy("Bad", map[string]any{"action": "explode"}), http.StatusBadRequest, nil)
-	api.do("POST", "/api/policies", policy("Bad", map[string]any{"action": "command", "command": "say a\nop b"}), http.StatusBadRequest, nil)
+	api.do("POST", "/api/policies", policy("Bad", map[string]any{"action": "command", "commands": []string{"say a\nop b"}}), http.StatusBadRequest, nil)
 	bad := policy("Bad", map[string]any{"action": "start"})
 	bad["targets"] = []map[string]string{{"nodeId": "unknown"}}
 	api.do("POST", "/api/policies", bad, http.StatusBadRequest, nil)

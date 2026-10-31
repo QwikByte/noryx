@@ -23,15 +23,9 @@ func TestRetention(t *testing.T) {
 		}
 		return s
 	}
-	if r := load().Get().Retention; r != (Retention{UsageDays: 30, SeenPlayers: true, SeenDays: 30, OperationHours: 1}) {
-		t.Fatalf("defaults = %+v", r)
-	}
-	if _, err := db.Exec(`INSERT INTO settings (id, value) VALUES (1, '{"logDays": 90}')`); err != nil {
-		t.Fatal(err)
-	}
 	s := load()
-	if r := s.Get().Retention; r.SeenDays != 90 || !r.SeenPlayers {
-		t.Fatalf("settings of a master that kept the log for 90 days = %+v", r)
+	if r := s.Get().Retention; r != (Retention{UsageDays: 30, SeenPlayers: true, SeenDays: 30, OperationHours: 1}) {
+		t.Fatalf("defaults = %+v", r)
 	}
 
 	set := func(change func(r *Retention)) error {

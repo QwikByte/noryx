@@ -48,10 +48,10 @@ the limits of their account from `GET /api/auth/limits`.
 
 **Retention** sets how long the master keeps what it records besides the log: the averages of each hour of the
 [usage](monitoring.md#history) (30 days to a year, 30 days by default), whose charts reach as far, beyond the week of
-minutes; where [players played](players.md#a-players-page) (1 day to a year, by default as long as the log was kept
-before this setting came), which **Record players seen** can also turn off, e.g. for privacy, and then offers to delete
-what was recorded; and how long finished [operations](panel.md#operations) are listed (1 to 24 hours, 1 hour by
-default, at most the last 200). Shorter times delete what is older within an hour.
+minutes; where [players played](players.md#a-players-page) (1 day to a year, 30 days by default), which **Record players
+seen** can also turn off, e.g. for privacy, and then offers to delete what was recorded; and how long finished
+[operations](panel.md#operations) are listed (1 to 24 hours, 1 hour by default, at most the last 200). Shorter times
+delete what is older within an hour.
 
 **Name and notice** names the panel, e.g. `Noryx · Test` or a community's name, so that two panels don't look the same:
 in the title of the browser's tab, the sidebar and the sign-in page, as the sender and at the start of the subjects of

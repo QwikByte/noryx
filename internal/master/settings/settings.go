@@ -181,7 +181,7 @@ func defaults() Settings {
 		Warnings:     server.DefaultWarnings(),
 		UpdateAgents: allAgents, UpdateCheckHours: 6,
 		MinPasswordLength: minPasswordLength, SetupLinkHours: 72,
-		Retention: Retention{UsageDays: 30, SeenPlayers: true, OperationHours: 1}, // SeenDays are the log's, see Load
+		Retention: Retention{UsageDays: 30, SeenPlayers: true, SeenDays: 30, OperationHours: 1},
 	}
 }
 
@@ -238,8 +238,6 @@ func Load(ctx context.Context, db *sql.DB, master Master, cert *pki.Holder) (*Se
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
-	// Players seen were kept as long as the log before they had a retention of their own.
-	current.Retention.SeenDays = cmp.Or(current.Retention.SeenDays, current.LogDays)
 	s := &Service{db: db, master: master, cert: cert}
 	s.current.Store(&current)
 	return s, nil

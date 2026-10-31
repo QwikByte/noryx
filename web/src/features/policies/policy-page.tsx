@@ -24,7 +24,6 @@ import { TaskForm } from "@/features/schedules/task-form"
 import {
   actions,
   backsUp,
-  commandsOf,
   conditional,
   emptyPolicy,
   needsMore,
@@ -74,8 +73,7 @@ export function PolicyPage() {
                 enabled: policy.enabled,
                 schedule: policy.schedule,
                 targets: policy.targets,
-                // Schedules saved with a single command get a list of them.
-                settings: { ...policy.settings, commands: commandsOf(policy.settings), command: undefined },
+                settings: policy.settings,
               }}
               submitLabel={t("Save schedule")}
               save={save}
@@ -212,7 +210,7 @@ function PolicyForm({
                 )}
               </div>
             )}
-            {settings.action === "command" && <CommandsField value={commandsOf(settings)} onChange={(commands) => set({ commands })} />}
+            {settings.action === "command" && <CommandsField value={settings.commands} onChange={(commands) => set({ commands })} />}
           </FormSection>
           {conditional(settings.action) && (
             <FormSection title={t("Players")}>
