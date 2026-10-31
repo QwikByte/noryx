@@ -501,6 +501,7 @@ export function CreateServerDialog({
                         i18nKey="I accept the <link>Minecraft EULA</link>"
                         components={{
                           link: (
+                            // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
                             <a
                               href="https://aka.ms/MinecraftEULA"
                               target="_blank"

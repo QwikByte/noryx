@@ -46,6 +46,7 @@ export function TimeZonePicker({
   return (
     <Popover open={open} onOpenChange={toggle}>
       <PopoverTrigger asChild>
+        {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger sets aria-expanded and aria-controls */}
         <Button id={id} type="button" variant="outline" role="combobox" className={cn("justify-between font-normal", className)}>
           <span className="truncate">{formatTimeZone(current)}</span>
           <CaretUpDownIcon className="text-muted-foreground" />

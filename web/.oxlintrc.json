@@ -1,20 +1,25 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "react",
-    "typescript",
-    "oxc"
-  ],
+  "plugins": ["react", "typescript", "oxc", "jsx-a11y"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": [
-      "warn",
-      {
-        "allowConstantExport": true
-      }
-    ]
+    "react/exhaustive-deps": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    // Fields take the focus only where the user asked for them: in the dialogs they opened, and on the sign-in page,
+    // which is there for its field.
+    "jsx-a11y/no-autofocus": "off",
+    // Roles stay where the native element can't be styled, e.g. meter and progress, or means something else, e.g.
+    // output for the live regions of role status.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // Radix renders Switch and Checkbox as buttons, which a label around them names.
+    "jsx-a11y/label-has-associated-control": ["error", { "controlComponents": ["Switch", "Checkbox"], "depth": 3 }],
+    // The options of a datalist are named by their value.
+    "jsx-a11y/control-has-associated-label": [
+      "error",
+      { "ignoreElements": ["audio", "canvas", "embed", "input", "textarea", "tr", "video", "option"] }
+    ],
+    // Logs scroll, so the keyboard must reach them.
+    "jsx-a11y/no-noninteractive-tabindex": ["error", { "roles": ["log"] }]
   },
-  "ignorePatterns": [
-    "src/components/ui"
-  ]
+  "ignorePatterns": ["src/components/ui"]
 }

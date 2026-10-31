@@ -510,6 +510,7 @@ function PanelHTTPSFields({
                 i18nKey="The domain name that points to this machine. With Let's Encrypt, you accept its <terms>Subscriber Agreement</terms>. Other names and IP addresses get the self-signed certificate."
                 components={{
                   terms: (
+                    // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
                     <a
                       href="https://letsencrypt.org/repository/"
                       target="_blank"

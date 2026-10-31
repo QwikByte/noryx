@@ -214,6 +214,7 @@ export function Terminal({ target, prompt }: { target: string; prompt: string })
           />
         </div>
       </div>
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- see onClick */}
       <div
         ref={viewport}
         role="log"

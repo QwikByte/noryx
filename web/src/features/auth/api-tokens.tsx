@@ -67,6 +67,7 @@ export function ApiTokens({ user }: { user: User }) {
           i18nKey="Scripts use the API with a token instead of your password, in the header <code/>. The <link>description of the API</link> lists every route with the permissions it needs."
           components={{
             code: <code className="font-mono text-xs break-all">Authorization: Bearer noryx_…</code>,
+            // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
             link: <a href="/api/openapi.json" target="_blank" rel="noreferrer" className={linkClass} />,
           }}
         />

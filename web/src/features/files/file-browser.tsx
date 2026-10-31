@@ -115,6 +115,8 @@ export function FileBrowser({ files, path, server }: { files: ServerFiles; path:
   }
 
   return (
+    // Dropping files is a shortcut for the upload button.
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
       aria-labelledby="files-heading"
       className="relative"

@@ -112,11 +112,13 @@ export function ConsolePrompt({
     >
       {open && (
         <div className="absolute bottom-full left-2 z-10 mb-1.5 w-[min(calc(100%-1rem),26rem)] overflow-hidden rounded-xl bg-console shadow-2xl ring-1 shadow-black/40 ring-console-overlay/15">
-          <ul id={list} role="listbox" aria-label={t("Suggestions")} className="flex flex-col-reverse py-1">
+          <div id={list} role="listbox" aria-label={t("Suggestions")} className="flex flex-col-reverse py-1">
             {suggestions.map((s, i) => {
               const Icon = icons[s.kind]
               return (
-                <li
+                // The prompt takes the keys, and points at the active option with aria-activedescendant.
+                // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
+                <div
                   key={s.value}
                   id={`${list}-${i}`}
                   role="option"
@@ -130,10 +132,10 @@ export function ConsolePrompt({
                 >
                   <Icon aria-hidden className={cn("size-3.5 shrink-0", s.kind === "player" ? "text-console-warn" : "text-console-muted")} />
                   <span className="truncate">{s.label}</span>
-                </li>
+                </div>
               )
             })}
-          </ul>
+          </div>
           <p aria-hidden className="border-t border-console-overlay/10 px-3 py-1.5 text-[11px] text-console-muted">
             <Trans
               i18nKey="<key>Tab</key> completes, <key>↑</key> <key>↓</key> choose"
