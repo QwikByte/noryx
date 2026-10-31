@@ -139,7 +139,7 @@ func newHandler(t *testing.T, a *agent) *Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.Close() })
-	return NewHandler(nodes{conn}, nil)
+	return NewHandler(NewService(nodes{conn}), nil)
 }
 
 // serve sends a request to a handler of a server's files.
