@@ -70,8 +70,8 @@ const (
 	MaxStopTimeout     = 10 * time.Minute
 )
 
-// StopTimeout is the stop timeout of a server with stop_timeout_seconds; 0, as older masters
-// and agents send it, means DefaultStopTimeout.
+// StopTimeout is the stop timeout of a server with stop_timeout_seconds; 0 means
+// DefaultStopTimeout.
 func StopTimeout(seconds uint32) time.Duration {
 	if seconds == 0 {
 		return DefaultStopTimeout

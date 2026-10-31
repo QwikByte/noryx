@@ -9,8 +9,8 @@ const (
 	MaxHealthStart     = 30 * time.Minute
 )
 
-// HealthStart is the start period of a game server with health_start_minutes; 0, as older
-// masters and agents send it, means DefaultHealthStart.
+// HealthStart is the start period of a game server with health_start_minutes; 0 means
+// DefaultHealthStart.
 func HealthStart(minutes uint32) time.Duration {
 	if minutes == 0 {
 		return DefaultHealthStart
@@ -35,8 +35,7 @@ const (
 	MaxUnhealthyRestart = time.Hour
 )
 
-// CrashLimit is the crash limit of a server with crash_limit; 0, as older masters and agents send
-// it, means DefaultCrashLimit.
+// CrashLimit is the crash limit of a server with crash_limit; 0 means DefaultCrashLimit.
 func CrashLimit(limit uint32) int {
 	if limit == 0 {
 		return DefaultCrashLimit
@@ -45,7 +44,7 @@ func CrashLimit(limit uint32) int {
 }
 
 // StableAfter is how long a run of a server with stable_after_minutes must last to end a row of
-// crashes; 0, as older masters and agents send it, means DefaultStableAfter.
+// crashes; 0 means DefaultStableAfter.
 func StableAfter(minutes uint32) time.Duration {
 	if minutes == 0 {
 		return DefaultStableAfter

@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// 0, as older masters and agents send it, stands for the default; other values are
-// minutes or counts within their bounds, which can't overflow a duration.
+// 0 stands for the default; other values are minutes or counts within their bounds, which
+// can't overflow a duration.
 func TestHealth(t *testing.T) {
 	for _, tc := range []struct {
 		name string

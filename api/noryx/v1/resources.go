@@ -8,8 +8,8 @@ const (
 	MaxProcessLimit     = 8192
 )
 
-// ProcessLimit is the limit of processes and threads of a server with process_limit; 0, as older
-// masters and agents send it, means DefaultProcessLimit.
+// ProcessLimit is the limit of processes and threads of a server with process_limit; 0 means
+// DefaultProcessLimit.
 func ProcessLimit(limit uint32) int64 {
 	if limit == 0 {
 		return DefaultProcessLimit

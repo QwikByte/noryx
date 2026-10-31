@@ -205,7 +205,7 @@ type fakeConn struct{ grpc.ClientConnInterface }
 
 func (fakeConn) Invoke(context.Context, string, any, any, ...grpc.CallOption) error { return nil }
 
-// NewStream refuses streams, like an agent that can't tell the progress of calls.
+// NewStream refuses streams, like an agent that can't follow the progress of a call.
 func (fakeConn) NewStream(context.Context, *grpc.StreamDesc, string, ...grpc.CallOption) (grpc.ClientStream, error) {
 	return nil, status.Error(codes.Unimplemented, "unknown service")
 }
