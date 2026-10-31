@@ -99,7 +99,7 @@ type Public interface {
 // learn, one per line. hidden tells that err has parts they may not learn, e.g. an error of the
 // database, which are left out; nil if it has nothing else.
 func shown(err error) (e *Error, hidden bool) {
-	switch v := err.(type) {
+	switch v := err.(type) { //nolint:errorlint // walks the wrappers itself, to keep their texts
 	case nil:
 		return nil, false
 	case *Error:
