@@ -337,6 +337,7 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		StopTimeoutSeconds: src.GetStopTimeoutSeconds(), TimeZone: src.GetTimeZone(), ExtraPorts: src.GetExtraPorts(),
 		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
 		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(), ProcessLimit: src.GetProcessLimit(), InitMemoryMb: src.GetInitMemoryMb(),
+		MaxPlayers: src.GetMaxPlayers(),
 	}
 	_, err = node.Relay(ctx,
 		func(ctx context.Context) (grpc.ServerStreamingClient[noryxv1.ArchiveDirectoryResponse], error) {
