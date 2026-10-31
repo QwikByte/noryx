@@ -113,18 +113,6 @@ func (s *Service) GetPlayerLists(ctx context.Context, req *noryxv1.GetPlayerList
 	return res, nil
 }
 
-func (s *Service) ChangePlayer(ctx context.Context, req *noryxv1.ChangePlayerRequest) (*noryxv1.ChangePlayerResponse, error) {
-	if msg := problem(req.GetChange()); msg != "" {
-		return nil, status.Error(codes.InvalidArgument, msg)
-	}
-	srv, dir, err := s.open(ctx, req.GetServerId())
-	if err != nil {
-		return nil, err
-	}
-	defer dir.Close()
-	return s.change(ctx, srv, dir, req.GetChange())
-}
-
 func (s *Service) ChangePlayers(ctx context.Context, req *noryxv1.ChangePlayersRequest) (*noryxv1.ChangePlayersResponse, error) {
 	changes := req.GetChanges()
 	if len(changes) == 0 || len(changes) > noryxv1.MaxPlayerChanges {
@@ -143,7 +131,10 @@ func (s *Service) ChangePlayers(ctx context.Context, req *noryxv1.ChangePlayersR
 	res := &noryxv1.ChangePlayersResponse{}
 	for _, c := range changes {
 		r, err := s.change(ctx, srv, dir, c)
-		res.Results = append(res.Results, &noryxv1.PlayerChangeResult{Pending: r.GetPending(), Output: r.GetOutput(), Error: status.Convert(err).Message()})
+		if err != nil {
+			r = &noryxv1.PlayerChangeResult{Error: status.Convert(err).Message()}
+		}
+		res.Results = append(res.Results, r)
 	}
 	return res, nil
 }
@@ -158,7 +149,7 @@ func problem(c *noryxv1.PlayerChange) string {
 }
 
 // change makes a valid change on a server: at once if it runs, otherwise once it does.
-func (s *Service) change(ctx context.Context, srv runtime.Server, dir *datadir.Dir, c *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+func (s *Service) change(ctx context.Context, srv runtime.Server, dir *datadir.Dir, c *noryxv1.PlayerChange) (*noryxv1.PlayerChangeResult, error) {
 	if msg := c.BedrockProblem(); srv.Type.Bedrock() && msg != "" {
 		return nil, status.Error(codes.FailedPrecondition, msg)
 	}
@@ -176,13 +167,13 @@ func (s *Service) change(ctx context.Context, srv runtime.Server, dir *datadir.D
 	if err := s.note(srv.ID, dir, c, true); err != nil {
 		return nil, err
 	}
-	return &noryxv1.ChangePlayerResponse{Pending: true}, nil
+	return &noryxv1.PlayerChangeResult{Pending: true}, nil
 }
 
 // run changes a player on a running server. Changes of the whitelist hold the server's lock,
 // as those of Bedrock players replace its file, which the server overwrites when its list
 // changes; bans and pardons hold it to note the pardons that end temporary bans.
-func (s *Service) run(ctx context.Context, srv runtime.Server, dir *datadir.Dir, change *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+func (s *Service) run(ctx context.Context, srv runtime.Server, dir *datadir.Dir, change *noryxv1.PlayerChange) (*noryxv1.PlayerChangeResult, error) {
 	id := srv.ID
 	switch change.GetAction() {
 	case noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ADD, noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_REMOVE,
@@ -200,7 +191,7 @@ func (s *Service) run(ctx context.Context, srv runtime.Server, dir *datadir.Dir,
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
-	res := &noryxv1.ChangePlayerResponse{Output: strings.TrimSpace(formatting.ReplaceAllString(out, ""))}
+	res := &noryxv1.PlayerChangeResult{Output: strings.TrimSpace(formatting.ReplaceAllString(out, ""))}
 	if err := s.note(id, dir, change, false); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s, but the pardons that wait for the end of temporary bans can't be updated: %s", res.GetOutput(), status.Convert(err).Message())
 	}

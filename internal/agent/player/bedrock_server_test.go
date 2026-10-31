@@ -28,7 +28,7 @@ func TestBedrockServer(t *testing.T) {
 		newChange(noryxv1.PlayerAction_PLAYER_ACTION_DEOP, "Steve", ""),
 		newChange(noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ON, "", ""),
 	} {
-		if _, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: up, Change: c}); err != nil {
+		if _, err := changeOne(ctx, s, up, c); err != nil {
 			t.Fatalf("%v: %v", c.GetAction(), err)
 		}
 	}
@@ -41,7 +41,7 @@ func TestBedrockServer(t *testing.T) {
 		newChange(noryxv1.PlayerAction_PLAYER_ACTION_PARDON, "Steve", ""),
 		newChange(noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ADD, ".Steve", ""),
 	} {
-		if _, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: up, Change: c}); status.Code(err) != codes.FailedPrecondition {
+		if _, err := changeOne(ctx, s, up, c); status.Code(err) != codes.Unknown {
 			t.Errorf("%v of %s: %v", c.GetAction(), c.GetName(), err)
 		}
 	}

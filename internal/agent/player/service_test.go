@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -75,7 +76,20 @@ func newChange(action noryxv1.PlayerAction, name, reason string) *noryxv1.Player
 	return &noryxv1.PlayerChange{Action: action, Name: name, Reason: reason}
 }
 
-func TestChangePlayer(t *testing.T) {
+// changeOne makes one change with ChangePlayers. A refused request fails with its code, a
+// change that failed with codes.Unknown.
+func changeOne(ctx context.Context, s *Service, id string, c *noryxv1.PlayerChange) (*noryxv1.PlayerChangeResult, error) {
+	res, err := s.ChangePlayers(ctx, &noryxv1.ChangePlayersRequest{ServerId: id, Changes: []*noryxv1.PlayerChange{c}})
+	if err != nil {
+		return nil, err
+	}
+	if r := res.GetResults()[0]; r.GetError() != "" {
+		return nil, errors.New(r.GetError())
+	}
+	return res.GetResults()[0], nil
+}
+
+func TestChangePlayers(t *testing.T) {
 	ctx := t.Context()
 	rt := &fakeRuntime{dir: t.TempDir()}
 	rt.add(t, up, paper, running)
@@ -85,7 +99,7 @@ func TestChangePlayer(t *testing.T) {
 	ban := newChange(noryxv1.PlayerAction_PLAYER_ACTION_BAN, "Alex", "Cheating")
 
 	// A running server runs the command at once.
-	res, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: up, Change: ban})
+	res, err := changeOne(ctx, s, up, ban)
 	if err != nil || res.GetPending() || res.GetOutput() != "Banned Alex: Cheating" {
 		t.Fatalf("ban on a running server = %v, %v", res, err)
 	}
@@ -103,16 +117,16 @@ func TestChangePlayer(t *testing.T) {
 		{up, newChange(noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ON, "Alex", ""), codes.InvalidArgument},
 		{up, newChange(noryxv1.PlayerAction_PLAYER_ACTION_UNSPECIFIED, "Alex", ""), codes.InvalidArgument},
 		{proxy, ban, codes.FailedPrecondition},
-		{down, newChange(noryxv1.PlayerAction_PLAYER_ACTION_KICK, "Alex", ""), codes.FailedPrecondition},
+		{down, newChange(noryxv1.PlayerAction_PLAYER_ACTION_KICK, "Alex", ""), codes.Unknown},
 	} {
-		if _, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: tc.server, Change: tc.change}); status.Code(err) != tc.want {
+		if _, err := changeOne(ctx, s, tc.server, tc.change); status.Code(err) != tc.want {
 			t.Errorf("%v on %s: %v, want %v", tc.change, tc.server[:1], err, tc.want)
 		}
 	}
 
 	// A stopped server gets the changes once it runs, each once and in order.
 	for _, c := range []*noryxv1.PlayerChange{ban, ban, newChange(noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ON, "", "")} {
-		if res, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: down, Change: c}); err != nil || !res.GetPending() {
+		if res, err := changeOne(ctx, s, down, c); err != nil || !res.GetPending() {
 			t.Fatalf("change on a stopped server = %v, %v", res, err)
 		}
 	}
@@ -189,7 +203,7 @@ func TestServerThatDoesNotAnswer(t *testing.T) {
 		s := NewService(rt)
 		change := func(id string, c *noryxv1.PlayerChange, pending bool) {
 			t.Helper()
-			if res, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: id, Change: c}); err != nil || res.GetPending() != pending {
+			if res, err := changeOne(ctx, s, id, c); err != nil || res.GetPending() != pending {
 				t.Errorf("change on %s = %v, %v", id[:1], res, err)
 			}
 		}

@@ -10,11 +10,9 @@ service PlayerService {
   // GetPlayerLists returns who is banned, whitelisted and operator on a game server, as its
   // files tell, and the changes that wait for it to run.
   rpc GetPlayerLists(GetPlayerListsRequest) returns (GetPlayerListsResponse);
-  // ChangePlayer runs the command of a change on a running game server. A server that
-  // doesn't run runs it once it does; only a kick fails then.
-  rpc ChangePlayer(ChangePlayerRequest) returns (ChangePlayerResponse);
-  // ChangePlayers makes changes one after the other, e.g. bans several players, each like
-  // ChangePlayer, and tells how each ended. Agents without it know no temporary bans.
+  // ChangePlayers makes changes one after the other, e.g. bans several players, and tells how
+  // each ended. A running game server runs the command of a change at once; one that doesn't
+  // run runs it once it does, and only a kick fails then.
   rpc ChangePlayers(ChangePlayersRequest) returns (ChangePlayersResponse);
 }
 
@@ -93,16 +91,4 @@ message PlayerChangeResult {
   string output = 2;
   // Why the change failed; the others were made nonetheless.
   string error = 3;
-}
-
-message ChangePlayerRequest {
-  string server_id = 1;
-  PlayerChange change = 2;
-}
-
-message ChangePlayerResponse {
-  // The server doesn't run and runs the command once it does.
-  bool pending = 1;
-  // What the server answered, without formatting.
-  string output = 2;
 }

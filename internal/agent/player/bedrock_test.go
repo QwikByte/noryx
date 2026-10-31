@@ -23,7 +23,7 @@ func TestWhitelistBedrock(t *testing.T) {
 	remove := newChange(noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_REMOVE, ".tim203", "")
 	change := func(server string, c *noryxv1.PlayerChange) string {
 		t.Helper()
-		res, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: server, Change: c})
+		res, err := changeOne(ctx, s, server, c)
 		if err != nil || res.GetPending() {
 			t.Fatalf("%v on %s = %v, %v", c, server[:1], res, err)
 		}
@@ -60,7 +60,7 @@ func TestWhitelistBedrock(t *testing.T) {
 	}
 	// A server that doesn't run gets it once it does, as it reads the file when it starts;
 	// removing goes by name.
-	if res, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: down, Change: add}); err != nil || !res.GetPending() {
+	if res, err := changeOne(ctx, s, down, add); err != nil || !res.GetPending() {
 		t.Fatalf("change on a stopped server = %v, %v", res, err)
 	}
 	rt.servers[1].State = running
@@ -82,7 +82,7 @@ func TestWhitelistBedrock(t *testing.T) {
 		{Action: noryxv1.PlayerAction_PLAYER_ACTION_OP, Name: ".Tim203", Uuid: id},
 		{Action: noryxv1.PlayerAction_PLAYER_ACTION_WHITELIST_ADD, Name: ".Tim203", Uuid: "069a79f4-44e9-4726-a5be-fca90e38aaf5"},
 	} {
-		if _, err := s.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: up, Change: c}); status.Code(err) != codes.InvalidArgument {
+		if _, err := changeOne(ctx, s, up, c); status.Code(err) != codes.InvalidArgument {
 			t.Errorf("%v: %v", c, err)
 		}
 	}

@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
@@ -73,8 +71,9 @@ func (s *Service) Change(ctx context.Context, changes []*noryxv1.PlayerChange, s
 	}
 	operation.Each(ctx, nodesOf(servers), func(ctx context.Context, i int) {
 		var got []*noryxv1.PlayerChangeResult
-		err := s.callFor(ctx, servers[i].NodeID, batchTimeout, func(ctx context.Context, conn grpc.ClientConnInterface) (err error) {
-			got, err = changeOn(ctx, noryxv1.NewPlayerServiceClient(conn), servers[i].ServerID, changes)
+		err := s.callFor(ctx, servers[i].NodeID, batchTimeout, func(ctx context.Context, conn grpc.ClientConnInterface) error {
+			res, err := noryxv1.NewPlayerServiceClient(conn).ChangePlayers(ctx, &noryxv1.ChangePlayersRequest{ServerId: servers[i].ServerID, Changes: changes})
+			got = res.GetResults()
 			return err
 		})
 		if err != nil {
@@ -90,30 +89,6 @@ func (s *Service) Change(ctx context.Context, changes []*noryxv1.PlayerChange, s
 		}
 	}, failed)
 	return slices.Concat(results...)
-}
-
-// changeOn makes changes on a server in one call. Older agents change one player per call
-// and know no temporary bans.
-func changeOn(ctx context.Context, c noryxv1.PlayerServiceClient, serverID string, changes []*noryxv1.PlayerChange) ([]*noryxv1.PlayerChangeResult, error) {
-	res, err := c.ChangePlayers(ctx, &noryxv1.ChangePlayersRequest{ServerId: serverID, Changes: changes})
-	if status.Code(err) != codes.Unimplemented {
-		return res.GetResults(), err
-	}
-	if slices.ContainsFunc(changes, func(c *noryxv1.PlayerChange) bool { return c.GetEndsUnix() > 0 }) {
-		return nil, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of this node to ban players for a time.")
-	}
-	results := make([]*noryxv1.PlayerChangeResult, len(changes))
-	for i, change := range changes {
-		res, err := c.ChangePlayer(ctx, &noryxv1.ChangePlayerRequest{ServerId: serverID, Change: change})
-		if status.Code(err) == codes.Unimplemented {
-			return nil, err
-		}
-		results[i] = &noryxv1.PlayerChangeResult{Pending: res.GetPending(), Output: res.GetOutput()}
-		if err != nil {
-			results[i].Error = httpapi.Message(err)
-		}
-	}
-	return results, nil
 }
 
 // Listed is a player in the lists of servers.
@@ -319,13 +294,10 @@ func (s *Service) callFor(ctx context.Context, nodeID string, timeout time.Durat
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	conn, err := s.nodes.Conn(ctx, nodeID)
-	if err == nil {
-		err = fn(ctx, conn)
+	if err != nil {
+		return err
 	}
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of this node to manage players.")
-	}
-	return err
+	return fn(ctx, conn)
 }
 
 func nodesOf(servers []network.Ref) []string {
