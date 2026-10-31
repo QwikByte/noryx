@@ -74,12 +74,3 @@ export function useOperation() {
     reset: () => setId(undefined),
   }
 }
-
-/** Keeps a dialog open while its action runs, so that it isn't closed by mistake. */
-export function guard(busy: boolean) {
-  return {
-    showCloseButton: !busy,
-    onInteractOutside: (e: Event) => busy && e.preventDefault(),
-    onEscapeKeyDown: (e: KeyboardEvent) => busy && e.preventDefault(),
-  }
-}

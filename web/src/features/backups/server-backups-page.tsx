@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { Callout, ErrorCallout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { EmptyState } from "@/components/empty-state"
+import { guard } from "@/components/form-dialog"
 import { IconTile } from "@/components/icon-tile"
 import { Section } from "@/components/section"
 import { Segmented } from "@/components/segmented"
@@ -43,7 +44,7 @@ import { Switch } from "@/components/ui/switch"
 import { useAccess } from "@/features/access/use-access"
 import { PathPicker, type Picked } from "@/features/files/path-picker"
 import { nodeQuery } from "@/features/nodes/api"
-import { guard, useOperation } from "@/features/operations/use-operation"
+import { useOperation } from "@/features/operations/use-operation"
 import { describeSchedule } from "@/features/schedules/describe"
 import { allServersQuery, type NodeServer, type Server, serverKey, useServer } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
@@ -498,41 +499,8 @@ function LabelDialog({ nodeId, server, backup, onClose }: { nodeId: string; serv
  */
 function CreateBackupDialog({ nodeId, server }: { nodeId: string; server: Server }) {
   const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState("")
-  const [selection, setSelection] = useState(defaultSelection)
-  const [location, setLocation] = useState("")
-  const { data: node } = useQuery(nodeQuery(nodeId))
+  // The mutation lives here, as the button tells while the backup is made, also after the dialog closed.
   const { create } = useBackups(nodeId, server.id)
-  const operation = useOperation()
-
-  const close = () => {
-    setOpen(false)
-    setLabel("")
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    const title = t("Backing up {{name}}…", { name: server.name })
-    operation.run(
-      (onStart) =>
-        create.mutateAsync({
-          label: label.trim(),
-          selection,
-          location,
-          onStart: (op) => {
-            onStart(op)
-            operation.background(title, op.id)
-            close()
-          },
-        }),
-      {
-        title,
-        done: (b) => ({ message: t("Backed up {{name}} ({{size}})", { name: server.name, size: formatBytes(b.size) }) }),
-        then: close,
-      },
-    )
-  }
-
   return (
     <Dialog
       open={open}
@@ -548,45 +516,91 @@ function CreateBackupDialog({ nodeId, server }: { nodeId: string; server: Server
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl" {...guard(create.isPending)}>
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Back up {{name}}", { name: server.name })}</DialogTitle>
-            <DialogDescription>
-              {server.state === "stopped"
-                ? t("The backup is kept on the node.")
-                : t("The server saves its worlds first and keeps running. The backup is kept on the node.")}
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="backup-label">{t("Label")}</FieldLabel>
-              <Input
-                id="backup-label"
-                maxLength={64}
-                placeholder={t("Before the update")}
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </Field>
-            <SelectionField value={selection} server={{ nodeId, serverId: server.id }} onChange={setSelection} />
-            <LocationField locations={node?.info?.storage.map((l) => l.name) ?? []} value={location} onChange={setLocation} />
-          </FieldGroup>
-          {create.error && <FieldError>{create.error.message}</FieldError>}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" disabled={create.isPending}>
-                {t("Cancel")}
-              </Button>
-            </DialogClose>
-            <Button
-              type="submit"
-              disabled={nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude ?? []) || create.isPending}
-            >
-              {create.isPending ? t("Backing up…") : t("Back up")}
-            </Button>
-          </DialogFooter>
-        </form>
+        <CreateBackupForm nodeId={nodeId} server={server} create={create} onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** What to back up and where, chosen anew each time the dialog opens. */
+function CreateBackupForm({
+  nodeId,
+  server,
+  create,
+  onClose,
+}: {
+  nodeId: string
+  server: Server
+  create: ReturnType<typeof useBackups>["create"]
+  onClose: () => void
+}) {
+  const [label, setLabel] = useState("")
+  const [selection, setSelection] = useState(defaultSelection)
+  const [location, setLocation] = useState("")
+  const { data: node } = useQuery(nodeQuery(nodeId))
+  const operation = useOperation()
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const title = t("Backing up {{name}}…", { name: server.name })
+    operation.run(
+      (onStart) =>
+        create.mutateAsync({
+          label: label.trim(),
+          selection,
+          location,
+          onStart: (op) => {
+            onStart(op)
+            operation.background(title, op.id)
+            onClose()
+          },
+        }),
+      {
+        title,
+        done: (b) => ({ message: t("Backed up {{name}} ({{size}})", { name: server.name, size: formatBytes(b.size) }) }),
+        then: onClose,
+      },
+    )
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Back up {{name}}", { name: server.name })}</DialogTitle>
+        <DialogDescription>
+          {server.state === "stopped"
+            ? t("The backup is kept on the node.")
+            : t("The server saves its worlds first and keeps running. The backup is kept on the node.")}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="backup-label">{t("Label")}</FieldLabel>
+          <Input
+            id="backup-label"
+            maxLength={64}
+            placeholder={t("Before the update")}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </Field>
+        <SelectionField value={selection} server={{ nodeId, serverId: server.id }} onChange={setSelection} />
+        <LocationField locations={node?.info?.storage.map((l) => l.name) ?? []} value={location} onChange={setLocation} />
+      </FieldGroup>
+      {create.error && <FieldError>{create.error.message}</FieldError>}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline" disabled={create.isPending}>
+            {t("Cancel")}
+          </Button>
+        </DialogClose>
+        <Button
+          type="submit"
+          disabled={nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude ?? []) || create.isPending}
+        >
+          {create.isPending ? t("Backing up…") : t("Back up")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }

@@ -5,33 +5,37 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-/** Asks for the name of a file or folder, e.g. to create or rename one. */
-export function NameDialog({
-  open,
-  onOpenChange,
-  title,
-  label,
-  initial = "",
-  action,
-  onSubmit,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+interface Naming {
   title: string
   label: string
   initial?: string
   action: string
   onSubmit: (name: string) => Promise<unknown>
+}
+
+/** Asks for the name of a file or folder, e.g. to create or rename one. */
+export function NameDialog({
+  open,
+  onOpenChange,
+  ...naming
+}: Naming & {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <NameForm {...naming} onClose={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The name, entered anew each time the dialog opens, starting with the initial one. */
+function NameForm({ title, label, initial = "", action, onSubmit, onClose }: Naming & { onClose: () => void }) {
   const [name, setName] = useState(initial)
   const [error, setError] = useState<string>()
   const [pending, setPending] = useState(false)
-
-  function change(next: boolean) {
-    onOpenChange(next)
-    setName(initial)
-    setError(undefined)
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -43,7 +47,7 @@ export function NameDialog({
     setPending(true)
     try {
       await onSubmit(trimmed)
-      change(false)
+      onClose()
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -52,27 +56,23 @@ export function NameDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={change}>
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-          </DialogHeader>
-          <Field>
-            <FieldLabel htmlFor="file-name">{label}</FieldLabel>
-            <Input id="file-name" className="font-mono" autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
-            {error && <FieldError>{error}</FieldError>}
-          </Field>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" disabled={pending}>
-              {action}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <Field>
+        <FieldLabel htmlFor="file-name">{label}</FieldLabel>
+        <Input id="file-name" className="font-mono" autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
+        {error && <FieldError>{error}</FieldError>}
+      </Field>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={pending}>
+          {action}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }

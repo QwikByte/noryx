@@ -83,65 +83,66 @@ export function UserActions({ user, groups, self }: { user: User; groups: Group[
 
 function EditUserDialog({ user, groups, self }: { user: User; groups: Group[]; self: boolean }) {
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ disabled: user.disabled, groups: user.groups })
-  const update = useUpdateUser(user.id)
-
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    setForm({ disabled: user.disabled, groups: user.groups })
-    update.reset()
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    update.mutate(form, {
-      onSuccess: () => {
-        toast.success(t("Saved {{name}}", { name: user.username }))
-        setOpen(false)
-      },
-    })
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={t("Edit {{name}}", { name: user.username })} title={t("Edit")}>
           <PencilSimpleIcon />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{user.username}</DialogTitle>
-            <DialogDescription>{t("Changes apply right away, even to sessions in progress.")}</DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <FieldSet>
-              <FieldLegend variant="label">{t("Groups")}</FieldLegend>
-              <GroupPicker groups={groups} value={form.groups} onChange={(groups) => setForm({ ...form, groups })} />
-            </FieldSet>
-            {!self && (
-              <Field orientation="horizontal">
-                <Switch id="user-disabled" checked={form.disabled} onCheckedChange={(disabled) => setForm({ ...form, disabled })} />
-                <FieldContent>
-                  <FieldLabel htmlFor="user-disabled">{t("Disabled")}</FieldLabel>
-                  <FieldDescription>{t("The user is signed out and can't sign in until enabled again.")}</FieldDescription>
-                </FieldContent>
-              </Field>
-            )}
-            {update.error && <FieldError>{update.error.message}</FieldError>}
-          </FieldGroup>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" disabled={update.isPending}>
-              {update.isPending ? t("Saving…") : t("Save")}
-            </Button>
-          </DialogFooter>
-        </form>
+        <EditUserForm user={user} groups={groups} self={self} onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The groups of the user and whether it is disabled, as it has them each time the dialog opens. */
+function EditUserForm({ user, groups, self, onClose }: { user: User; groups: Group[]; self: boolean; onClose: () => void }) {
+  const [form, setForm] = useState({ disabled: user.disabled, groups: user.groups })
+  const update = useUpdateUser(user.id)
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    update.mutate(form, {
+      onSuccess: () => {
+        toast.success(t("Saved {{name}}", { name: user.username }))
+        onClose()
+      },
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{user.username}</DialogTitle>
+        <DialogDescription>{t("Changes apply right away, even to sessions in progress.")}</DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend variant="label">{t("Groups")}</FieldLegend>
+          <GroupPicker groups={groups} value={form.groups} onChange={(groups) => setForm({ ...form, groups })} />
+        </FieldSet>
+        {!self && (
+          <Field orientation="horizontal">
+            <Switch id="user-disabled" checked={form.disabled} onCheckedChange={(disabled) => setForm({ ...form, disabled })} />
+            <FieldContent>
+              <FieldLabel htmlFor="user-disabled">{t("Disabled")}</FieldLabel>
+              <FieldDescription>{t("The user is signed out and can't sign in until enabled again.")}</FieldDescription>
+            </FieldContent>
+          </Field>
+        )}
+        {update.error && <FieldError>{update.error.message}</FieldError>}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={update.isPending}>
+          {update.isPending ? t("Saving…") : t("Save")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 

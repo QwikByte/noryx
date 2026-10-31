@@ -22,16 +22,28 @@ import { availableServers, backendName, findServer, key, proxyTypes, refOf } fro
 /** Adds servers to the draft of a network; they join when it is saved. */
 export function AddBackendDialog({ network, draft, onAdd }: { network: Network; draft: Draft; onAdd: (draft: Draft) => void }) {
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <PlusIcon />
+          {t("Add servers")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <AddBackendForm network={network} draft={draft} onAdd={onAdd} onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The servers to add, chosen anew each time the dialog opens. */
+function AddBackendForm({ network, draft, onAdd, onClose }: { network: Network; draft: Draft; onAdd: (draft: Draft) => void; onClose: () => void }) {
   const [picked, setPicked] = useState<ServerRef[]>([])
   const { data: servers } = useQuery(allServersQuery)
   const { data: networks } = useQuery(networksQuery)
   const inDraft = new Set(draft.backends.map(key))
   const candidates = availableServers(servers, networks, (s) => !inDraft.has(key(refOf(s))) && !proxyTypes.includes(s.type), network)
-
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) setPicked([])
-  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -41,36 +53,26 @@ export function AddBackendDialog({ network, draft, onAdd }: { network: Network; 
       backends.push({ ...ref, name, restricted: false, motd: "" })
     }
     onAdd({ ...draft, backends, try: draft.try.length > 0 ? draft.try : [key(picked[0])] })
-    onOpenChange(false)
+    onClose()
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusIcon />
-          {t("Add servers")}
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Add servers to {{network}}", { network: draft.name })}</DialogTitle>
+        <DialogDescription>
+          {t("They join when you save the network: each restarts and then only accepts players who come through the proxy.")}
+        </DialogDescription>
+      </DialogHeader>
+      <ServerPicker servers={candidates} forwarding={draft.forwarding} selected={picked} onChange={setPicked} />
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={picked.length === 0}>
+          {t("Add {{count}} servers", { count: picked.length, defaultValue_one: "Add {{count}} server" })}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Add servers to {{network}}", { network: draft.name })}</DialogTitle>
-            <DialogDescription>
-              {t("They join when you save the network: each restarts and then only accepts players who come through the proxy.")}
-            </DialogDescription>
-          </DialogHeader>
-          <ServerPicker servers={candidates} forwarding={draft.forwarding} selected={picked} onChange={setPicked} />
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" disabled={picked.length === 0}>
-              {t("Add {{count}} servers", { count: picked.length, defaultValue_one: "Add {{count}} server" })}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </DialogFooter>
+    </form>
   )
 }

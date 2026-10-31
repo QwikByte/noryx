@@ -5,6 +5,7 @@ import { type FormEvent, type ReactElement, useState } from "react"
 import { toast } from "sonner"
 import { Callout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { FormDialogContent, useBusy } from "@/components/form-dialog"
 import { IconTile } from "@/components/icon-tile"
 import { Section } from "@/components/section"
 import { Pill } from "@/components/status"
@@ -12,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -25,7 +25,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Switch } from "@/components/ui/switch"
 import { useAccess } from "@/features/access/use-access"
 import { nodesQuery } from "@/features/nodes/api"
-import { guard } from "@/features/operations/use-operation"
 import { type CopyTo, type Storage, type StorageSettings, storagesQuery, useStorages } from "./api"
 
 /** Whether the user may add, change and delete storages and let jobs copy: copies take the backups of all servers away. */
@@ -137,10 +136,23 @@ const blank: StorageSettings = { name: "", endpoint: "", region: "", bucket: "",
 /** Adds a storage, or changes one, whose secret key stays unless another one is entered. */
 function StorageDialog({ storage, trigger }: { storage?: Storage; trigger: ReactElement }) {
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <FormDialogContent className="sm:max-w-2xl">
+        <StorageForm storage={storage} onClose={() => setOpen(false)} />
+      </FormDialogContent>
+    </Dialog>
+  )
+}
+
+/** The storage as it is each time the dialog opens, or a new one, without its secret key. */
+function StorageForm({ storage, onClose }: { storage?: Storage; onClose: () => void }) {
   const [form, setForm] = useState<StorageSettings>(storage ?? blank)
   const [secretKey, setSecretKey] = useState("")
   const { save } = useStorages()
   const set = (change: Partial<StorageSettings>) => setForm((f) => ({ ...f, ...change }))
+  useBusy(save.isPending)
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -149,7 +161,7 @@ function StorageDialog({ storage, trigger }: { storage?: Storage; trigger: React
       {
         onSuccess: (s) => {
           toast.success(storage ? t("Saved {{name}}", { name: s.name }) : t("Added {{name}}", { name: s.name }))
-          setOpen(false)
+          onClose()
         },
       },
     )
@@ -171,84 +183,69 @@ function StorageDialog({ storage, trigger }: { storage?: Storage; trigger: React
   )
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) {
-          save.reset()
-          setForm(storage ?? blank)
-          setSecretKey("")
-        }
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-2xl" {...guard(save.isPending)}>
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{storage ? t("Change {{name}}", { name: storage.name }) : t("Add storage for copies")}</DialogTitle>
-            <DialogDescription>
-              {t("The master only connects over HTTPS, and checks that it can store and delete an object there before it saves the storage.")}
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            {text("name", t("Name"), t("Offsite"), false)}
-            <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-              {text("endpoint", t("Endpoint"), "s3.eu-central-1.amazonaws.com")}
-              {text("region", t("Region"), "eu-central-1")}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {text("bucket", t("Bucket"), "noryx-backups")}
-              {text("prefix", t("Folder (optional)"), "noryx")}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {text("accessKey", t("Access key"), "AKIA…")}
-              <Field>
-                <FieldLabel htmlFor="storage-secret">{t("Secret key")}</FieldLabel>
-                <Input
-                  id="storage-secret"
-                  type="password"
-                  className="font-mono"
-                  autoComplete="new-password"
-                  placeholder={storage ? t("Unchanged") : undefined}
-                  value={secretKey}
-                  onChange={(e) => setSecretKey(e.target.value)}
-                />
-                {storage && <FieldDescription>{t("It is never shown. Enter one only to change it.")}</FieldDescription>}
-              </Field>
-            </div>
-            <FieldDescription>{t("The key only needs to put, get and delete objects in the bucket.")}</FieldDescription>
-            <Field orientation="horizontal">
-              <Switch id="storage-encrypt" checked={form.encrypt} onCheckedChange={(encrypt) => set({ encrypt })} />
-              <FieldContent>
-                <FieldLabel htmlFor="storage-encrypt">{t("Ask the storage to encrypt the copies")}</FieldLabel>
-                <FieldDescription>
-                  {t("With its own keys (SSE-S3), which protects them on its disks but not from its provider. Turn it off for storage that refuses it.")}
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-            <Field orientation="horizontal">
-              <Switch id="storage-path-style" checked={form.pathStyle} onCheckedChange={(pathStyle) => set({ pathStyle })} />
-              <FieldContent>
-                <FieldLabel htmlFor="storage-path-style">{t("Path style")}</FieldLabel>
-                <FieldDescription>{t("Addresses the bucket in the path rather than in the host name, e.g. for MinIO.")}</FieldDescription>
-              </FieldContent>
-            </Field>
-          </FieldGroup>
-          {save.error && <FieldError>{save.error.message}</FieldError>}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" disabled={save.isPending}>
-                {t("Cancel")}
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={save.isPending || (!storage && !secretKey)}>
-              {save.isPending ? t("Checking…") : storage ? t("Save") : t("Add storage")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{storage ? t("Change {{name}}", { name: storage.name }) : t("Add storage for copies")}</DialogTitle>
+        <DialogDescription>
+          {t("The master only connects over HTTPS, and checks that it can store and delete an object there before it saves the storage.")}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        {text("name", t("Name"), t("Offsite"), false)}
+        <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+          {text("endpoint", t("Endpoint"), "s3.eu-central-1.amazonaws.com")}
+          {text("region", t("Region"), "eu-central-1")}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {text("bucket", t("Bucket"), "noryx-backups")}
+          {text("prefix", t("Folder (optional)"), "noryx")}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {text("accessKey", t("Access key"), "AKIA…")}
+          <Field>
+            <FieldLabel htmlFor="storage-secret">{t("Secret key")}</FieldLabel>
+            <Input
+              id="storage-secret"
+              type="password"
+              className="font-mono"
+              autoComplete="new-password"
+              placeholder={storage ? t("Unchanged") : undefined}
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+            />
+            {storage && <FieldDescription>{t("It is never shown. Enter one only to change it.")}</FieldDescription>}
+          </Field>
+        </div>
+        <FieldDescription>{t("The key only needs to put, get and delete objects in the bucket.")}</FieldDescription>
+        <Field orientation="horizontal">
+          <Switch id="storage-encrypt" checked={form.encrypt} onCheckedChange={(encrypt) => set({ encrypt })} />
+          <FieldContent>
+            <FieldLabel htmlFor="storage-encrypt">{t("Ask the storage to encrypt the copies")}</FieldLabel>
+            <FieldDescription>
+              {t("With its own keys (SSE-S3), which protects them on its disks but not from its provider. Turn it off for storage that refuses it.")}
+            </FieldDescription>
+          </FieldContent>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch id="storage-path-style" checked={form.pathStyle} onCheckedChange={(pathStyle) => set({ pathStyle })} />
+          <FieldContent>
+            <FieldLabel htmlFor="storage-path-style">{t("Path style")}</FieldLabel>
+            <FieldDescription>{t("Addresses the bucket in the path rather than in the host name, e.g. for MinIO.")}</FieldDescription>
+          </FieldContent>
+        </Field>
+      </FieldGroup>
+      {save.error && <FieldError>{save.error.message}</FieldError>}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline" disabled={save.isPending}>
+            {t("Cancel")}
+          </Button>
+        </DialogClose>
+        <Button type="submit" disabled={save.isPending || (!storage && !secretKey)}>
+          {save.isPending ? t("Checking…") : storage ? t("Save") : t("Add storage")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 
