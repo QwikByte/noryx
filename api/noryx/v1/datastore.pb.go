@@ -1297,9 +1297,7 @@ type CreateDumpRequest struct {
 	Label     string   `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	Location  string   `protobuf:"bytes,4,opt,name=location,proto3" json:"location,omitempty"`
 	JobId     string   `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Dumps of the job kept; 0 keeps all. Ignored if retention is set.
-	Keep uint32 `protobuf:"varint,6,opt,name=keep,proto3" json:"keep,omitempty"`
-	// Which dumps of the job are kept, instead of keep.
+	// Which dumps of the job are kept; none keeps all.
 	Retention     *BackupRetention `protobuf:"bytes,7,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1368,13 +1366,6 @@ func (x *CreateDumpRequest) GetJobId() string {
 		return x.JobId
 	}
 	return ""
-}
-
-func (x *CreateDumpRequest) GetKeep() uint32 {
-	if x != nil {
-		return x.Keep
-	}
-	return 0
 }
 
 func (x *CreateDumpRequest) GetRetention() *BackupRetention {
@@ -2793,14 +2784,13 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x13DropDatabaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\x16\n" +
-	"\x14DropDatabaseResponse\"\xd7\x01\n" +
+	"\x14DropDatabaseResponse\"\xc3\x01\n" +
 	"\x11CreateDumpRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\tdatabases\x18\x02 \x03(\tR\tdatabases\x12\x14\n" +
 	"\x05label\x18\x03 \x01(\tR\x05label\x12\x1a\n" +
 	"\blocation\x18\x04 \x01(\tR\blocation\x12\x15\n" +
-	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12\x12\n" +
-	"\x04keep\x18\x06 \x01(\rR\x04keep\x127\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x127\n" +
 	"\tretention\x18\a \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\":\n" +
 	"\x12CreateDumpResponse\x12$\n" +
 	"\x04dump\x18\x01 \x01(\v2\x10.noryx.v1.BackupR\x04dump\"\"\n" +

@@ -77,7 +77,7 @@ func (s *Service) ListBackups(ctx context.Context, req *noryxv1.ListBackupsReque
 
 func (s *Service) CreateBackup(ctx context.Context, req *noryxv1.CreateBackupRequest) (*noryxv1.CreateBackupResponse, error) {
 	label := strings.TrimSpace(req.GetLabel())
-	retention := noryxv1.Retention(req.GetKeep(), req.GetRetention())
+	retention := req.GetRetention()
 	if err := CheckDetails(label, req.GetJobId(), retention); err != nil {
 		return nil, err
 	}

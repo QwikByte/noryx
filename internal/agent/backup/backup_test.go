@@ -544,7 +544,7 @@ func TestService(t *testing.T) {
 	}
 	// A kept backup survives its job's pruning until it is no longer kept.
 	_, err = s.CreateBackup(ctx, &noryxv1.CreateBackupRequest{
-		ServerId: serverID, JobId: "job1", Selection: &noryxv1.BackupSelection{Worlds: true}, Keep: 5, Retention: &noryxv1.BackupRetention{Last: 1},
+		ServerId: serverID, JobId: "job1", Selection: &noryxv1.BackupSelection{Worlds: true}, Retention: &noryxv1.BackupRetention{Last: 1},
 	})
 	check(t, err)
 	if _, err := s.store.Find(serverID, b.GetId()); err != nil {
@@ -553,7 +553,9 @@ func TestService(t *testing.T) {
 	kept = false
 	_, err = s.UpdateBackup(ctx, &noryxv1.UpdateBackupRequest{ServerId: serverID, BackupId: b.GetId(), Kept: &kept})
 	check(t, err)
-	_, err = s.CreateBackup(ctx, &noryxv1.CreateBackupRequest{ServerId: serverID, JobId: "job1", Selection: &noryxv1.BackupSelection{Worlds: true}, Keep: 1})
+	_, err = s.CreateBackup(ctx, &noryxv1.CreateBackupRequest{
+		ServerId: serverID, JobId: "job1", Selection: &noryxv1.BackupSelection{Worlds: true}, Retention: &noryxv1.BackupRetention{Last: 1},
+	})
 	check(t, err)
 	if _, err := s.store.Find(serverID, b.GetId()); err == nil {
 		t.Fatal("pruning kept a backup that is no longer kept")

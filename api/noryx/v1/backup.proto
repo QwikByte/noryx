@@ -117,14 +117,11 @@ message CreateBackupRequest {
   // Storage location for the backup; empty means the default location.
   string location = 4;
   string job_id = 5;
-  // Backups of the job to keep for the server, 0 for all. Older ones are deleted once the
-  // new backup exists. Backups made by hand, and kept ones, are never deleted this way.
-  // Ignored if retention is set, which agents of older versions ignore.
-  uint32 keep = 6;
   // Whether a server without any of the selected data, e.g. one that never started, is
   // skipped: the response has no backup then. Otherwise that is an error.
   bool skip_without_data = 7;
-  // Which backups of the job are kept, instead of keep.
+  // Which backups of the job are kept for the server; none keeps all. The others are deleted
+  // once the new backup exists. Backups made by hand, and kept ones, are never deleted this way.
   BackupRetention retention = 8;
 }
 

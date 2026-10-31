@@ -39,16 +39,6 @@ func TestMasterBackupName(t *testing.T) {
 	}
 }
 
-func TestRetention(t *testing.T) {
-	if r := Retention(5, nil); r.GetLast() != 5 || r.GetDays() != 0 || r.GetWeeks() != 0 || r.GetMonths() != 0 {
-		t.Errorf("Retention(5, nil) = %v", r)
-	}
-	set := &BackupRetention{Days: 7}
-	if r := Retention(5, set); r != set {
-		t.Errorf("Retention(5, %v) = %v", set, r)
-	}
-}
-
 // A retention keeps the newest backups, and the newest of each of the last days, weeks and
 // months that have backups, in its time zone.
 func TestRetentionKeeps(t *testing.T) {
@@ -72,6 +62,7 @@ func TestRetentionKeeps(t *testing.T) {
 		want      string // x for kept
 	}{
 		{"all", &BackupRetention{}, "xxxxxxxxx"},
+		{"none", nil, "xxxxxxxxx"},
 		{"the newest", &BackupRetention{Last: 2}, "xx......."},
 		{"more than there are", &BackupRetention{Last: 100}, "xxxxxxxxx"},
 		{"days", &BackupRetention{Days: 3}, "x.xx....."},

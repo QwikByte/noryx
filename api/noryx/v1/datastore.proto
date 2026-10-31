@@ -212,9 +212,7 @@ message CreateDumpRequest {
   string label = 3;
   string location = 4;
   string job_id = 5;
-  // Dumps of the job kept; 0 keeps all. Ignored if retention is set.
-  uint32 keep = 6;
-  // Which dumps of the job are kept, instead of keep.
+  // Which dumps of the job are kept; none keeps all.
   BackupRetention retention = 7;
 }
 
