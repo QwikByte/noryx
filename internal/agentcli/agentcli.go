@@ -88,9 +88,9 @@ func (c cli) status() *cobra.Command {
 					return err
 				}
 				out := cmd.OutOrStdout()
-				name, version := info.RuntimeOf()
+				name, version := info.GetRuntimeName(), info.GetRuntimeVersion()
 				running := version != ""
-				fmt.Fprintf(out, "Node     %s\nAgent    %s\nRuntime  %s %s\n", info.GetHostname(), info.GetAgentVersion(), noryxv1.RuntimeTitle(name), cmp.Or(version, noryxv1.RuntimeUnavailable))
+				fmt.Fprintf(out, "Node     %s\nAgent    %s\nRuntime  %s %s\n", info.GetHostname(), info.GetAgentVersion(), noryxv1.RuntimeTitle(name), cmp.Or(version, "unavailable"))
 				if running {
 					fmt.Fprintf(out, "System   %s, %d CPUs, %.1f GiB\n", info.GetOs(), info.GetCpuCount(), float64(info.GetMemoryBytes())/(1<<30))
 				}

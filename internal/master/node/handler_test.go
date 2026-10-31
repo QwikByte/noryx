@@ -46,7 +46,7 @@ func (a *agent) GetInfo(context.Context, *noryxv1.GetInfoRequest) (*noryxv1.GetI
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return &noryxv1.GetInfoResponse{
-		AgentVersion: "v1.4.0", Hostname: "node-1", Os: "Debian GNU/Linux 13", CpuCount: 8, MemoryBytes: 16 << 30, Runtime: "podman 5.6.0",
+		AgentVersion: "v1.4.0", Hostname: "node-1", Os: "Debian GNU/Linux 13", CpuCount: 8, MemoryBytes: 16 << 30,
 		RuntimeName: "podman", RuntimeVersion: "5.6.0", Settings: a.settings,
 		Storage:     []*noryxv1.StorageLocation{{Name: "default", Path: "/var/lib/noryx", FreeBytes: 1 << 30, TotalBytes: 2 << 30}},
 		ServerTypes: []noryxv1.ServerType{noryxv1.ServerType_SERVER_TYPE_VELOCITY, noryxv1.ServerType_SERVER_TYPE_PAPER},
@@ -144,9 +144,9 @@ type view struct {
 	CertificateExpiresAt               *time.Time
 	LogFileMB                          uint32 `json:"logFileMb"`
 	Info                               *struct {
-		AgentVersion, Hostname, OS, Runtime, RuntimeName, RuntimeVersion string
-		ServerTypes                                                      []string
-		Storage                                                          []struct{ Name, Path string }
+		AgentVersion, Hostname, OS, RuntimeName, RuntimeVersion string
+		ServerTypes                                             []string
+		Storage                                                 []struct{ Name, Path string }
 	}
 }
 
@@ -218,7 +218,7 @@ func TestHandler(t *testing.T) {
 	var concealed view
 	if code := serve(admin.Only([]access.Permission{access.ServersView}), "GET", "/api/nodes/n1", "", &concealed); code != http.StatusOK ||
 		concealed.Address != "" || concealed.CertificateExpiresAt != nil || concealed.Info.AgentVersion != "" || concealed.Info.Hostname != "" ||
-		concealed.Info.OS != "" || concealed.Info.Runtime != "" || concealed.Info.Storage[0].Path != "" || concealed.Info.RuntimeName != "podman" {
+		concealed.Info.OS != "" || concealed.Info.RuntimeVersion != "" || concealed.Info.Storage[0].Path != "" || concealed.Info.RuntimeName != "podman" {
 		t.Errorf("concealed n1: status %d, %+v, info %+v", code, concealed, concealed.Info)
 	}
 	if code := serve(admin.Only([]access.Permission{access.NetworksView}), "GET", "/api/nodes", "", &list); code != http.StatusOK || len(list) != 0 {

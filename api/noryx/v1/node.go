@@ -3,15 +3,11 @@ package noryxv1
 import (
 	"fmt"
 	"slices"
-	"strings"
 )
-
-// RuntimeUnavailable is the runtime that GetInfo reports while the agent can't reach it.
-const RuntimeUnavailable = "unavailable"
 
 // ReasonRuntimeUnavailable is the reason of the ErrorInfo that agents attach to Unavailable
 // errors of calls that failed because the container runtime can't be reached. Its metadata
-// names the runtime under MetadataRuntime, which older agents leave out.
+// names the runtime under MetadataRuntime.
 const ReasonRuntimeUnavailable = "RUNTIME_UNAVAILABLE"
 
 // MetadataRuntime is the key of the runtime's name in the metadata of ReasonRuntimeUnavailable.
@@ -23,26 +19,12 @@ const (
 	RuntimePodman = "podman"
 )
 
-// RuntimeTitle returns how texts name a runtime, e.g. "Podman"; older agents name none, as
-// they only run Docker.
+// RuntimeTitle returns how texts name a runtime, e.g. "Podman".
 func RuntimeTitle(name string) string {
 	if name == RuntimePodman {
 		return "Podman"
 	}
 	return "Docker"
-}
-
-// RuntimeOf returns the name and version of the runtime the agent runs servers with; the
-// version is empty while the agent can't reach it. Older agents only tell "docker <version>".
-func (r *GetInfoResponse) RuntimeOf() (name, version string) {
-	if name = r.GetRuntimeName(); name != "" {
-		return name, r.GetRuntimeVersion()
-	}
-	version, _ = strings.CutPrefix(r.GetRuntime(), RuntimeDocker+" ")
-	if version == RuntimeUnavailable {
-		version = ""
-	}
-	return RuntimeDocker, version
 }
 
 // The bounds of NodeSettings, which master and agent check. Uploads and backups always leave
@@ -74,11 +56,7 @@ func (s *NodeSettings) Problem() string {
 	return ""
 }
 
-// Creates reports whether the agent creates servers of the type. Older agents don't tell
-// their types: they create those up to SERVER_TYPE_QUILT.
+// Creates reports whether the agent creates servers of the type.
 func (r *GetInfoResponse) Creates(t ServerType) bool {
-	if len(r.GetServerTypes()) == 0 {
-		return t > ServerType_SERVER_TYPE_UNSPECIFIED && t <= ServerType_SERVER_TYPE_QUILT
-	}
 	return slices.Contains(r.GetServerTypes(), t)
 }

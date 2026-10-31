@@ -9,7 +9,7 @@ export const runtimeTitle = (runtime: Runtime) => (runtime === "podman" ? "Podma
  * undefined without the permission to see the node.
  */
 export function runtimeLabel(info: NodeInfo) {
-  if (!info.runtime) return undefined
+  if (!info.agentVersion) return undefined
   const title = runtimeTitle(info.runtimeName)
   return info.runtimeVersion ? `${title} ${info.runtimeVersion}` : t("{{runtime}} isn't reachable", { runtime: title })
 }

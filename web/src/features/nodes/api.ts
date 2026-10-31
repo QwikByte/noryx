@@ -15,16 +15,14 @@ export interface NodeInfo {
   os?: string
   cpuCount: number
   memoryBytes: number
-  /** E.g. "docker 29.0.0", or "unavailable" while the agent can't reach its runtime. */
-  runtime?: string
   /** The runtime of the servers; also there without the permission to see the node. */
   runtimeName: Runtime
   /** Its version; empty while the agent can't reach it. */
   runtimeVersion?: string
   /** Directories the node allows for server data, the default location first. */
   storage: StorageLocation[]
-  /** The types of servers the agent creates, e.g. bedrock; agents of older versions don't create Bedrock servers. */
-  serverTypes?: string[]
+  /** The types of servers the agent creates, e.g. bedrock. */
+  serverTypes: string[]
 }
 
 export interface StorageLocation {

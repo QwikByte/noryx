@@ -251,6 +251,8 @@ type olderAgent struct{ fakeConn }
 func (olderAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc.CallOption) error {
 	srv := &noryxv1.Server{Id: "s1", Name: "Lobby", MemoryMb: 1024, Port: 25565}
 	switch reply := reply.(type) {
+	case *noryxv1.GetInfoResponse:
+		reply.ServerTypes = []noryxv1.ServerType{noryxv1.ServerType_SERVER_TYPE_PAPER}
 	case *noryxv1.ListServersResponse:
 		reply.Servers = []*noryxv1.Server{srv}
 	case *noryxv1.CreateServerResponse:

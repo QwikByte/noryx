@@ -86,9 +86,8 @@ func TestEnrollAndControlNode(t *testing.T) {
 	check(t, err)
 	info, err := noryxv1.NewNodeServiceClient(conn).GetInfo(ctx, &noryxv1.GetInfoRequest{})
 	check(t, err)
-	// Older masters read the runtime and its version from one field.
-	if name, version := info.RuntimeOf(); info.GetRuntime() != "docker fake" || name != noryxv1.RuntimeDocker || version != "fake" {
-		t.Fatalf("runtime = %q, %q %q", info.GetRuntime(), name, version)
+	if info.GetRuntimeName() != noryxv1.RuntimeDocker || info.GetRuntimeVersion() != "fake" {
+		t.Fatalf("runtime = %q %q", info.GetRuntimeName(), info.GetRuntimeVersion())
 	}
 
 	servers := noryxv1.NewServerServiceClient(conn)

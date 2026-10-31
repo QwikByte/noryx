@@ -31,22 +31,18 @@ message GetInfoResponse {
   string os = 3;
   uint32 cpu_count = 4;
   uint64 memory_bytes = 5;
-  // Container runtime driving the servers, e.g. "docker 29.0.0", or "unavailable"
-  // while the agent can't reach it; os, cpu_count and memory_bytes are empty then.
-  string runtime = 6;
   // Where servers can keep their data; the default location comes first.
   repeated StorageLocation storage = 7;
   // When the certificate the agent presents to the master expires.
   int64 certificate_not_after_unix = 8;
   // The container runtime the agent is set to use, "docker" or "podman", also while it
-  // can't reach it, and its version, e.g. "29.0.0", empty then. Older agents leave both
-  // empty, as they only run Docker; runtime tells its version.
+  // can't reach it, and its version, e.g. "29.0.0", empty then; os, cpu_count and
+  // memory_bytes are empty then too.
   string runtime_name = 9;
   string runtime_version = 10;
-  // The settings the agent applies; older agents leave them out.
+  // The settings the agent applies.
   NodeSettings settings = 11;
-  // The types of servers the agent creates, e.g. for the panel to offer only those. Older
-  // agents leave it empty: they create all types up to SERVER_TYPE_QUILT.
+  // The types of servers the agent creates, e.g. for the panel to offer only those.
   repeated ServerType server_types = 12;
 }
 
