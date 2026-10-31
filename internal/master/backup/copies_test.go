@@ -597,7 +597,11 @@ func TestRestoreCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.client(c.transport).Put(t.Context(), st.key("s1", "b1"), strings.NewReader(archive+" and a plugin"), 0); err != nil {
+	client, err := st.client(c.transport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Put(t.Context(), st.key("s1", "b1"), strings.NewReader(archive+" and a plugin"), 0); err != nil {
 		t.Fatal(err)
 	}
 	if rec := serve(access.Admin(), "POST", "/api/backup-copies/"+inStorage+"/restore", `{"node": "n1", "server": "s1"}`); rec.Code != http.StatusOK {
@@ -637,7 +641,7 @@ func TestRestoreCopy(t *testing.T) {
 			t.Errorf("%s: status %d: %s", tc.name, rec.Code, rec.Body)
 		}
 	}
-	if err := st.client(c.transport).Delete(t.Context(), st.key("s1", "b1")); err != nil {
+	if err := client.Delete(t.Context(), st.key("s1", "b1")); err != nil {
 		t.Fatal(err)
 	}
 	if rec := serve(access.Admin(), "POST", "/api/backup-copies/"+inStorage+"/restore", `{"node": "n1", "server": "s2"}`); rec.Code != http.StatusNotFound ||

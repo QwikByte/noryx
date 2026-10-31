@@ -223,8 +223,9 @@ func (c *Copies) place(ctx context.Context, to CopyTo) (place, error) {
 		if p.storage, err = c.storage(ctx, to.Storage); err != nil {
 			return p, err
 		}
-		p.name, p.client = p.storage.Name, p.storage.client(c.transport)
-		return p, nil
+		p.name = p.storage.Name
+		p.client, err = p.storage.client(c.transport)
+		return p, err
 	}
 	n, err := c.nodes.Get(ctx, to.Node)
 	if err != nil {
@@ -405,8 +406,12 @@ func (c *Copies) delete(ctx context.Context, cp Copy) error {
 	defer cancel()
 	if cp.StorageID != "" {
 		st, err := c.storage(ctx, cp.StorageID)
+		var client *s3.Client
 		if err == nil {
-			err = st.client(c.transport).Delete(ctx, st.key(cp.ServerID, cp.BackupID))
+			client, err = st.client(c.transport)
+		}
+		if err == nil {
+			err = client.Delete(ctx, st.key(cp.ServerID, cp.BackupID))
 		}
 		if err != nil {
 			return err
@@ -431,7 +436,11 @@ func (c *Copies) open(ctx context.Context, cp Copy) (io.ReadCloser, error) {
 		if err != nil {
 			return nil, err
 		}
-		r, err := st.client(c.transport).Get(ctx, st.key(cp.ServerID, cp.BackupID))
+		client, err := st.client(c.transport)
+		if err != nil {
+			return nil, err
+		}
+		r, err := client.Get(ctx, st.key(cp.ServerID, cp.BackupID))
 		if s3.NotFound(err) {
 			err = httpapi.Errorf(http.StatusNotFound, "The copy is no longer in %s.", st.Name)
 		}

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -25,12 +24,10 @@ import (
 )
 
 var (
-	endpointPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$`)
-	regionPattern   = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
-	bucketPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,61}[A-Za-z0-9]$`)
-	segmentPattern  = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$`)
-	keyPattern      = regexp.MustCompile(`^[\x21-\x7e]{1,256}$`)
-	errNoStorage    = httpapi.Errorf(http.StatusNotFound, "Storage not found. It may have been deleted.")
+	regionPattern  = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
+	segmentPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$`)
+	keyPattern     = regexp.MustCompile(`^[\x21-\x7e]{1,256}$`)
+	errNoStorage   = httpapi.Errorf(http.StatusNotFound, "Storage not found. It may have been deleted.")
 )
 
 // Storage is S3-compatible storage that backup jobs copy backups to. Its secret key is never
@@ -62,20 +59,16 @@ type StorageSettings struct {
 func (s *StorageSettings) check() string {
 	s.Name, s.Endpoint, s.Region = strings.TrimSpace(s.Name), strings.ToLower(strings.TrimSpace(s.Endpoint)), strings.TrimSpace(s.Region)
 	s.Bucket, s.Prefix, s.AccessKey = strings.TrimSpace(s.Bucket), strings.Trim(strings.TrimSpace(s.Prefix), "/"), strings.TrimSpace(s.AccessKey)
-	port := 443
-	if _, p, ok := strings.Cut(s.Endpoint, ":"); ok {
-		port, _ = strconv.Atoi(p)
-	}
 	switch {
 	case s.Name == "" || utf8.RuneCountInString(s.Name) > 64 || strings.ContainsFunc(s.Name, unicode.IsControl):
 		return "Enter a name with up to 64 characters."
 	case strings.Contains(s.Endpoint, "://"):
 		return "Enter the endpoint without https://, like s3.eu-central-1.amazonaws.com. The master only connects over HTTPS."
-	case !endpointPattern.MatchString(s.Endpoint) || port < 1 || port > 65535:
+	case !s3.ValidEndpoint(s.Endpoint):
 		return "Enter the endpoint as a host name, with a port if it isn't 443, like s3.eu-central-1.amazonaws.com."
 	case !regionPattern.MatchString(s.Region):
 		return "Enter the region of the bucket, like us-east-1."
-	case !bucketPattern.MatchString(s.Bucket):
+	case !s3.ValidBucket(s.Bucket):
 		return "Enter the name of the bucket."
 	case len(s.Prefix) > 256 || s.Prefix != "" && !validPrefix(s.Prefix):
 		return "Enter a folder of letters, digits, dots, dashes and underscores, like noryx/backups, or none."
@@ -101,7 +94,7 @@ type storage struct {
 }
 
 // client returns a client of the bucket of the storage.
-func (s storage) client(transport http.RoundTripper) *s3.Client {
+func (s storage) client(transport http.RoundTripper) (*s3.Client, error) {
 	return s3.New(s3.Config{
 		Endpoint: s.Endpoint, Region: s.Region, Bucket: s.Bucket, AccessKey: s.AccessKey, SecretKey: s.secretKey, PathStyle: s.PathStyle, Encrypt: s.Encrypt,
 	}, transport)
@@ -207,8 +200,12 @@ func (c *Copies) saveStorage(ctx context.Context, id string, in storageInput) (S
 func (c *Copies) try(ctx context.Context, s storage) error {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	client, key := s.client(c.transport), path.Join(s.Prefix, ".noryx-check")
-	_, err := client.Put(ctx, key, bytes.NewReader([]byte("Noryx checks that it can store copies of backups here.\n")), 0)
+	client, err := s.client(c.transport)
+	if err != nil {
+		return err
+	}
+	key := path.Join(s.Prefix, ".noryx-check")
+	_, err = client.Put(ctx, key, bytes.NewReader([]byte("Noryx checks that it can store copies of backups here.\n")), 0)
 	if err != nil {
 		return err
 	}
