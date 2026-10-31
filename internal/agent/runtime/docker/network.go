@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -329,38 +328,18 @@ func (d *Docker) checkNetworks(ctx context.Context, c container.InspectResponse)
 	return nil
 }
 
-// recreate replaces the container c of a server to change its settings; the data on the host
-// stays, and so do the networks of the server. The old container is kept until the new one
-// exists, so that a failure leaves the server as it was. A running server is stopped
-// gracefully and started again.
+// recreate replaces the container c of a server to change its settings, see replace; the
+// server keeps its networks. A running server is stopped gracefully and started again.
 func (d *Docker) recreate(ctx context.Context, c container.InspectResponse, spec runtime.Spec, running bool) error {
-	if running {
-		if err := d.Stop(ctx, spec.ID); err != nil {
-			return err
-		}
-	}
-	name, old := containerName(spec.ID), containerName(spec.ID)+"-old"
-	if _, err := d.cli.ContainerRename(ctx, name, client.ContainerRenameOptions{NewName: old}); err != nil {
-		return err
-	}
-	// The replacement finishes also when ctx ends, e.g. with the timeout of the master's call:
-	// otherwise the server could be left without its container, stopped, or with an old one
-	// in the way of the next replacement.
-	ctx = context.WithoutCancel(ctx)
-	if err := d.createContainer(ctx, spec, placement(c, spec), datastoreNetworks(c)...); err != nil {
-		_, renameErr := d.cli.ContainerRename(ctx, old, client.ContainerRenameOptions{NewName: name})
-		if renameErr == nil && running {
-			renameErr = d.Start(ctx, spec.ID)
-		}
-		return errors.Join(err, renameErr)
-	}
-	if _, err := d.cli.ContainerRemove(ctx, old, client.ContainerRemoveOptions{}); err != nil {
-		return err
-	}
-	if !running {
-		return nil
-	}
-	return d.Start(ctx, spec.ID)
+	return d.replace(ctx, replacement{
+		name:    containerName(spec.ID),
+		running: running,
+		stop:    func(ctx context.Context) error { return d.Stop(ctx, spec.ID) },
+		create: func(ctx context.Context) error {
+			return d.createContainer(ctx, spec, placement(c, spec), datastoreNetworks(c)...)
+		},
+		start: func(ctx context.Context) error { return d.Start(ctx, spec.ID) },
+	})
 }
 
 // datastoreNetworks returns the internal networks of datastores a container is in.

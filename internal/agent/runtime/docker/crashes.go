@@ -77,6 +77,8 @@ type watched struct {
 // server fails and passes again, restarts servers that stay unhealthy if they are to, and closes
 // the connections to the consoles of servers that stop, until ctx is done. When the events stop,
 // e.g. while the runtime restarts, it connects again and has the runtime replay those it missed.
+// Each time it connects, it tidies up after replacements of containers that the agent or the
+// runtime didn't finish; see reconcile.
 func (d *Docker) Watch(ctx context.Context) {
 	w := watched{
 		inRow: map[string]int{}, unhealthy: map[string]bool{}, lives: map[string]*life{},
@@ -84,6 +86,10 @@ func (d *Docker) Watch(ctx context.Context) {
 	}
 	var since time.Time
 	for ctx.Err() == nil {
+		// Also when the runtime is back, which may have stopped amid a replacement.
+		if err := d.reconcileAll(ctx); err != nil && ctx.Err() == nil {
+			slog.Debug("Can't look for containers that a replacement left", logging.Servers, "err", err)
+		}
 		err := d.watch(ctx, w, &since)
 		if ctx.Err() == nil {
 			slog.Debug("Can't watch the servers for crashes", logging.Servers, "err", err)

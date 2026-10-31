@@ -108,6 +108,8 @@ type Docker struct {
 	// stops counts the stops asked for of each server, so that a restart of a server that hangs
 	// doesn't start one that someone stopped meanwhile; see restartUnlessStopped.
 	stops sync.Map
+	// replacing holds the names of the containers being replaced; see replace.
+	replacing sync.Map
 }
 
 // Options choose the runtime.
