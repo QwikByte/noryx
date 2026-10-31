@@ -37,11 +37,9 @@ type nodeAgent struct {
 	servers map[string]*noryxv1.Server
 	// requests are the last configurations of the servers.
 	requests map[string]*noryxv1.ConfigureNetworkRequest
-	// refuse makes configuring servers fail, down makes all calls fail, and older ignores
-	// Bedrock ports.
+	// refuse makes configuring servers fail, and down makes all calls fail.
 	refuse map[string]error
 	down   bool
-	older  bool
 }
 
 func (a *nodeAgent) answers() error {
@@ -81,9 +79,7 @@ func (a *nodeAgent) ConfigureNetwork(_ context.Context, req *noryxv1.ConfigureNe
 	}
 	a.journal("configure %s/%s %s", a.node, req.GetId(), strings.ToLower(strings.TrimPrefix(req.GetForwarding().String(), "FORWARDING_")))
 	a.requests[req.GetId()] = req
-	if !a.older {
-		srv.BedrockPort = req.GetBedrockPort()
-	}
+	srv.BedrockPort = req.GetBedrockPort()
 	return &noryxv1.ConfigureNetworkResponse{}, nil
 }
 
@@ -454,15 +450,6 @@ func TestBedrock(t *testing.T) {
 	}
 	f.check(t, n.ID, slices.Concat(configured[:3], []string{provided, "configure n1/proxy modern"}), []string{"lobby@n1", "survival@n2"}, "")
 
-	f.agents["n1"].set(func(a *nodeAgent) { a.older = true })
-	change.BedrockPort = 19135
-	want := "The change was saved, but the proxy could not be configured: Update the agent of the proxy's node to let Bedrock players join. Apply the network again once all nodes are online."
-	if _, err := f.Update(t.Context(), n.ID, change); httpapi.Message(err) != want {
-		t.Fatalf("Update on an older agent = %v", err)
-	}
-	f.check(t, n.ID, slices.Concat(configured[:3], []string{provided, "configure n1/proxy modern"}), []string{"lobby@n1", "survival@n2"}, want)
-
-	f.agents["n1"].set(func(a *nodeAgent) { a.older = false })
 	change.BedrockPort = 0
 	if _, err := f.Update(t.Context(), n.ID, change); err != nil {
 		t.Fatal(err)

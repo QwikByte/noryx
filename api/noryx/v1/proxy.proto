@@ -64,7 +64,7 @@ message ChangeMaintenanceRequest {
   string player = 3;
   // The game server of the network that maintenance is turned on or off for, or that a
   // timer is about, by its name in the configuration of the proxy; empty for the whole
-  // network. Agents that don't tell servers_and_timers in Maintenance ignore it.
+  // network.
   string server = 4;
   // Minutes until a timer starts or ends maintenance, from 1 to MaxMaintenanceMinutes.
   uint32 minutes = 5;
@@ -104,9 +104,6 @@ message Maintenance {
   // its end timer over restarts (continue-endtimer-after-restart); 0 otherwise. The plugin
   // keeps its other timers to itself.
   int64 ends_at = 5;
-  // The agent changes the maintenance of single servers and starts timers. Older agents
-  // ignore the fields of ChangeMaintenanceRequest for them.
-  bool servers_and_timers = 6;
 }
 
 message MaintenancePlayer {

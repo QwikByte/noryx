@@ -61,7 +61,7 @@ export function MaintenanceSection({ network }: { network: Network }) {
   const [dialog, setDialog] = useState<"start" | "abort">()
   const folder = isBungee(network.proxyType) ? "plugins/Maintenance" : "plugins/maintenance"
   const { nodeId, serverId } = network.proxy
-  const timers = manage && proxyRunning && !!m?.installed && m.serversAndTimers
+  const timers = manage && proxyRunning && !!m?.installed
 
   function change(c: MaintenanceChange) {
     const name = c.server || network.name
@@ -186,11 +186,9 @@ export function MaintenanceSection({ network }: { network: Network }) {
                 </p>
               )}
               <p className="text-sm text-muted-foreground">
-                {m.serversAndTimers
-                  ? t(
-                      "Timers count down in the chat. The plugin keeps them to itself, so the panel shows what they change once they end, and a new timer replaces the one that runs.",
-                    )
-                  : t("Update the agent of the proxy's node for timers and the maintenance of single servers.")}
+                {t(
+                  "Timers count down in the chat. The plugin keeps them to itself, so the panel shows what they change once they end, and a new timer replaces the one that runs.",
+                )}
               </p>
             </>
           )}
@@ -239,68 +237,66 @@ function StartDialog({
                   )}
             </DialogDescription>
           </DialogHeader>
-          {m.serversAndTimers && (
-            <FieldGroup>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="maintenance-server">{t("Servers")}</FieldLabel>
+              <Select value={server} onValueChange={setServer}>
+                <SelectTrigger id="maintenance-server" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={whole}>{t("The whole network")}</SelectItem>
+                  {network.backends.map((b) => (
+                    <SelectItem key={b.name} value={b.name} disabled={m.servers.includes(b.name)}>
+                      <span className="font-mono">{b.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {one && (
+                <FieldDescription>
+                  {t("The proxy sends the players on {{name}} to the plugin's fallback server, or off the network, and lets only the team join it.", {
+                    name: server,
+                  })}
+                </FieldDescription>
+              )}
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="maintenance-server">{t("Servers")}</FieldLabel>
-                <Select value={server} onValueChange={setServer}>
-                  <SelectTrigger id="maintenance-server" className="w-full">
+                <FieldLabel htmlFor="maintenance-delay">{t("Starts")}</FieldLabel>
+                <Select value={String(delay)} onValueChange={(v) => setDelay(Number(v))}>
+                  <SelectTrigger id="maintenance-delay" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={whole}>{t("The whole network")}</SelectItem>
-                    {network.backends.map((b) => (
-                      <SelectItem key={b.name} value={b.name} disabled={m.servers.includes(b.name)}>
-                        <span className="font-mono">{b.name}</span>
+                    {delays.map((d) => (
+                      <SelectItem key={d} value={String(d)}>
+                        {d ? t("In {{time}}", { time: minutes(d) }) : t("Now")}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {one && (
-                  <FieldDescription>
-                    {t("The proxy sends the players on {{name}} to the plugin's fallback server, or off the network, and lets only the team join it.", {
-                      name: server,
-                    })}
-                  </FieldDescription>
-                )}
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="maintenance-delay">{t("Starts")}</FieldLabel>
-                  <Select value={String(delay)} onValueChange={(v) => setDelay(Number(v))}>
-                    <SelectTrigger id="maintenance-delay" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {delays.map((d) => (
-                        <SelectItem key={d} value={String(d)}>
-                          {d ? t("In {{time}}", { time: minutes(d) }) : t("Now")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="maintenance-duration">{t("Lasts")}</FieldLabel>
-                  <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
-                    <SelectTrigger id="maintenance-duration" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {durations.map((d) => (
-                        <SelectItem key={d} value={String(d)}>
-                          {d ? minutes(d) : t("Until it is ended")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              {(delay > 0 || duration > 0) && (
-                <FieldDescription>{t("The plugin tells the players in the chat when maintenance starts and ends.")}</FieldDescription>
-              )}
-            </FieldGroup>
-          )}
+              <Field>
+                <FieldLabel htmlFor="maintenance-duration">{t("Lasts")}</FieldLabel>
+                <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+                  <SelectTrigger id="maintenance-duration" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {durations.map((d) => (
+                      <SelectItem key={d} value={String(d)}>
+                        {d ? minutes(d) : t("Until it is ended")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            {(delay > 0 || duration > 0) && (
+              <FieldDescription>{t("The plugin tells the players in the chat when maintenance starts and ends.")}</FieldDescription>
+            )}
+          </FieldGroup>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">{t("Cancel")}</Button>

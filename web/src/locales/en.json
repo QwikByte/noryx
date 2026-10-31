@@ -3435,7 +3435,6 @@
   "Update plugins": "Update plugins",
   "Update the agent of {{name}} to {{version}}": "Update the agent of {{name}} to {{version}}",
   "Update the agent of the node first": "Update the agent of the node first",
-  "Update the agent of the proxy's node for timers and the maintenance of single servers.": "Update the agent of the proxy's node for timers and the maintenance of single servers.",
   "Update the agents after the master": "Update the agents after the master",
   "Update the image": "Update the image",
   "Update the image of {{name}}": "Update the image of {{name}}",

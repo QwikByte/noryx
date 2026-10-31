@@ -138,8 +138,7 @@ panel shows when maintenance ends only if the plugin keeps its end timer over re
 (`continue-endtimer-after-restart` in its `config.yml`), and otherwise shows the change once the timer ends. **Abort a
 timer** stops the one of the network or of a server. Planning the maintenance of a single server for later needs version
 5 of the plugin, as version 4 swaps its times; update it in the proxy's **Plugins** tab. A server named `global` can't
-go into maintenance alone, as version 5 reads that name as the whole network. Agents of older versions only turn the
-maintenance of the whole network on and off.
+go into maintenance alone, as version 5 reads that name as the whole network.
 
 ## Bedrock players
 

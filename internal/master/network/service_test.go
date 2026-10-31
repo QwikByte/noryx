@@ -223,7 +223,7 @@ func TestCheckBackends(t *testing.T) {
 // time to start again, and an hour at least.
 func TestRollingTimeout(t *testing.T) {
 	a, b, c := Backend{Ref: Ref{"n1", "a"}}, Backend{Ref: Ref{"n1", "b"}}, Backend{Ref: Ref{"n2", "c"}}
-	listed := map[Ref]*noryxv1.Server{a.Ref: {StopTimeoutSeconds: 600}, b.Ref: {StopTimeoutSeconds: 30}} // c of an older agent
+	listed := map[Ref]*noryxv1.Server{a.Ref: {StopTimeoutSeconds: 600}, b.Ref: {StopTimeoutSeconds: 30}} // c with the default
 	if got := rollingTimeout([][]Backend{{a, b}, {c}}, listed); got != time.Hour {
 		t.Errorf("a few servers: %s", got)
 	}

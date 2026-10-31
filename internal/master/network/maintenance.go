@@ -6,9 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -39,9 +36,6 @@ type Maintenance struct {
 	// timer over restarts. It keeps its other timers to itself.
 	EndsAt       *time.Time `json:"endsAt,omitempty"`
 	ProxyRunning bool       `json:"proxyRunning"`
-	// ServersAndTimers tells that the agent of the proxy's node changes the maintenance of
-	// single servers and starts timers.
-	ServersAndTimers bool `json:"serversAndTimers"`
 }
 
 type MaintenancePlayer struct {
@@ -123,8 +117,6 @@ func (s *Service) SetMaintenance(ctx context.Context, n Network, c MaintenanceCh
 		return m, err
 	case !m.ProxyRunning:
 		return m, httpapi.Errorf(http.StatusConflict, "Start the proxy of the network first.")
-	case (c.Server != "" || c.Delay > 0 || c.Duration > 0) && !m.ServersAndTimers:
-		return m, errOlderMaintenance
 	case !m.Installed && !c.Enabled:
 		return m, nil
 	case !m.Installed:
@@ -160,17 +152,8 @@ func (s *Service) AbortMaintenanceTimer(ctx context.Context, n Network, server s
 	if err := n.checkServer(server); err != nil {
 		return Maintenance{}, err
 	}
-	m, err := s.Maintenance(ctx, n)
-	if err == nil && !m.ServersAndTimers {
-		err = errOlderMaintenance
-	}
-	if err != nil {
-		return m, err
-	}
 	return s.changeMaintenance(ctx, n, &noryxv1.ChangeMaintenanceRequest{Change: noryxv1.MaintenanceChange_MAINTENANCE_CHANGE_ABORT_TIMER, Server: server})
 }
-
-var errOlderMaintenance = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the proxy's node for timers and the maintenance of single servers.")
 
 // checkServer fails unless name is empty, for the whole network, or names a game server of it.
 func (n *Network) checkServer(name string) error {
@@ -208,13 +191,10 @@ func (s *Service) proxy(ctx context.Context, n Network, call func(ctx context.Co
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout+maintenanceWait)
 	defer cancel()
 	conn, err := s.nodes.Conn(ctx, n.Proxy.NodeID)
-	if err == nil {
-		err = call(ctx, noryxv1.NewProxyServiceClient(conn))
+	if err != nil {
+		return err
 	}
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the proxy's node for maintenance.")
-	}
-	return err
+	return call(ctx, noryxv1.NewProxyServiceClient(conn))
 }
 
 // maintenanceOf returns the maintenance the agent read, with the servers in maintenance that
@@ -222,7 +202,7 @@ func (s *Service) proxy(ctx context.Context, n Network, call func(ctx context.Co
 func maintenanceOf(n Network, m *noryxv1.Maintenance, proxyRunning bool) Maintenance {
 	out := Maintenance{
 		Installed: m.GetInstalled(), Enabled: m.GetEnabled(), Players: []MaintenancePlayer{}, Servers: []string{},
-		ProxyRunning: proxyRunning, ServersAndTimers: m.GetServersAndTimers(),
+		ProxyRunning: proxyRunning,
 	}
 	for _, p := range m.GetPlayers() {
 		out.Players = append(out.Players, MaintenancePlayer{p.GetName(), p.GetUuid()})

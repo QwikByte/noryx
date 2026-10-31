@@ -170,7 +170,7 @@ func hasServer(dir *datadir.Dir, p Proxy, name string) (bool, error) {
 // WhitelistedPlayers.yml with the players who may join, by their ID. Without config.yml, the
 // plugin isn't installed or wasn't loaded yet. It also returns the version of config.yml.
 func readMaintenance(dir *datadir.Dir, typ noryxv1.ServerType) (*noryxv1.Maintenance, int, error) {
-	m := &noryxv1.Maintenance{ServersAndTimers: true}
+	m := &noryxv1.Maintenance{}
 	folder := typ.MaintenanceFolder()
 	data, err := dir.ReadOptional(filepath.FromSlash(path.Join(folder, "config.yml")))
 	if err != nil || data == nil {
