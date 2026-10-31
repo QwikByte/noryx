@@ -254,7 +254,10 @@ func (s *Store) freePort(ctx context.Context, ds Datastore, refused map[uint32]b
 	}
 	used := maps.Clone(refused)
 	for _, srv := range servers.GetServers() {
-		used[srv.GetPort()], used[srv.GetBedrockPort()] = true, true
+		used[srv.GetBedrockPort()] = true
+		for p := srv.GetPort(); p <= noryxv1.LastPort(srv.GetType(), srv.GetPort(), srv.GetMaxPlayers()); p++ {
+			used[p] = true // also the ports of the players of a Bedrock server
+		}
 		for _, p := range srv.GetExtraPorts() {
 			used[p.GetPort()] = true
 		}

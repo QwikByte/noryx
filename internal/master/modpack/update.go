@@ -249,6 +249,7 @@ func changeVersion(ctx context.Context, conn grpc.ClientConnInterface, srv *nory
 		ExtraPorts:         srv.GetExtraPorts(),
 		HealthStartMinutes: srv.GetHealthStartMinutes(), CrashLimit: srv.GetCrashLimit(), StableAfterMinutes: srv.GetStableAfterMinutes(),
 		UnhealthyRestartMinutes: srv.GetUnhealthyRestartMinutes(), ProcessLimit: srv.GetProcessLimit(), InitMemoryMb: srv.GetInitMemoryMb(),
+		MaxPlayers: srv.GetMaxPlayers(),
 	})
 	return err
 }
