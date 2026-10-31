@@ -28,8 +28,7 @@ type advanced struct {
 	InitMemoryMB uint32 `json:"initMemoryMb"`
 }
 
-// advancedOf returns the advanced settings of a server, with the defaults for those that older
-// agents leave out.
+// advancedOf returns the advanced settings of a server, with the defaults for those that are 0.
 func advancedOf(s *noryxv1.Server) advanced {
 	return advanced{
 		HealthStart:      cmp.Or(s.GetHealthStartMinutes(), uint32(noryxv1.DefaultHealthStart/time.Minute)),
@@ -39,17 +38,4 @@ func advancedOf(s *noryxv1.Server) advanced {
 		ProcessLimit:     cmp.Or(s.GetProcessLimit(), noryxv1.DefaultProcessLimit),
 		InitMemoryMB:     s.GetInitMemoryMb(),
 	}
-}
-
-// olderAgentAdvanced returns a warning if a node's agent answered without the advanced settings
-// it was asked to give a server, as agents of earlier versions don't know them.
-func olderAgentAdvanced(want advanced, got *noryxv1.Server) string {
-	asked := &noryxv1.Server{
-		HealthStartMinutes: want.HealthStart, CrashLimit: want.CrashLimit, StableAfterMinutes: want.StableAfter,
-		UnhealthyRestartMinutes: want.UnhealthyRestart, ProcessLimit: want.ProcessLimit, InitMemoryMb: want.InitMemoryMB,
-	}
-	if advancedOf(asked) == advancedOf(got) {
-		return ""
-	}
-	return "The agent of the node is too old for the start period of the health check, the settings of crashes, the limit of processes and the initial heap, so the server keeps their defaults. Update the agent first, then set them in the server's settings."
 }

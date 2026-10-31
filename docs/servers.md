@@ -38,7 +38,7 @@ the console password (`.rcon-cli.env`, `.rcon-cli.yaml`), a proxy's `forwarding.
 sign-ins, the manifest of file sets and other files of the agent are left out, which the panel names, and the console
 password and other secrets in `server.properties` and the configuration of plugins are emptied. It trusts no proxy: its
 forwarding settings are removed and it runs in online mode until it joins a [network](networks.md). Creating a server
-from an archive needs the permission to create servers on the node and an up-to-date agent.
+from an archive needs the permission to create servers on the node.
 
 The page of a server shows the address players join at, with a button to copy it: the host of its node's address with
 the server's port, or its proxy's for a server of a network. Without the permissions to see that node and the networks,
@@ -166,15 +166,13 @@ since. Deleting servers keeps their images. Servers created from a modpack show 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
 the IANA time zones such as `Europe/Berlin` chosen from a searchable list, sets the time of the server's log and of
-plugins that work with times; servers run in UTC unless one is chosen. Agents of earlier versions keep 1 minute and UTC,
-which saving the settings, creating a server and moving one to their node tell.
+plugins that work with times; servers run in UTC unless one is chosen.
 
 The **start period** of a game server's [health check](#crashes-and-health) is how long it may take to start before a
 failing check counts: from 2 to 30 minutes, 2 unless changed, e.g. longer for a large modpack, which would show as
 unhealthy while it loads. Servers created from a [modpack](library.md#modpacks) get 10 minutes. Changing it creates the
 container again, as other settings do. Docker and Podman give the server the same check, that of its image, so that both
-behave the same; proxies keep the check of their image, which starts after 10 seconds. Agents of earlier versions keep 2
-minutes, which saving the settings, creating a server and moving one to their node tell.
+behave the same; proxies keep the check of their image, which starts after 10 seconds.
 
 **Processes and heap** under **Resources** limits how many processes and threads a server's container may run: 1,024
 unless changed, up to 8,192. Java runs threads for each CPU core, e.g. to collect garbage, compile code and serve
@@ -182,9 +180,7 @@ players, and large modded servers, e.g. with C2ME, many worlds or mods that rend
 reaches the limit can't start threads and crashes. The limit keeps a compromised server from exhausting the node, e.g.
 with a fork bomb. The **initial heap** is the memory Java starts with, from 512 MB up to the server's memory, which the
 heap grows to as needed. Without it, and always with Aikar's flags, which want both the same, Java starts with all of
-it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way. Agents of
-earlier versions keep 1,024 processes and all of the memory, which saving the settings, creating a server and moving one
-to their node tell.
+it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way.
 
 Stopping and restarting a server run as [operations](panel.md#operations), as they may take as long as its stop
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives
@@ -238,8 +234,7 @@ out. Other nodes don't reach them through the [private network](networks.md#priv
 
 Templates keep extra ports, which **Create server** shows to change, e.g. as another server of the node uses them
 already. A copy gets none, as the original keeps its own. A server that moves takes them along, which needs them to be
-free and in the port range on the new node; the move checks that before it stops the server. Agents of earlier versions
-publish no extra ports, which saving the settings, creating a server and moving one to their node tell.
+free and in the port range on the new node; the move checks that before it stops the server.
 
 ## Crashes and health
 
@@ -258,17 +253,14 @@ unhealthy and healthy again. It still counts as running: its console, restarts, 
 **Restart when unhealthy**, also under **Crashes** and off unless chosen, has the agent restart a running server whose
 health check has failed for 1 to 60 minutes, so never during its start period. The restart is a warning in the log and
 counts as a crash, so a server that keeps hanging is stopped after its crashes in a row; a restart after the server was
-healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds. Agents of earlier versions
-keep 5 crashes in a row, 10 minutes and no restarts, which saving the settings, creating a server and moving one to their
-node tell.
+healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds.
 
 ## Bedrock servers
 
 **Bedrock** under **Bedrock Edition** is Bedrock Dedicated Server, for players of Minecraft on phones, consoles and
 Windows, without a Java server or [Geyser](networks.md#bedrock-players). Its version is one of Bedrock Dedicated
 Server, e.g. `1.26.61.1`, `PREVIEW` for the newest preview, or empty for the latest, which the image downloads from
-Mojang on every start; players' games only join servers of their own version, so the latest suits most. Agents of
-earlier versions don't know Bedrock servers: **Create server** offers them once the node's agent is updated.
+Mojang on every start; players' games only join servers of their own version, so the latest suits most.
 
 Players join at the server's port, 19132 unless chosen, over TCP (Bedrock's NetherNet, the only way from Bedrock
 Dedicated Server 1.26.60 on), and then each plays over a UDP port of their own: the server's port and the ones after it,

@@ -45,41 +45,6 @@ func TestDeleteForgetsEverything(t *testing.T) {
 	}
 }
 
-// An agent that doesn't know the stop timeout and the time zone yet leaves them out of its
-// answer when a server is created or changed, which the panel then shows as a warning.
-func TestWarnsOfOlderAgents(t *testing.T) {
-	h := NewHandler(Deps{Nodes: fakeNodes{conn: olderAgent{}}, Networks: fakeNetworks{}, Operations: operation.New(time.Second), Moves: NewMoves()})
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/nodes/{node}/servers", h.create)
-	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}", h.update)
-	for _, req := range []struct{ method, path, body string }{
-		{http.MethodPost, "/api/nodes/n1/servers", `"type": "paper", "acceptEula": true, `},
-		{http.MethodPut, "/api/nodes/n1/servers/s1", ""},
-	} {
-		for settings, warns := range map[string]bool{
-			``:                           false,
-			`, "stopTimeout": 60`:        false,
-			`, "stopTimeout": 300`:       true,
-			`, "timeZone": "Asia/Tokyo"`: true,
-		} {
-			body := `{` + req.body + `"name": "Lobby", "memoryMb": 1024, "port": 25565` + settings + `}`
-			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, httptest.NewRequest(req.method, req.path, strings.NewReader(body)))
-			var res struct {
-				StopTimeout uint32
-				TimeZone    string
-				Warning     string
-			}
-			if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code >= 300 {
-				t.Fatalf("%s %s: status %d: %s", req.method, body, rec.Code, rec.Body)
-			}
-			if res.StopTimeout != 60 || res.TimeZone != "" || (res.Warning != "") != warns {
-				t.Errorf("%s %s: %+v", req.method, body, res)
-			}
-		}
-	}
-}
-
 // Stopping and restarting a server are operations, which answer like a request when they end
 // quickly, and otherwise right away; the operation follows the stop.
 func TestStopAndRestartAreOperations(t *testing.T) {
@@ -115,7 +80,7 @@ func TestSetNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := tag.NewStore(db)
-	h := NewHandler(Deps{Nodes: fakeNodes{conn: olderAgent{}}, Networks: fakeNetworks{}, Tags: tags, Moves: NewMoves()})
+	h := NewHandler(Deps{Nodes: fakeNodes{conn: serverAgent{}}, Networks: fakeNetworks{}, Tags: tags, Moves: NewMoves()})
 	mux := http.NewServeMux()
 	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}/notes", h.setNotes)
 	for _, tc := range []struct {
@@ -150,7 +115,7 @@ func TestCreateWithTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := tag.NewStore(db)
-	h := NewHandler(Deps{Nodes: fakeNodes{conn: olderAgent{}}, Networks: fakeNetworks{}, Tags: tags, Operations: operation.New(time.Second), Moves: NewMoves()})
+	h := NewHandler(Deps{Nodes: fakeNodes{conn: serverAgent{}}, Networks: fakeNetworks{}, Tags: tags, Operations: operation.New(time.Second), Moves: NewMoves()})
 	for _, tc := range []struct {
 		grants access.Grants
 		tags   string
@@ -179,7 +144,7 @@ func TestCreateWithTags(t *testing.T) {
 // The master refuses settings of a server that the agent would refuse too, naming the field of
 // the request they are about, so that the panel shows them there.
 func TestRefusalsNameTheField(t *testing.T) {
-	h := NewHandler(Deps{Nodes: rangedNodes{fakeNodes{conn: olderAgent{}}}, Networks: fakeNetworks{}, Operations: operation.New(time.Second), Moves: NewMoves()})
+	h := NewHandler(Deps{Nodes: rangedNodes{fakeNodes{conn: serverAgent{}}}, Networks: fakeNetworks{}, Operations: operation.New(time.Second), Moves: NewMoves()})
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/nodes/{node}/servers", h.create)
 	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}", h.update)
@@ -245,10 +210,10 @@ func (fakeConn) NewStream(context.Context, *grpc.StreamDesc, string, ...grpc.Cal
 	return nil, status.Error(codes.Unimplemented, "unknown service")
 }
 
-// olderAgent has the server s1, and answers without the settings it doesn't know yet.
-type olderAgent struct{ fakeConn }
+// serverAgent has the server s1, which it answers with.
+type serverAgent struct{ fakeConn }
 
-func (olderAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc.CallOption) error {
+func (serverAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc.CallOption) error {
 	srv := &noryxv1.Server{Id: "s1", Name: "Lobby", MemoryMb: 1024, Port: 25565}
 	switch reply := reply.(type) {
 	case *noryxv1.GetInfoResponse:

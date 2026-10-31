@@ -51,7 +51,7 @@ func TestBedrockLimits(t *testing.T) {
 		t.Errorf("Bedrock on an agent that doesn't know it: %v", err)
 	}
 	if err := h.checkType(t.Context(), "n1", paper); err != nil {
-		t.Errorf("Paper on an agent that knows it: %v", err)
+		t.Errorf("Paper on an agent that doesn't know Bedrock: %v", err)
 	}
 	h = NewHandler(Deps{Nodes: bedrockNodes{types: []noryxv1.ServerType{bedrock}}, Moves: NewMoves()})
 	if err := h.checkType(t.Context(), "n1", bedrock); err != nil {

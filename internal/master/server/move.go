@@ -268,19 +268,10 @@ func (h *Handler) runMove(ctx context.Context, mv Move, src *noryxv1.Server, req
 	ctx, cancel := context.WithTimeout(ctx, moveTimeout)
 	defer cancel()
 	running := src.GetState() != noryxv1.ServerState_SERVER_STATE_STOPPED
-	imported, err := h.transfer(ctx, mv, src, req, running)
+	err := h.transfer(ctx, mv, src, req, running)
 	var warnings []string
 	if err == nil {
 		warnings = h.finish(ctx, mv, running)
-		if w := olderAgentWarning(src.GetStopTimeoutSeconds(), src.GetTimeZone(), imported); w != "" {
-			warnings = append(warnings, w)
-		}
-		if w := olderAgentAdvanced(advancedOf(src), imported); w != "" {
-			warnings = append(warnings, w)
-		}
-		if w := extraPortsWarning(len(src.GetExtraPorts()), imported); w != "" {
-			warnings = append(warnings, w)
-		}
 	}
 	attrs := []any{logging.Servers, logging.KeyNode, mv.From, logging.KeyServer, mv.ServerID,
 		logging.KeyServerName, mv.ServerName, "to", mv.ToName, "to_id", mv.To}
@@ -304,22 +295,21 @@ func (h *Handler) runMove(ctx context.Context, mv Move, src *noryxv1.Server, req
 	})
 }
 
-// transfer stops the server and copies it, and its backups if asked, to the new node, which
-// answers with the server as it imported it. If that fails, the copy goes away and the
-// server runs again as before.
-func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, req moveRequest, running bool) (imported *noryxv1.Server, err error) {
+// transfer stops the server and copies it, and its backups if asked, to the new node. If that
+// fails, the copy goes away and the server runs again as before.
+func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, req moveRequest, running bool) (err error) {
 	from, err := h.nodes.Conn(ctx, mv.From)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	to, err := h.nodes.Conn(ctx, mv.To)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	source, target := noryxv1.NewServerServiceClient(from), noryxv1.NewServerServiceClient(to)
 	if running {
 		if _, err := source.StopServer(ctx, &noryxv1.StopServerRequest{Id: mv.ServerID}); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	defer func() {
@@ -336,9 +326,6 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 				slog.Error("Can't start a server again that failed to move", logging.Servers, logging.KeyNode, mv.From, logging.KeyServer, mv.ServerID, "err", err)
 			}
 		}
-		if status.Code(err) == codes.Unimplemented {
-			err = httpapi.Errorf(http.StatusNotImplemented, "Update the agents of both nodes to move servers between them.")
-		}
 	}()
 
 	progress := func(n int) { h.moves.update(mv.ServerID, func(m *Move) { m.Bytes += int64(n) }) }
@@ -351,8 +338,7 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		HealthStartMinutes: src.GetHealthStartMinutes(), CrashLimit: src.GetCrashLimit(), StableAfterMinutes: src.GetStableAfterMinutes(),
 		UnhealthyRestartMinutes: src.GetUnhealthyRestartMinutes(), ProcessLimit: src.GetProcessLimit(), InitMemoryMb: src.GetInitMemoryMb(),
 	}
-	var res *noryxv1.ImportServerResponse
-	res, err = node.Relay(ctx,
+	_, err = node.Relay(ctx,
 		func(ctx context.Context) (grpc.ServerStreamingClient[noryxv1.ArchiveDirectoryResponse], error) {
 			return noryxv1.NewFileServiceClient(from).ArchiveDirectory(ctx, &noryxv1.ArchiveDirectoryRequest{ServerId: mv.ServerID, Path: "."})
 		},
@@ -363,13 +349,13 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 		},
 		progress)
 	if err != nil || !req.Backups {
-		return res.GetServer(), err
+		return err
 	}
 
 	backups := noryxv1.NewBackupServiceClient(from)
 	list, err := backups.ListBackups(ctx, &noryxv1.ListBackupsRequest{ServerId: mv.ServerID})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	h.moves.update(mv.ServerID, func(m *Move) { m.Phase, m.BackupsTotal = "backups", len(list.GetBackups()) })
 	for _, b := range list.GetBackups() {
@@ -378,7 +364,7 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 			Exclude: b.GetExclude(), Kept: b.GetKept(), Untrusted: b.GetUntrusted(),
 			Size: b.GetSize(), // refused upfront if it doesn't fit
 		}
-		copied, err := node.Relay(ctx,
+		_, err := node.Relay(ctx,
 			func(ctx context.Context) (grpc.ServerStreamingClient[noryxv1.DownloadBackupResponse], error) {
 				return backups.DownloadBackup(ctx, &noryxv1.DownloadBackupRequest{ServerId: mv.ServerID, BackupId: b.GetId()})
 			},
@@ -388,17 +374,12 @@ func (h *Handler) transfer(ctx context.Context, mv Move, src *noryxv1.Server, re
 				return &noryxv1.ImportBackupRequest{Content: &noryxv1.ImportBackupRequest_Data{Data: data}}
 			},
 			progress)
-		// Agents of older versions would restore what the backup left out as missing, let its
-		// job delete it, and trust one from elsewhere.
-		if got := copied.GetBackup(); err == nil && (len(got.GetExclude()) != len(b.GetExclude()) || got.GetKept() != b.GetKept() || b.GetUntrusted() && !got.GetUntrusted()) {
-			err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of %s to move backups that leave out files, are kept or came from elsewhere.", mv.ToName)
-		}
 		if err != nil {
-			return nil, fmt.Errorf("backup %q: %w", cmp.Or(b.GetLabel(), b.GetId()), err)
+			return fmt.Errorf("backup %q: %w", cmp.Or(b.GetLabel(), b.GetId()), err)
 		}
 		h.moves.update(mv.ServerID, func(m *Move) { m.Backups++ })
 	}
-	return res.GetServer(), nil
+	return nil
 }
 
 // finish points everything at the server's new node, starts it if it ran and deletes the
