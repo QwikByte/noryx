@@ -29,6 +29,8 @@ var (
 
 	errNotFound     = httpapi.Errorf(http.StatusNotFound, "User not found.")
 	errInvalidSetup = httpapi.Errorf(http.StatusNotFound, "This setup link is invalid, expired or used already. Ask for a new one.")
+	// errShortPassword names no length: see checkPassword.
+	errShortPassword = httpapi.Errorf(http.StatusBadRequest, "Choose a longer password, as the settings of the master ask for.")
 
 	usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,32}$`)
 )
@@ -115,10 +117,12 @@ func (s *Service) insert(ctx context.Context, username, hash string) (User, erro
 }
 
 // checkPassword checks that a new password has as many characters as the settings say.
-// Passwords set before keep working, also if they are shorter.
+// Passwords set before keep working, also if they are shorter. The refusal doesn't repeat the
+// minimum, which the panel shows next to the field and the public settings tell: nothing about
+// passwords goes into errors, which may be logged.
 func (s *Service) checkPassword(password string) error {
-	if n := s.limits.MinPasswordLength(); utf8.RuneCountInString(password) < n {
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a password with at least %d characters.", n)
+	if utf8.RuneCountInString(password) < s.limits.MinPasswordLength() {
+		return errShortPassword
 	}
 	return nil
 }
