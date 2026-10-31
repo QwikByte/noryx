@@ -39,7 +39,7 @@ const base = (tag: string) => tag.split("-")[0].toLowerCase()
  * The language the panel shows for a choice: the chosen one, else the panel's default, else the first of the
  * browser's languages the panel has, fully (pt-BR) or by its language alone (pt, then pt-PT), else English.
  */
-function resolve(choice: string) {
+export function resolve(choice: string) {
   const chosen = [choice, stored(defaultKey)].find((l) => languages.includes(l))
   if (chosen) return chosen
   for (const tag of navigator.languages) {

@@ -14,6 +14,7 @@ import { accessOf } from "@/features/access/use-access"
 import { validateUserSearch } from "@/features/access/browse"
 import { meQuery, mustSetUpMfa, type User } from "@/features/auth/api"
 import { LoginPage } from "@/features/auth/login-page"
+import { validateRedirect } from "@/features/auth/redirect"
 import { validateLogSearch } from "@/features/logs/search"
 import { validateNetworkSearch } from "@/features/networks/browse"
 import { validateNodeSearch } from "@/features/nodes/browse"
@@ -47,14 +48,6 @@ function signInAgain(error: Error) {
 
 // Pages outside the panel's shell show nothing while they load, as the skeleton of a page is shaped for the shell.
 const noPending = () => null
-
-// Only same-site paths are accepted as redirect targets. The key must be set explicitly,
-// because the router merges the validated values over the raw search parameters.
-function validateRedirect(search: Record<string, unknown>): { redirect?: string } {
-  const target = search.redirect
-  const safe = typeof target === "string" && target.startsWith("/") && !target.startsWith("//")
-  return { redirect: safe ? target : undefined }
-}
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError: (error, query) => query.queryKey[0] !== "me" && signInAgain(error) }),

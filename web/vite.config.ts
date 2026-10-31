@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -20,5 +21,13 @@ export default defineConfig({
     rolldownOptions: {
       output: { codeSplitting: { groups: Object.entries(vendors).map(([name, test]) => ({ name, test })) } },
     },
+  },
+  // `npm test` runs the tests next to the modules in Node, in a time zone with daylight saving time.
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test-setup.ts'],
+    env: { TZ: 'Europe/Berlin' },
+    unstubGlobals: true,
+    restoreMocks: true,
   },
 })

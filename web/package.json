@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint --deny-warnings && i18next-cli lint && i18next-cli extract --ci --dry-run",
     "typecheck": "tsc -b",
+    "test": "vitest run",
     "i18n": "i18next-cli extract"
   },
   "dependencies": {
@@ -54,6 +55,7 @@
     "shadcn": "^4.21.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.3.3"
+    "vite": "^8.3.3",
+    "vitest": "5.0.5"
   }
 }

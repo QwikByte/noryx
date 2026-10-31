@@ -29,6 +29,7 @@ lint:
 
 test:
 	go test -race ./...
+	cd web && npm test
 
 ## packages: build the packages and archives of a release into dist/, without publishing
 packages:

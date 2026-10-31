@@ -119,13 +119,13 @@ scripts/               test environments, deploying test builds, release notes
 
 Run what CI runs before you push:
 
-| Command                                                   | Checks                                                    |
-| --------------------------------------------------------- | --------------------------------------------------------- |
-| `go test -race ./...`                                     | all Go tests, including the end-to-end tests              |
-| `golangci-lint run ./...`                                 | Go code (CI uses golangci-lint v2.14.0)                   |
-| `cd web && npm run lint && npm run build`                 | oxlint, the translations, TypeScript and the build        |
-| `make generate`                                           | the generated gRPC code; CI fails while it is out of date |
-| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh` | the shell scripts                                         |
+| Command                                                   | Checks                                                             |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| `go test -race ./...`                                     | all Go tests, including the end-to-end tests                       |
+| `golangci-lint run ./...`                                 | Go code (CI uses golangci-lint v2.14.0)                            |
+| `cd web && npm run lint && npm run build && npm test`     | oxlint, the translations, TypeScript, the build and the unit tests |
+| `make generate`                                           | the generated gRPC code; CI fails while it is out of date          |
+| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh` | the shell scripts                                                  |
 
 The tests need Linux. [docs/development.md](docs/development.md) explains how to run master, agent and panel locally.
 
@@ -141,6 +141,8 @@ The tests need Linux. [docs/development.md](docs/development.md) explains how to
   panel and are never logged.
 - **Panel texts** are English and serve as translation keys: `t("…")`, `<Trans>` for texts with markup, `msg("…")`
   outside of components. Run `npm run i18n` in `web` and translate new texts in `web/src/locales/de.json`.
+- **Panel tests:** test what a module of the panel decides with Vitest, in a `*.test.ts` or `*.test.tsx` next to it,
+  which runs in Node without a browser.
 - **Commits** start with one sentence in the imperative that says what changes, e.g. "Let a network change its proxy",
   with details in the body.
 
