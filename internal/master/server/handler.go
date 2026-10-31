@@ -235,17 +235,34 @@ type settings struct {
 	advanced
 }
 
-// check validates the settings that the agent can't, and converts the restart policy
-// and CPU limit; an empty restart policy means the default.
+// check validates the settings that the agent can't, and some by the rules the agent checks too,
+// so that the panel shows what is wrong at its field. It converts the restart policy and CPU
+// limit; an empty restart policy means the default.
 func (s settings) check() (noryxv1.RestartPolicy, uint32, error) {
 	policy := noryxv1.ParseRestartPolicy(s.RestartPolicy)
 	switch {
 	case s.CPULimit < 0 || s.CPULimit > 1024:
-		return policy, 0, httpapi.Errorf(http.StatusBadRequest, "Enter a CPU limit in cores, or 0 for no limit.")
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "cpuLimit", "Enter a CPU limit in cores, or 0 for no limit.")
 	case policy == noryxv1.RestartPolicy_RESTART_POLICY_UNSPECIFIED && s.RestartPolicy != "":
-		return policy, 0, httpapi.Errorf(http.StatusBadRequest, "Choose when the server starts on its own.")
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "restartPolicy", "Choose when the server starts on its own.")
+	case !noryxv1.ValidJava(s.Java):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "java", "Choose Java 8, 11, 17, 21 or 25, or the newest.")
+	case !noryxv1.ValidStopTimeout(s.StopTimeout):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "stopTimeout", "Give the server %.0f seconds to %.0f minutes to stop.",
+			noryxv1.MinStopTimeout.Seconds(), noryxv1.MaxStopTimeout.Minutes())
+	case !noryxv1.ValidTimeZone(s.TimeZone):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "timeZone", "Choose a time zone such as Europe/Berlin, or none for UTC.")
 	}
 	return policy, uint32(math.Round(s.CPULimit * 1000)), nil
+}
+
+// checkServer checks the name, version, memory and port of a server of a type by the rules its
+// agent checks too, so that the panel shows what is wrong at its field.
+func checkServer(typ noryxv1.ServerType, name, version string, memoryMB, port uint32) error {
+	if field, problem := noryxv1.ServerProblem(typ, name, version, memoryMB, port); problem != "" {
+		return httpapi.FieldErrorf(http.StatusBadRequest, field, "%s", problem)
+	}
+	return nil
 }
 
 func toView(s *noryxv1.Server) view {
@@ -435,17 +452,19 @@ func (h *Handler) checkCreate(r *http.Request, req createRequest) (newServer, er
 	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
 	defer cancel()
 	grants := access.From(r.Context())
-	var err error
-	n.policy, n.cpuMillis, err = req.check()
+	typ := noryxv1.ParseServerType(req.Type)
+	err := checkServer(typ, req.Name, req.Version, req.MemoryMB, req.Port)
+	if err == nil {
+		n.policy, n.cpuMillis, err = req.check()
+	}
 	if err == nil {
 		n.tags, err = newTags(grants, n.nodeID, req.Tags)
 	}
 	if err == nil && (len(req.Plugins) > 0 || req.Modpack != nil) && !grants.On(access.Plugins, n.nodeID, "") {
 		err = access.Denied(access.Plugins)
 	}
-	typ := noryxv1.ParseServerType(req.Type)
 	if err == nil && len(req.Plugins) > 0 && !typ.Addons() {
-		err = httpapi.Errorf(http.StatusBadRequest, "Vanilla and Bedrock servers can't load plugins or mods.")
+		err = httpapi.FieldErrorf(http.StatusBadRequest, "plugins", "Vanilla and Bedrock servers can't load plugins or mods.")
 	}
 	if err == nil && req.Modpack == nil {
 		err = h.checkType(ctx, n.nodeID, typ)
@@ -564,9 +583,9 @@ func newTags(grants access.Grants, nodeID string, tags []string) ([]string, erro
 	tags, err := tag.Normalize(tags)
 	switch {
 	case err != nil:
-		return nil, err
+		return nil, httpapi.Within("tags", err)
 	case len(tags) > tag.MaxPerServer:
-		return nil, httpapi.Errorf(http.StatusBadRequest, "A server can have up to %d tags.", tag.MaxPerServer)
+		return nil, httpapi.FieldErrorf(http.StatusBadRequest, "tags", "A server can have up to %d tags.", tag.MaxPerServer)
 	case len(tags) > 0 && !grants.On(access.ServersSettings, nodeID, ""):
 		return nil, access.Denied(access.ServersSettings)
 	}
@@ -701,6 +720,9 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	var current *noryxv1.Server
 	if err == nil {
 		current, err = h.find(ctx, nodeID, id)
+	}
+	if err == nil {
+		err = checkServer(current.GetType(), req.Name, req.Version, req.MemoryMB, req.Port)
 	}
 	if err == nil {
 		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, current.GetBedrockPort())

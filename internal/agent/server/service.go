@@ -38,8 +38,6 @@ import (
 )
 
 const (
-	minPort    = 1024
-	maxPort    = 65535
 	maxTail    = 1000
 	maxCommand = 1000
 	// Limits of the configuration of a network.
@@ -52,8 +50,6 @@ const (
 )
 
 var (
-	namePattern    = regexp.MustCompile(`^[\pL\pN][\pL\pN _.-]{0,31}$`)
-	versionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
 	// Versions of mod loaders, e.g. 0.16.10 or 1.20.1-47.3.0, end up in a variable of the image.
 	loaderVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$`)
 	secretPattern        = regexp.MustCompile(`^[A-Za-z0-9]{16,128}$`)
@@ -583,8 +579,8 @@ func (s *Service) checkBedrock(ctx context.Context, id string, port uint32) (rel
 			return toStatus(runtime.ErrNotFound)
 		case !servers[i].Type.Proxy():
 			return status.Error(codes.InvalidArgument, "Only proxies let Bedrock players join.")
-		case port < minPort || port > maxPort:
-			return status.Errorf(codes.InvalidArgument, "The Bedrock port must be between %d and %d.", minPort, maxPort)
+		case port < noryxv1.MinPort || port > noryxv1.MaxPort:
+			return status.Errorf(codes.InvalidArgument, "The Bedrock port must be between %d and %d.", noryxv1.MinPort, noryxv1.MaxPort)
 		}
 		if other := slices.IndexFunc(servers, func(srv runtime.Server) bool { return srv.Uses(port) && (srv.ID != id || srv.BedrockPort != port) }); other >= 0 {
 			return status.Errorf(codes.AlreadyExists, "Port %d is already used by %q. Choose another Bedrock port.", port, servers[other].Name)
@@ -703,7 +699,7 @@ func checkNames(list []string, backends map[string]bool) string {
 func validAddress(address string) bool {
 	host, port, err := net.SplitHostPort(address)
 	n, perr := strconv.Atoi(port)
-	return err == nil && perr == nil && hostPattern.MatchString(host) && n > 0 && n <= maxPort
+	return err == nil && perr == nil && hostPattern.MatchString(host) && n > 0 && n <= noryxv1.MaxPort
 }
 
 func validIPv4(s string) bool {
@@ -722,21 +718,14 @@ func (s *Service) apply(ctx context.Context, id string, op func(context.Context,
 // the number of CPU cores of the node, or 0 if unknown.
 func checkSettings(spec runtime.Spec, cpus uint32) string {
 	_, knownPolicy := noryxv1.RestartPolicy_name[int32(spec.RestartPolicy)]
+	_, problem := noryxv1.ServerProblem(spec.Type, spec.Name, spec.Version, spec.MemoryMB, spec.Port)
 	switch {
-	case !namePattern.MatchString(spec.Name):
-		return "Use 1-32 letters, digits, spaces, '.', '_' or '-' for the name."
-	case spec.Type.Bedrock() && !noryxv1.ValidBedrockVersion(spec.Version):
-		return "Enter a version of Bedrock Dedicated Server like 1.26.61.1 or PREVIEW, or leave it empty for the latest."
-	case !versionPattern.MatchString(spec.Version):
-		return "Enter a Minecraft version like 1.21.4, or leave it empty for the latest."
+	case problem != "":
+		return problem
 	case spec.LoaderVersion != "" && !spec.Type.Modded():
 		return "Only Fabric, Quilt, Forge and NeoForge servers have a mod loader."
 	case spec.LoaderVersion != "" && !loaderVersionPattern.MatchString(spec.LoaderVersion):
 		return "Enter the version of the mod loader like 0.16.10, or leave it empty for the newest."
-	case spec.MemoryMB < noryxv1.MinMemoryMB || spec.MemoryMB > noryxv1.MaxMemoryMB:
-		return fmt.Sprintf("Memory must be between %d and %d MB.", noryxv1.MinMemoryMB, noryxv1.MaxMemoryMB)
-	case spec.Port < minPort || spec.Port > maxPort:
-		return fmt.Sprintf("Port must be between %d and %d.", minPort, maxPort)
 	case !noryxv1.ValidJava(spec.Java):
 		return "Choose Java 8, 11, 17, 21 or 25, or the newest."
 	case spec.Type.Proxy() && (spec.Java != "" || spec.AikarFlags):

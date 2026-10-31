@@ -76,9 +76,9 @@ func (l Limits) Validate() error {
 	switch {
 	case (l.PortMin == nil) != (l.PortMax == nil),
 		l.PortMin != nil && (*l.PortMin < 1024 || *l.PortMax > 65535 || *l.PortMin > *l.PortMax):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a port range from 1024 to 65535, or none.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "portMin", "Enter a port range from 1024 to 65535, or none.")
 	case l.MemoryReserveMB != nil && *l.MemoryReserveMB > 1<<20:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the memory to keep free in MB.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "memoryReserveMb", "Enter the memory to keep free in MB.")
 	}
 	return nil
 }

@@ -176,6 +176,48 @@ func TestCreateWithTags(t *testing.T) {
 	}
 }
 
+// The master refuses settings of a server that the agent would refuse too, naming the field of
+// the request they are about, so that the panel shows them there.
+func TestRefusalsNameTheField(t *testing.T) {
+	h := NewHandler(Deps{Nodes: rangedNodes{fakeNodes{conn: olderAgent{}}}, Networks: fakeNetworks{}, Operations: operation.New(time.Second), Moves: NewMoves()})
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/nodes/{node}/servers", h.create)
+	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}", h.update)
+	for _, tc := range []struct{ method, path, settings, field string }{
+		{http.MethodPost, "/api/nodes/n1/servers", `"name": "-lobby"`, "name"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"version": "1.21.4; rm"`, "version"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"memoryMb": 100`, "memoryMb"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"port": 30000`, "port"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"stopTimeout": 5`, "stopTimeout"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"timeZone": "Mars/Olympus"`, "timeZone"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"extraPorts": [{"port": 25565, "protocol": "tcp"}]`, "extraPorts"},
+		{http.MethodPost, "/api/nodes/n1/servers", `"tags": ["two words"]`, "tags"},
+		{http.MethodPut, "/api/nodes/n1/servers/s1", `"name": "a/b"`, "name"},
+		{http.MethodPut, "/api/nodes/n1/servers/s1", `"cpuLimit": -1`, "cpuLimit"},
+	} {
+		// The settings come last, so that they replace the valid ones before them.
+		body := `{"name": "Lobby", "type": "paper", "memoryMb": 1024, "port": 25565, "acceptEula": true, ` + tc.settings + `}`
+		if tc.method == http.MethodPut {
+			body = strings.Replace(body, `"type": "paper", `, "", 1)
+			body = strings.Replace(body, `"acceptEula": true, `, "", 1)
+		}
+		req := httptest.NewRequestWithContext(access.WithGrants(t.Context(), access.Admin()), tc.method, tc.path, strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		var res struct{ Error, Field string }
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code != http.StatusBadRequest || res.Field != tc.field || res.Error == "" {
+			t.Errorf("%s %s: status %d: %s", tc.method, tc.settings, rec.Code, rec.Body)
+		}
+	}
+}
+
+// rangedNodes are nodes whose servers use the ports from 25565 to 25600.
+type rangedNodes struct{ fakeNodes }
+
+func (rangedNodes) Get(_ context.Context, id string) (node.Node, error) {
+	return node.Node{ID: id, Name: id, PortMin: new(uint32(25565)), PortMax: new(uint32(25600))}, nil
+}
+
 type fakeNodes struct {
 	Nodes
 	conn grpc.ClientConnInterface // fakeConn if nil

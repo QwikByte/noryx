@@ -40,6 +40,34 @@ func TestValidTimeZone(t *testing.T) {
 		})
 }
 
+// A problem of the name, version, memory or port of a server names the field it is about.
+func TestServerProblem(t *testing.T) {
+	paper, bedrock := ServerType_SERVER_TYPE_PAPER, ServerType_SERVER_TYPE_BEDROCK
+	for _, tc := range []struct {
+		typ                  ServerType
+		name, version        string
+		memoryMB, port       uint32
+		field, wantInMessage string
+	}{
+		{paper, "Lobby 1", "", 1024, 25565, "", ""},
+		{paper, "Ünïcode_server-2.0", "1.21.4", MinMemoryMB, MaxPort, "", ""},
+		{bedrock, "Bedrock", "1.26.61.1", MaxMemoryMB, MinPort, "", ""},
+		{paper, "", "", 1024, 25565, "name", "name"},
+		{paper, "-lobby", "", 1024, 25565, "name", "name"},
+		{paper, "a/b", "", 1024, 25565, "name", "name"},
+		{paper, "Lobby", "1.21.4; rm", 1024, 25565, "version", "Minecraft version"},
+		{bedrock, "Bedrock", "1.21.4", 1024, 25565, "version", "Bedrock Dedicated Server"},
+		{paper, "Lobby", "", MinMemoryMB - 1, 25565, "memoryMb", "Memory"},
+		{paper, "Lobby", "", 1024, MinPort - 1, "port", "Port"},
+	} {
+		field, problem := ServerProblem(tc.typ, tc.name, tc.version, tc.memoryMB, tc.port)
+		if field != tc.field {
+			t.Errorf("%+v: field %q", tc, field)
+		}
+		checkProblem(t, tc.name, problem, tc.wantInMessage)
+	}
+}
+
 func TestValidJava(t *testing.T) {
 	checkValid(t, ValidJava, []string{"", "8", "11", "17", "21", "25"}, []string{"16", "7", "21 ", "latest", "java21", "21.0.4"})
 }

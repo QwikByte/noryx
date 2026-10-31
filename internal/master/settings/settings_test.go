@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -244,12 +245,34 @@ func TestRefusedUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `{"nodeDefaults": {"portMin": 30000, "portMax": 70000, "memoryReserveMb": 2048}}`
-	r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-	NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+	update := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+		return rec
+	}
+	rec := update(`{"nodeDefaults": {"portMin": 30000, "portMax": 70000, "memoryReserveMb": 2048}}`)
 	if l := s.NodeDefaults(); rec.Code != http.StatusBadRequest || l.PortMin != nil || *l.MemoryReserveMB != 1024 {
 		t.Fatalf("status %d, limits of new nodes %+v", rec.Code, l)
+	}
+
+	// Refusals name the field they are about, also within the objects of the settings.
+	for body, field := range map[string]string{
+		`{"nodeDefaults": {"portMin": 30000, "portMax": 70000}}`:              "nodeDefaults.portMin",
+		`{"enrollAddr": "panel.example.com"}`:                                 "enrollAddr",
+		`{"sessionHours": 0}`:                                                 "sessionHours",
+		`{"panelName": "two\nlines"}`:                                         "panelName",
+		`{"userDefaults": {"theme": "pink"}}`:                                 "userDefaults.theme",
+		`{"newServers": {"type": "paper", "memoryMb": 100}}`:                  "newServers.memoryMb",
+		`{"warnings": {"kind": "chat", "maxMinutes": 10, "restart": "a\tb"}}`: "warnings.restart",
+		`{"retention": {"usageDays": 1}}`:                                     "retention.usageDays",
+		`{"thresholds": {"servers": {"cpu": {"value": 101}}}}`:                "thresholds.servers.cpu",
+	} {
+		rec := update(body)
+		var res struct{ Error, Field string }
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code != http.StatusBadRequest || res.Field != field {
+			t.Errorf("%s: status %d: %s", body, rec.Code, rec.Body)
+		}
 	}
 }
 

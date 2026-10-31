@@ -297,7 +297,7 @@ func (s store) ids(ctx context.Context) ([]string, error) {
 
 func unique(err error, name string) error {
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
-		return httpapi.Errorf(http.StatusConflict, "A file set named %q already exists.", name)
+		return httpapi.FieldErrorf(http.StatusConflict, "name", "A file set named %q already exists.", name)
 	}
 	return err
 }

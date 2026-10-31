@@ -27,11 +27,11 @@ type Retention struct {
 func (r Retention) validate() error {
 	switch {
 	case r.UsageDays < minUsageDays || r.UsageDays > maxUsageDays:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how long the usage of each hour is kept, from %d to %d days.", minUsageDays, maxUsageDays)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "usageDays", "Enter how long the usage of each hour is kept, from %d to %d days.", minUsageDays, maxUsageDays)
 	case r.SeenDays < 1 || r.SeenDays > maxSeenDays:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how long players seen are kept, from 1 to %d days.", maxSeenDays)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "seenDays", "Enter how long players seen are kept, from 1 to %d days.", maxSeenDays)
 	case r.OperationHours < 1 || r.OperationHours > maxOperationHours:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how long finished operations are listed, from 1 to %d hours.", maxOperationHours)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "operationHours", "Enter how long finished operations are listed, from 1 to %d hours.", maxOperationHours)
 	}
 	return nil
 }

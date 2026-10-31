@@ -1,6 +1,8 @@
 package noryxv1
 
 import (
+	"cmp"
+	"fmt"
 	"regexp"
 	"slices"
 	"time"
@@ -12,6 +14,37 @@ const (
 	MinMemoryMB = 512
 	MaxMemoryMB = 64 << 10
 )
+
+// The ports of a node that servers may use.
+const (
+	MinPort = 1024
+	MaxPort = 65535
+)
+
+var (
+	serverName    = regexp.MustCompile(`^[\pL\pN][\pL\pN _.-]{0,31}$`)
+	serverVersion = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
+)
+
+// ServerProblem returns a message for the operator if the name, version, memory or port of a
+// server of type t is invalid, and the JSON name of the field of CreateServerRequest it is
+// about. An empty version is the latest.
+func ServerProblem(t ServerType, name, version string, memoryMB, port uint32) (field, problem string) {
+	version = cmp.Or(version, "LATEST")
+	switch {
+	case !serverName.MatchString(name):
+		return "name", "Use 1-32 letters, digits, spaces, '.', '_' or '-' for the name."
+	case t.Bedrock() && !ValidBedrockVersion(version):
+		return "version", "Enter a version of Bedrock Dedicated Server like 1.26.61.1 or PREVIEW, or leave it empty for the latest."
+	case !serverVersion.MatchString(version):
+		return "version", "Enter a Minecraft version like 1.21.4, or leave it empty for the latest."
+	case memoryMB < MinMemoryMB || memoryMB > MaxMemoryMB:
+		return "memoryMb", fmt.Sprintf("Memory must be between %d and %d MB.", MinMemoryMB, MaxMemoryMB)
+	case port < MinPort || port > MaxPort:
+		return "port", fmt.Sprintf("Port must be between %d and %d.", MinPort, MaxPort)
+	}
+	return "", ""
+}
 
 // javaVersions are those of the images of game servers; empty is the newest.
 var javaVersions = []string{"", "8", "11", "17", "21", "25"}

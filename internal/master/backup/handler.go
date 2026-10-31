@@ -54,8 +54,9 @@ func (s Selection) empty() bool {
 	return !s.Everything && !s.Worlds && !s.Plugins && !s.Config && len(s.Paths) == 0
 }
 
-// check returns a message for the administrator if the selection is invalid.
-func (s *Selection) check() string {
+// check returns a message for the administrator if the selection is invalid, and the JSON key of
+// the field of the selection it is about, if any.
+func (s *Selection) check() (field, problem string) {
 	if s.Paths == nil {
 		s.Paths = []string{}
 	}
@@ -63,12 +64,18 @@ func (s *Selection) check() string {
 		s.Exclude = []string{}
 	}
 	if s.empty() {
-		return "Choose what to back up."
+		return "", "Choose what to back up."
+	}
+	if problem := checkPaths(s.Paths); problem != "" {
+		return "paths", problem
 	}
 	if i := slices.IndexFunc(s.Exclude, func(p string) bool { return strings.Trim(p, "/") == "" }); i >= 0 {
-		return pathProblem(s.Exclude[i])
+		return "exclude", pathProblem(s.Exclude[i])
 	}
-	return cmp.Or(checkPaths(s.Paths), checkPaths(s.Exclude))
+	if problem := checkPaths(s.Exclude); problem != "" {
+		return "exclude", problem
+	}
+	return "", ""
 }
 
 // checkPaths returns a message for the administrator if paths in a server's folder are invalid.
@@ -182,8 +189,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	if msg := req.Selection.check(); msg != "" {
-		httpapi.WriteError(w, r, httpapi.Errorf(http.StatusBadRequest, "%s", msg))
+	if field, msg := req.Selection.check(); msg != "" {
+		httpapi.WriteError(w, r, httpapi.Within("selection", httpapi.FieldErrorf(http.StatusBadRequest, field, "%s", msg)))
 		return
 	}
 	spec := h.spec(r, "backup.create", []string{"save", "archive"}, http.StatusCreated)
@@ -290,7 +297,7 @@ func (req *restoreRequest) read(w http.ResponseWriter, r *http.Request, into any
 		}
 	}
 	if msg := checkPaths(req.Paths); msg != "" {
-		return httpapi.Errorf(http.StatusBadRequest, "%s", msg)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "paths", "%s", msg)
 	}
 	logging.Note(r.Context(), slog.Any("paths", req.Paths), slog.Bool("snapshot_first", req.SnapshotFirst))
 	return nil
@@ -384,9 +391,9 @@ func (h *Handler) restoreInto(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) checkInto(ctx context.Context, r *http.Request, nodeID, serverID string) (*noryxv1.Backup, *noryxv1.Server, *noryxv1.Server, error) {
 	switch {
 	case nodeID == "" || serverID == "":
-		return nil, nil, nil, httpapi.Errorf(http.StatusBadRequest, "Choose a server.")
+		return nil, nil, nil, httpapi.FieldErrorf(http.StatusBadRequest, "server", "Choose a server.")
 	case nodeID == r.PathValue("node") && serverID == r.PathValue("id"):
-		return nil, nil, nil, httpapi.Errorf(http.StatusBadRequest, "Choose another server, or restore the backup without one.")
+		return nil, nil, nil, httpapi.FieldErrorf(http.StatusBadRequest, "server", "Choose another server, or restore the backup without one.")
 	case !access.From(ctx).On(access.BackupsRestore, nodeID, serverID):
 		return nil, nil, nil, access.Denied(access.BackupsRestore)
 	}
@@ -403,9 +410,9 @@ func (h *Handler) checkInto(ctx context.Context, r *http.Request, nodeID, server
 	}
 	switch from, to := source.GetType(), target.GetType(); {
 	case from.Proxy() != to.Proxy():
-		return nil, nil, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of proxies into proxies, and those of game servers into game servers.")
+		return nil, nil, nil, httpapi.FieldErrorf(http.StatusConflict, "server", "Restore backups of proxies into proxies, and those of game servers into game servers.")
 	case from.Bedrock() != to.Bedrock():
-		return nil, nil, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of Bedrock servers into Bedrock servers, and those of Java servers into Java servers.")
+		return nil, nil, nil, httpapi.FieldErrorf(http.StatusConflict, "server", "Restore backups of Bedrock servers into Bedrock servers, and those of Java servers into Java servers.")
 	}
 	c, err := h.client(ctx, r.PathValue("node"))
 	var list *noryxv1.ListBackupsResponse

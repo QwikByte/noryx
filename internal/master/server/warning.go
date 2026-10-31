@@ -68,17 +68,18 @@ func (w Warnings) Clone() Warnings {
 func (w Warnings) Validate() error {
 	switch {
 	case !slices.Contains([]string{"chat", "title", "actionbar"}, w.Kind):
-		return httpapi.Errorf(http.StatusBadRequest, "Show the warnings in the chat, as a title or above the hotbar.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "kind", "Show the warnings in the chat, as a title or above the hotbar.")
 	case w.MaxMinutes < 1 || w.MaxMinutes > maxWarningMinutes:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a longest lead time of 1 to %d minutes for warnings.", maxWarningMinutes)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "maxMinutes", "Enter a longest lead time of 1 to %d minutes for warnings.", maxWarningMinutes)
 	case len(w.Steps) > maxWarningSteps || slices.ContainsFunc(w.Steps, func(m uint32) bool { return m == 0 || m >= w.MaxMinutes }):
-		return httpapi.Errorf(http.StatusBadRequest, "Repeat the warnings up to %d times, each at fewer minutes than the longest lead time.", maxWarningSteps)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "steps", "Repeat the warnings up to %d times, each at fewer minutes than the longest lead time.", maxWarningSteps)
 	}
-	_, err := w.Message("restart", "")
-	if err == nil {
-		_, err = w.Message("stop", "")
+	for _, action := range []string{"restart", "stop"} {
+		if _, err := w.Message(action, ""); err != nil {
+			return httpapi.Within(action, err)
+		}
 	}
-	return err
+	return nil
 }
 
 // Message returns the message that warns the players of an action, restart or stop: the one

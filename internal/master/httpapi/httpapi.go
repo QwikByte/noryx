@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,11 +21,14 @@ const maxBodyBytes = 1 << 20
 const statusClientClosed = 499
 
 // Error is an error whose message is safe to show to API clients. Code, if set, tells the
-// panel what to offer, e.g. to confirm a request.
+// panel what to offer, e.g. to confirm a request. Field, if set, is the JSON key of the field
+// of the request it is about, with dots between the keys of nested objects, e.g.
+// newServers.memoryMb, so that the panel shows it there.
 type Error struct {
 	Status  int
 	Message string
 	Code    string
+	Field   string
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -32,6 +36,25 @@ func (e *Error) Error() string { return e.Message }
 // Errorf returns an *Error with the given HTTP status.
 func Errorf(status int, format string, args ...any) error {
 	return &Error{Status: status, Message: fmt.Sprintf(format, args...)}
+}
+
+// FieldErrorf returns an *Error with the given HTTP status about the field of the request with
+// the JSON key field.
+func FieldErrorf(status int, field, format string, args ...any) error {
+	return &Error{Status: status, Message: fmt.Sprintf(format, args...), Field: field}
+}
+
+// Within returns err about the field of the request with the JSON key field, if it is an
+// *Error: one about a field of the object there gets the key in front, e.g. newServers.memoryMb,
+// one about no field is about that field. Other errors stay as they are.
+func Within(field string, err error) error {
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	within := *apiErr
+	within.Field = strings.TrimSuffix(field+"."+apiErr.Field, ".")
+	return &within
 }
 
 // Confirm returns a conflict that the client may confirm with what code names.
@@ -62,15 +85,16 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// WriteError writes err as {"error": "..."}. Unexpected errors are logged and hidden.
+// WriteError writes err as {"error": "..."}, with the code and the field of an *Error if they
+// are set. Unexpected errors are logged and hidden.
 func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *Error
 	if errors.As(err, &apiErr) {
-		body := map[string]string{"error": apiErr.Message}
-		if apiErr.Code != "" {
-			body["code"] = apiErr.Code
-		}
-		WriteJSON(w, apiErr.Status, body)
+		WriteJSON(w, apiErr.Status, struct {
+			Error string `json:"error"`
+			Code  string `json:"code,omitempty"`
+			Field string `json:"field,omitempty"`
+		}{apiErr.Message, apiErr.Code, apiErr.Field})
 		return
 	}
 	if st, ok := status.FromError(err); ok {

@@ -58,7 +58,10 @@ curl -fsS -X POST -H "Authorization: Bearer $NORYX_TOKEN" https://panel.example.
 ```
 
 - Requests and answers are JSON. A failed request answers with its HTTP status and `{"error": "…"}`, which tells why,
-  sometimes with a `code`.
+  sometimes with a `code`. If it is about a field of the request, `field` names it by its JSON key, with dots between
+  the keys of nested objects, e.g. `{"error": "Port must be between 1024 and 65535.", "field": "port"}` or
+  `"field": "newServers.memoryMb"`, so that a form can show it next to that field. Errors that the agent of a node
+  finds name no field.
 - `401` means that the token is missing, wrong, expired or revoked, or that its user is disabled; `403` that the token
   or its user lacks a permission. A client gets 5 wrong tokens, then one every 12 seconds, together with its attempts to
   sign in; until it has one left, `429` answers even its right tokens.

@@ -119,7 +119,7 @@ func (s *Service) SetSecret(ctx context.Context, id, name, value string, generat
 		return Secret{}, httpapi.Errorf(http.StatusBadRequest, "Secret names have up to 64 lower-case letters, digits, - and _.")
 	}
 	if problem := noryxv1.SecretValueProblem(value); problem != "" {
-		return Secret{}, httpapi.Errorf(http.StatusBadRequest, "%s", problem)
+		return Secret{}, httpapi.FieldErrorf(http.StatusBadRequest, "value", "%s", problem)
 	}
 	if _, err := s.store.get(ctx, id); err != nil {
 		return Secret{}, err

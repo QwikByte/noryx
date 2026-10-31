@@ -41,3 +41,25 @@ func TestCanceledRequestsAreNotLogged(t *testing.T) {
 		t.Fatalf("status %d, logged %q", w.Code, logged.String())
 	}
 }
+
+// Errors tell the field of the request they are about, also within objects, next to their message
+// and code.
+func TestErrorsNameTheirField(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		body string
+	}{
+		{Errorf(http.StatusBadRequest, "Choose a server."), `{"error":"Choose a server."}`},
+		{Confirm("move", "Move it?"), `{"error":"Move it?","code":"move"}`},
+		{FieldErrorf(http.StatusConflict, "port", "Port %d is used.", 25565), `{"error":"Port 25565 is used.","field":"port"}`},
+		{Within("newServers", FieldErrorf(http.StatusBadRequest, "memoryMb", "Too much.")), `{"error":"Too much.","field":"newServers.memoryMb"}`},
+		{Within("thresholds", fmt.Errorf("check: %w", Errorf(http.StatusBadRequest, "Too high."))), `{"error":"Too high.","field":"thresholds"}`},
+		{Within("name", status.Error(codes.InvalidArgument, "Invalid.")), `{"error":"Invalid."}`},
+	} {
+		w := httptest.NewRecorder()
+		WriteError(w, httptest.NewRequest(http.MethodPost, "/api/servers", nil), tc.err)
+		if w.Code >= 500 || strings.TrimSpace(w.Body.String()) != tc.body {
+			t.Errorf("%v: status %d, body %s", tc.err, w.Code, w.Body)
+		}
+	}
+}

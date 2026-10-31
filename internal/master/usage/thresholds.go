@@ -79,7 +79,7 @@ func (d Defaults) Validate() error {
 	if len(d.Servers) != len(serverMeasures) || len(d.Nodes) != len(nodeMeasures) {
 		return httpapi.Errorf(http.StatusBadRequest, "Enter a threshold for every measure of servers and nodes.")
 	}
-	return cmp.Or(d.Servers.validate(serverMeasures), d.Nodes.validate(nodeMeasures))
+	return cmp.Or(httpapi.Within("servers", d.Servers.validate(serverMeasures)), httpapi.Within("nodes", d.Nodes.validate(nodeMeasures)))
 }
 
 // validate checks that the thresholds are of the given measures and within their ranges.
@@ -93,9 +93,9 @@ func (t Thresholds) validate(measures []string) error {
 		case !slices.Contains(measures, measure):
 			return httpapi.Errorf(http.StatusBadRequest, "Servers have thresholds of CPU, memory and ticks per second, nodes of CPU, memory and storage.")
 		case !(th.Value >= 1 && th.Value <= limit):
-			return httpapi.Errorf(http.StatusBadRequest, "Enter thresholds of ticks per second from 1 to 20, and the others from 1 to 100 %%.")
+			return httpapi.FieldErrorf(http.StatusBadRequest, measure, "Enter thresholds of ticks per second from 1 to 20, and the others from 1 to 100 %%.")
 		case th.Minutes < 0 || th.Minutes > maxMinutes:
-			return httpapi.Errorf(http.StatusBadRequest, "Enter how long a value has to last from 0 to %d minutes.", maxMinutes)
+			return httpapi.FieldErrorf(http.StatusBadRequest, measure, "Enter how long a value has to last from 0 to %d minutes.", maxMinutes)
 		}
 	}
 	return nil

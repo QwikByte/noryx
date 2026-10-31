@@ -154,11 +154,11 @@ type UserDefaults struct {
 // validate checks that each default is one that users can choose themselves.
 func (d UserDefaults) validate() error {
 	if d.Language != "" && !slices.Contains(web.Languages, d.Language) {
-		return httpapi.Errorf(http.StatusBadRequest, "Choose one of the panel's languages as the default, e.g. de, or none to follow the browser.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "language", "Choose one of the panel's languages as the default, e.g. de, or none to follow the browser.")
 	}
 	for _, kv := range [][2]string{{"theme", d.Theme}, {"accent", d.Accent}, {"density", d.Density}, {"clock", d.Clock}} {
 		if kv[1] != "" && !preference.Valid(kv[0], kv[1]) {
-			return httpapi.Errorf(http.StatusBadRequest, "Choose a default %s that users can choose themselves, or none to follow the browser.", kv[0])
+			return httpapi.FieldErrorf(http.StatusBadRequest, kv[0], "Choose a default %s that users can choose themselves, or none to follow the browser.", kv[0])
 		}
 	}
 	return nil
@@ -287,10 +287,10 @@ func (s *Service) Update(ctx context.Context, next Settings) (Settings, error) {
 	w.Steps = slices.Compact(slices.SortedFunc(slices.Values(w.Steps), func(a, b uint32) int { return cmp.Compare(b, a) }))
 	err := validate(next, cmp.Or(next.PanelAddr, s.master.PanelDefaultAddr))
 	if err == nil && next.PanelAddr != "" && next.PanelAddr != s.Get().PanelAddr {
-		err = checkAddr("The panel", next.PanelAddr, s.master.PanelAddr)
+		err = httpapi.Within("panelAddr", checkAddr("The panel", next.PanelAddr, s.master.PanelAddr))
 	}
 	if err == nil && next.SFTPAddr != "" && next.SFTPAddr != s.Get().SFTPAddr {
-		err = checkAddr("SFTP", next.SFTPAddr, s.master.SFTPAddr)
+		err = httpapi.Within("sftpAddr", checkAddr("SFTP", next.SFTPAddr, s.master.SFTPAddr))
 	}
 	if err != nil {
 		return next, err
@@ -468,53 +468,55 @@ func validate(s Settings, panelAddr string) error {
 	_, sftpPort, _ := net.SplitHostPort(s.SFTPAddr)
 	switch {
 	case s.PanelAddr != "" && !validAddr(s.PanelAddr, func(host string) bool { return net.ParseIP(host) != nil }):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the panel's address as IP address and port, for example 0.0.0.0:8080, or leave it empty.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelAddr", "Enter the panel's address as IP address and port, for example 0.0.0.0:8080, or leave it empty.")
 	case s.PanelHTTPS != "" && s.PanelHTTPS != https.SelfSigned && s.PanelHTTPS != https.LetsEncrypt:
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a self-signed certificate, Let's Encrypt or none for the panel.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelHttps", "Choose a self-signed certificate, Let's Encrypt or none for the panel.")
 	case s.PanelDomain != "" && (!hostname.MatchString(s.PanelDomain) || !strings.Contains(s.PanelDomain, ".") || net.ParseIP(s.PanelDomain) != nil):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the panel's domain name, for example panel.example.com, or leave it empty.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelDomain", "Enter the panel's domain name, for example panel.example.com, or leave it empty.")
 	case s.PanelHTTPS == https.LetsEncrypt && s.PanelDomain == "":
-		return httpapi.Errorf(http.StatusBadRequest, "Let's Encrypt needs the domain name of the panel.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelDomain", "Let's Encrypt needs the domain name of the panel.")
 	case s.PanelHTTPS == https.LetsEncrypt && net.ParseIP(panelIP).IsLoopback():
-		return httpapi.Errorf(http.StatusBadRequest, "Let's Encrypt has to reach the panel from the internet: let it listen at another address than %s, e.g. 0.0.0.0:443.", panelAddr)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelAddr", "Let's Encrypt has to reach the panel from the internet: let it listen at another address than %s, e.g. 0.0.0.0:443.", panelAddr)
 	case s.PanelHTTPS == https.LetsEncrypt && panelPort == "80":
-		return httpapi.Errorf(http.StatusBadRequest, "With Let's Encrypt, port 80 sends browsers to HTTPS. Let the panel listen at another port, e.g. 443.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelAddr", "With Let's Encrypt, port 80 sends browsers to HTTPS. Let the panel listen at another port, e.g. 443.")
 	case s.EnrollAddr != "" && !validAddr(s.EnrollAddr, func(host string) bool { return hostname.MatchString(host) || net.ParseIP(host) != nil }):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the enrollment address as host:port, for example panel.example.com:9443, or leave it empty.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "enrollAddr", "Enter the enrollment address as host:port, for example panel.example.com:9443, or leave it empty.")
 	case s.SFTPAddr != "" && !validAddr(s.SFTPAddr, func(host string) bool { return net.ParseIP(host) != nil }):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the address of SFTP as IP address and port, for example 0.0.0.0:2022, or leave it empty to turn SFTP off.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "sftpAddr", "Enter the address of SFTP as IP address and port, for example 0.0.0.0:2022, or leave it empty to turn SFTP off.")
 	case s.SFTPAddr != "" && sftpPort == panelPort:
-		return httpapi.Errorf(http.StatusBadRequest, "SFTP needs a port of its own, not the panel's.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "sftpAddr", "SFTP needs a port of its own, not the panel's.")
 	case s.SessionHours < 1 || s.SessionHours > maxSessionHours:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a session duration from 1 to %d hours.", maxSessionHours)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "sessionHours", "Enter a session duration from 1 to %d hours.", maxSessionHours)
 	case s.JoinTokenMinutes < minJoinTokenMinutes || s.JoinTokenMinutes > maxJoinTokenMinutes:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a join token validity from %d to %d minutes.", minJoinTokenMinutes, maxJoinTokenMinutes)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "joinTokenMinutes", "Enter a join token validity from %d to %d minutes.", minJoinTokenMinutes, maxJoinTokenMinutes)
 	case s.LogDays < 1 || s.LogDays > maxLogDays:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how long log entries are kept, from 1 to %d days.", maxLogDays)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "logDays", "Enter how long log entries are kept, from 1 to %d days.", maxLogDays)
 	case s.LogSizeMB < minLogSizeMB || s.LogSizeMB > maxLogSizeMB:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how large the log may grow, from %d to %d MiB.", minLogSizeMB, maxLogSizeMB)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "logSizeMb", "Enter how large the log may grow, from %d to %d MiB.", minLogSizeMB, maxLogSizeMB)
 	case len(s.RequireMFA.Groups) > maxMFAGroups || slices.ContainsFunc(s.RequireMFA.Groups, func(id string) bool { return !groupID.MatchString(id) }):
-		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that have to use two-factor authentication.", maxMFAGroups)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "requireMfa", "Choose up to %d groups that have to use two-factor authentication.", maxMFAGroups)
 	case !plainText(s.PanelName, maxPanelName, false):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a name of the panel of up to %d characters in one line, or leave it empty for Noryx.", maxPanelName)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "panelName", "Enter a name of the panel of up to %d characters in one line, or leave it empty for Noryx.", maxPanelName)
 	case !plainText(s.SignInNotice, maxSignInNotice, true):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a notice of up to %d characters of plain text for the sign-in page, or leave it empty.", maxSignInNotice)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "signInNotice", "Enter a notice of up to %d characters of plain text for the sign-in page, or leave it empty.", maxSignInNotice)
 	case len(s.InviteGroups) > maxInviteGroups || slices.ContainsFunc(s.InviteGroups, func(id string) bool { return !groupID.MatchString(id) }):
-		return httpapi.Errorf(http.StatusBadRequest, "Choose up to %d groups that inviting a user preselects.", maxInviteGroups)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "inviteGroups", "Choose up to %d groups that inviting a user preselects.", maxInviteGroups)
 	case s.UpdateCheckHours < 1 || s.UpdateCheckHours > maxUpdateCheckHours:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter how often the master looks for updates, from 1 to %d hours.", maxUpdateCheckHours)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "updateCheckHours", "Enter how often the master looks for updates, from 1 to %d hours.", maxUpdateCheckHours)
 	case s.UpdateAgents != allAgents && s.UpdateAgents != noAgents:
-		return httpapi.Errorf(http.StatusBadRequest, "Choose whether the master updates all agents or none after itself.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "updateAgents", "Choose whether the master updates all agents or none after itself.")
 	case s.MinPasswordLength < minPasswordLength || s.MinPasswordLength > maxPasswordLength:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a minimum length of passwords from %d to %d characters.", minPasswordLength, maxPasswordLength)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "minPasswordLength", "Enter a minimum length of passwords from %d to %d characters.", minPasswordLength, maxPasswordLength)
 	case s.SetupLinkHours < 1 || s.SetupLinkHours > maxSetupLinkHours:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a validity of setup links from 1 to %d hours.", maxSetupLinkHours)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "setupLinkHours", "Enter a validity of setup links from 1 to %d hours.", maxSetupLinkHours)
 	case s.MaxTokenDays < 0 || s.MaxTokenDays > maxTokenDays:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the longest lifetime of API tokens from 1 to %d days, or no limit.", maxTokenDays)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "maxTokenDays", "Enter the longest lifetime of API tokens from 1 to %d days, or no limit.", maxTokenDays)
 	case s.SessionIdleHours < 0 || s.SessionIdleHours > s.SessionHours:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter after how many hours without use sessions end, from 1 to the %d hours they last, or never.", s.SessionHours)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "sessionIdleHours", "Enter after how many hours without use sessions end, from 1 to the %d hours they last, or never.", s.SessionHours)
 	}
-	return cmp.Or(s.NodeDefaults.Validate(), s.Thresholds.Validate(), s.UserDefaults.validate(), s.NewServers.Validate(), s.Warnings.Validate(), s.Retention.validate())
+	return cmp.Or(httpapi.Within("nodeDefaults", s.NodeDefaults.Validate()), httpapi.Within("thresholds", s.Thresholds.Validate()),
+		httpapi.Within("userDefaults", s.UserDefaults.validate()), httpapi.Within("newServers", s.NewServers.Validate()),
+		httpapi.Within("warnings", s.Warnings.Validate()), httpapi.Within("retention", s.Retention.validate()))
 }
 
 // plainText tells whether s has at most n characters and no control characters but, if lines
