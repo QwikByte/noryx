@@ -18,6 +18,27 @@ func TestNewBackupID(t *testing.T) {
 	}
 }
 
+// Names of archives of the master name a file in their folder, and nothing else.
+func TestMasterBackupName(t *testing.T) {
+	at := time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
+	plain, encrypted := MasterBackupName(at, false), MasterBackupName(at, true)
+	if !regexp.MustCompile(`^noryx-master-20261002-040000-[a-z2-7]{6}\.tar\.gz$`).MatchString(plain) ||
+		!regexp.MustCompile(`^noryx-master-20261002-040000-[a-z2-7]{6}\.tar\.gz\.age$`).MatchString(encrypted) {
+		t.Errorf("MasterBackupName = %q, %q", plain, encrypted)
+	}
+	for _, name := range []string{plain, encrypted} {
+		if !ValidMasterBackupName(name) {
+			t.Errorf("ValidMasterBackupName(%q) = false", name)
+		}
+	}
+	for _, name := range []string{"", "../noryx-master-20261002-040000-abcdef.tar.gz", "noryx-master-20261002-040000-abcdef.tar.gz/x",
+		"noryx-master-20261002-040000-abcdef.zip", "20261002-040000-abcdef.json", "noryx-master-20261002-040000-ABCDEF.tar.gz"} {
+		if ValidMasterBackupName(name) {
+			t.Errorf("ValidMasterBackupName(%q) = true", name)
+		}
+	}
+}
+
 func TestRetention(t *testing.T) {
 	if r := Retention(5, nil); r.GetLast() != 5 || r.GetDays() != 0 || r.GetWeeks() != 0 || r.GetMonths() != 0 {
 		t.Errorf("Retention(5, nil) = %v", r)

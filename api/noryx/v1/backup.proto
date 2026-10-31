@@ -42,6 +42,14 @@ service BackupService {
   // restoring it checks it again and trusts nothing it tells. Its paths are the files and
   // folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
   rpc UploadBackup(stream UploadBackupRequest) returns (UploadBackupResponse);
+  // ImportMasterBackup keeps an archive of the master, with its database and certificate
+  // authority, in the folder master of the backups of a storage location, apart from the
+  // backups of the servers. The agent neither reads nor restores it: the master's
+  // administrator does, with noryx-master restore. The header names it, the data that follows
+  // is the archive. Agents of older versions answer UNIMPLEMENTED.
+  rpc ImportMasterBackup(stream ImportMasterBackupRequest) returns (ImportMasterBackupResponse);
+  // DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
+  rpc DeleteMasterBackup(DeleteMasterBackupRequest) returns (DeleteMasterBackupResponse);
 }
 
 // BackupSelection chooses what of a server is backed up.
@@ -255,3 +263,29 @@ message UploadBackupRequest {
 message UploadBackupResponse {
   Backup backup = 1;
 }
+
+// MasterBackup names an archive of the master on the node.
+message MasterBackup {
+  // The name of its file, see MasterBackupName.
+  string name = 1;
+  // Storage location of the archive; empty means the default location.
+  string location = 2;
+}
+
+message ImportMasterBackupRequest {
+  oneof content {
+    MasterBackup header = 1;
+    bytes data = 2;
+  }
+}
+
+message ImportMasterBackupResponse {
+  // Size of the archive as the node keeps it.
+  int64 size = 1;
+}
+
+message DeleteMasterBackupRequest {
+  MasterBackup backup = 1;
+}
+
+message DeleteMasterBackupResponse {}

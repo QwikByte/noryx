@@ -2,6 +2,7 @@ package noryxv1
 
 import (
 	"crypto/rand"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -10,6 +11,22 @@ import (
 func NewBackupID(t time.Time) string {
 	return t.UTC().Format("20060102-150405") + "-" + strings.ToLower(rand.Text()[:6])
 }
+
+var masterBackupName = regexp.MustCompile(`^noryx-master-\d{8}-\d{6}-[a-z2-7]{6}\.tar\.gz(\.age)?$`)
+
+// MasterBackupName returns the name of an archive of the master made at t, e.g.
+// noryx-master-20261002-040000-k3x7qa.tar.gz, with .age at its end if it is encrypted.
+func MasterBackupName(t time.Time, encrypted bool) string {
+	name := "noryx-master-" + NewBackupID(t) + ".tar.gz"
+	if encrypted {
+		name += ".age"
+	}
+	return name
+}
+
+// ValidMasterBackupName reports whether name is one that MasterBackupName returns, so that it
+// names a file in the folder of the archives of the master and nothing else.
+func ValidMasterBackupName(name string) bool { return masterBackupName.MatchString(name) }
 
 // MaxBackupPaths limits the further paths of a backup's selection, those it leaves out, and
 // the paths of a restore.
