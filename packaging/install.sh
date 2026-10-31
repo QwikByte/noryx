@@ -107,7 +107,7 @@ check_system() {
     local releases
     releases=$(fetch "$RELEASES_API?per_page=10") ||
       die "GitHub's API doesn't answer, e.g. as it limits the requests of this machine. Try again later."
-    version=$(grep -oE '"tag_name": *"v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?"' <<<"$releases" |
+    version=$(grep -oE '"tag_name": *"v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?"' <<<"$releases" |
       cut -d '"' -f 4 | tr - '~' | sort -V | tail -n 1 | tr '~' -) || version=""
     [ -n "$version" ] || die "No release found, see $REPO/releases"
   elif [ "$version" = latest ]; then
@@ -116,7 +116,7 @@ check_system() {
     [[ "$version" == */releases/tag/* ]] || die "No release found, see $REPO/releases"
     version=${version##*/}
   fi
-  [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "Invalid version: $version"
+  [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || die "Invalid version: $version"
   tmp=$(mktemp -d)
   chmod 755 "$tmp" # apt reads local packages as its own user
   trap 'rm -rf "$tmp"' EXIT
@@ -180,7 +180,7 @@ wait_for_port() {
 # ask_panel_addr asks where the panel listens, unless --panel-addr tells, and checks the answer:
 # an IPv4 address or an IPv6 address in brackets, with a port the master may use without root.
 ask_panel_addr() {
-  [ -n "$panel_addr" ] || panel_addr=$(ask "IP address and port the panel listens at, 0.0.0.0:<port> for all interfaces [$PANEL_ADDR]:" "")
+  [ -n "$panel_addr" ] || panel_addr=$(ask "IP address and port the panel listens at, 0.0.0.0:<port> for all interfaces once you turn on HTTPS in its settings [$PANEL_ADDR]:" "")
   panel_addr=${panel_addr:-$PANEL_ADDR}
   local port=${panel_addr##*:}
   if ! [[ "$panel_addr" =~ ^([0-9]{1,3}(\.[0-9]{1,3}){3}|\[[0-9A-Fa-f:.]+\]):[0-9]{1,5}$ ]] || ((10#$port < 1024 || 10#$port > 65535)); then

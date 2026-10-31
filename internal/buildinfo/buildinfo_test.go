@@ -10,6 +10,9 @@ func TestInstallScript(t *testing.T) {
 		"dev":                Repository + "/releases/latest/download/install.sh",
 		"v1.2.3-4-gdeadbee":  Repository + "/releases/latest/download/install.sh",
 		"v0.1.1-SNAPSHOT-ab": Repository + "/releases/latest/download/install.sh",
+		"v1.2.3-dirty":       Repository + "/releases/latest/download/install.sh",
+		"v1.2.3-dev":         Repository + "/releases/latest/download/install.sh",
+		"v1.3.0-beta.2":      Repository + "/releases/download/v1.3.0-beta.2/install.sh",
 	} {
 		Version = version
 		if got := InstallScript(); got != want {

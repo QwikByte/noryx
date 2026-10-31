@@ -161,12 +161,13 @@ func TestUpdateMaster(t *testing.T) {
 		t.Fatalf("UpdateMaster before a check = %v", err)
 	}
 	for releases, want := range map[string]string{
-		"status 500":                   "GitHub answered 500 Internal Server Error",
-		`{"tag_name": "nightly"}`:      `the latest release has the unexpected version "nightly"`,
-		`{"tag_name": "v1.3.0"}`:       "",
-		"status 404":                   "",
-		`{"tag_name": 1.3}`:            "read the latest release:",
-		`{"tag_name": "v1.2.9-beta1"}`: "",
+		"status 500":                    "GitHub answered 500 Internal Server Error",
+		`{"tag_name": "nightly"}`:       `the latest release has the unexpected version "nightly"`,
+		`{"tag_name": "v1.3.0"}`:        "",
+		"status 404":                    "",
+		`{"tag_name": 1.3}`:             "read the latest release:",
+		`{"tag_name": "v1.2.9-beta.1"}`: "",
+		`{"tag_name": "v1.4.0-dev"}`:    `the latest release has the unexpected version "v1.4.0-dev"`,
 	} {
 		u.github(releases)
 		u.Check(t.Context())
