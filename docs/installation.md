@@ -80,10 +80,17 @@ Podman runs the same containers as Docker, from the same images, with the same u
 Docker-compatible API and makes up for where Podman behaves differently, e.g. how it tells crashes and health. Plain
 processes without containers aren't offered: the agent would have to download and check Java and the servers itself,
 supervise and restart them, give each one a user of its own and build the isolation of containers again. Only Podman as
-root is supported: the agent runs as root anyway, and rootless Podman forwards published ports through a process of its
-own, past the firewall of the private network that lets only a proxy's node reach a port; its containers have no
-addresses on the node, at which the agent reaches their consoles, and it maps their users to others, which the data
-directories would have to follow.
+root is supported, as rootless Podman would lose what the agent relies on:
+
+- It forwards published ports through a process of its own on the node, which the firewall of the private network sees
+  as a connection to the node itself, which it refuses, so backends that only their proxy's node reaches would be cut
+  off. Its default forwarder of bridge networks also hides the addresses of players, which bans and logs need.
+- Its containers have no addresses on the node, at which the agent reaches their consoles, and the tables that keep
+  servers apart would have to live in its own network namespace.
+- It maps the users of containers to others on the node, so the agent couldn't read or hand over the data of servers
+  without entering their user namespace, and the limits of memory, CPU and processes only apply if systemd delegates
+  them to its user.
+- The private network still needs root for WireGuard and its firewall.
 
 To set up Podman by hand on a node whose agent is installed:
 
