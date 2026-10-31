@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
@@ -274,6 +275,12 @@ func (m *master) start(ctx context.Context) error {
 	return nil
 }
 
+// loopback reports whether a listener only takes connections from this machine.
+func loopback(addr net.Addr) bool {
+	ap, err := netip.ParseAddrPort(addr.String())
+	return err == nil && ap.Addr().IsLoopback()
+}
+
 // run serves the panel and the enrollment of nodes until ctx ends, one of them fails or an administrator restarts
 // the master, and then shuts them down.
 func (m *master) run(ctx context.Context) error {
@@ -314,6 +321,11 @@ func (m *master) run(ctx context.Context) error {
 			errc <- httpServer.Serve(m.panel)
 		}
 	}()
+	if m.cfg.tlsCert == "" && m.panelCert == nil && len(m.proxies) == 0 && !loopback(m.panel.Addr()) {
+		slog.Warn("The panel is served over plain HTTP at an address other networks reach, where browsers send passwords "+
+			"unencrypted and refuse its cookies. Turn on HTTPS under Settings → General, or serve it through a reverse proxy "+
+			"with HTTPS named with --trusted-proxy.", logging.System, "panel", m.panel.Addr().String())
+	}
 	desc := m.conf.Master()
 	slog.Info("Master started", "version", buildinfo.Version, "panel", desc.PanelAddr, "enrollment", m.cfg.enrollAddr,
 		"public_enrollment", m.conf.EnrollAddr(), "ca_fingerprint", pki.Fingerprint(m.ca.Cert), "sftp", desc.SFTPAddr, "sftp_host_key", desc.SFTPHostKey)
