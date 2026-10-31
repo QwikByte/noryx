@@ -15,6 +15,7 @@ export class ApiError extends Error {
 export interface RequestInit {
   method?: string
   body?: unknown
+  signal?: AbortSignal
 }
 
 // The master's version, which its answers to signed-in users tell: first the one the panel came
@@ -26,6 +27,16 @@ let outdated = () => {}
 export function onOutdated(callback: () => void) {
   outdated = callback
 }
+
+let signedOutCallback = () => {}
+
+/** Calls back when the session turns out to have expired outside of queries and changes, e.g. for a stream of events. */
+export function onSignedOut(callback: () => void) {
+  signedOutCallback = callback
+}
+
+/** Tells that the session expired, see onSignedOut. */
+export const signedOut = () => signedOutCallback()
 
 // Whether the master answered the last request. While it restarts, there is no answer, or one
 // from a proxy in front of it: 502 to 504, without the version that the master's answers to
@@ -57,9 +68,10 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
       method: init.method ?? (hasBody ? "POST" : "GET"),
       headers: hasBody ? { "Content-Type": "application/json" } : undefined,
       body: hasBody ? JSON.stringify(init.body) : undefined,
+      signal: init.signal,
     })
   } catch (e) {
-    setReachable(false)
+    if (!init.signal?.aborted) setReachable(false)
     throw e
   }
   const answered = res.headers.get("Noryx-Version")

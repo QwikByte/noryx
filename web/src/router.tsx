@@ -21,7 +21,7 @@ import type { Kind } from "@/features/plugins/api"
 import { preferencesQuery } from "@/features/preferences/api"
 import { validateServerSearch } from "@/features/servers/browse"
 import { firstTab } from "@/features/servers/tabs"
-import { ApiError, onOutdated } from "@/lib/api"
+import { ApiError, onOutdated, onSignedOut } from "@/lib/api"
 import { msg } from "@/lib/i18n"
 import { validateQuery } from "@/lib/search"
 
@@ -596,6 +596,9 @@ function leavingLoses() {
 onOutdated(() => {
   if (!leavingLoses()) location.reload()
 })
+
+// Streams of events, which aren't queries, tell an expired session here.
+onSignedOut(() => signInAgain(new ApiError(401, "")))
 
 declare module "@tanstack/react-router" {
   interface Register {
