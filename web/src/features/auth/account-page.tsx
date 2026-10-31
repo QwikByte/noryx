@@ -80,7 +80,7 @@ export function AccountPage() {
         <FormSection title={t("Sessions")}>
           <Sessions idleHours={limits?.sessionIdleHours} />
         </FormSection>
-        <FormSection title={t("API tokens")}>
+        <FormSection id="tokens" title={t("API tokens")}>
           <ApiTokens user={user} />
         </FormSection>
         <FormSection title={t("Panel")}>

@@ -196,12 +196,13 @@ function PanelCertificateFacts({ master }: { master: Master }) {
 }
 
 function formOf(s: MasterSettings) {
-  const { panelAddr, panelHttps, panelDomain, enrollAddr, sessionHours, joinTokenMinutes, logDays, logSizeMb, checkUpdates, requireMfa } = s
+  const { panelAddr, panelHttps, panelDomain, enrollAddr, sftpAddr, sessionHours, joinTokenMinutes, logDays, logSizeMb, checkUpdates, requireMfa } = s
   return {
     panelAddr,
     panelHttps,
     panelDomain,
     enrollAddr,
+    sftpAddr,
     sessionHours,
     joinTokenMinutes,
     logDays,
@@ -274,6 +275,29 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
           </Field>
           <PanelHTTPSFields form={form} master={master} disabled={!access.admin} onChange={set} />
           <PanelRestartNotice settings={settings} master={master} />
+        </FormSection>
+
+        <FormSection title={t("SFTP")}>
+          <Field>
+            <FieldLabel htmlFor="settings-sftp-addr">{t("SFTP address")}</FieldLabel>
+            <Input
+              id="settings-sftp-addr"
+              className="font-mono"
+              placeholder={t("Off")}
+              maxLength={47}
+              disabled={!access.admin}
+              value={form.sftpAddr}
+              onChange={(e) => set({ sftpAddr: e.target.value })}
+            />
+            <FieldDescription>
+              <Trans
+                i18nKey="IP address and port, e.g. <example/>, at which the master serves the files of servers over SFTP to editors, scripts and clients such as WinSCP. Users sign in with their username and an API token, and reach the servers whose files the token may browse. Leave it empty to turn SFTP off. Only administrators can change it, as it opens a port."
+                components={{ example: <span className="font-mono">0.0.0.0:2022</span> }}
+              />
+            </FieldDescription>
+          </Field>
+          <SftpHostKey master={master} />
+          <SftpRestartNotice settings={settings} master={master} />
         </FormSection>
 
         <FormSection title={t("Name and notice")}>
@@ -426,7 +450,9 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
         className="-mx-5 flex flex-wrap-reverse items-center justify-end gap-x-6 gap-y-3 rounded-b-2xl bg-muted/50 px-5 py-4 sm:-mx-8 sm:px-8"
         hidden={!editable}
       >
-        <p className="text-sm text-muted-foreground">{t("Changes apply right away, except those to the panel, which apply once the master restarts.")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("Changes apply right away, except those to the panel and SFTP, which apply once the master restarts.")}
+        </p>
         <Button type="submit" disabled={!dirty || update.isPending}>
           {update.isPending ? t("Saving…") : t("Save settings")}
         </Button>
@@ -645,6 +671,62 @@ function PanelRestartNotice({ settings, master }: { settings: MasterSettings; ma
       {canRestart && (
         <div className="mt-3">
           <RestartButton master={master} next={next} label={t("Restart now")} />
+        </div>
+      )}
+    </Callout>
+  )
+}
+
+/** The fingerprint of the host key of SFTP, which clients ask to compare the first time they connect. */
+function SftpHostKey({ master }: { master: Master }) {
+  if (!master.sftpAddr) return null
+  return (
+    <Field>
+      <FieldTitle>{t("Host key fingerprint")}</FieldTitle>
+      <p className="font-mono text-sm break-all">{master.sftpHostKey}</p>
+      <FieldDescription>
+        <Trans
+          i18nKey="SFTP listens at <address/> with this key. Clients ask whether to trust it the first time they connect: compare the fingerprint they show with this one."
+          components={{ address: <span className="font-mono">{master.sftpAddr}</span> }}
+        />
+      </FieldDescription>
+    </Field>
+  )
+}
+
+/** Tells that a changed address of SFTP applies once the master starts again, and why SFTP is off if it couldn't listen. */
+function SftpRestartNotice({ settings, master }: { settings: MasterSettings; master: Master }) {
+  const canRestart = useCanRestart(master)
+  if (settings.sftpAddr === (master.sftpAddr ?? "")) return null
+  return (
+    <Callout tone={master.sftpError ? "warning" : "info"} icon={ArrowClockwiseIcon} role="status" title={t("Applies after a restart")}>
+      <p>
+        {settings.sftpAddr ? (
+          <Trans
+            i18nKey="SFTP listens at <address/> once the master starts again, e.g. with <command/> or the next update."
+            components={{
+              address: <span className="font-mono">{settings.sftpAddr}</span>,
+              command: <span className="font-mono">systemctl restart noryx-master</span>,
+            }}
+          />
+        ) : (
+          <Trans
+            i18nKey="SFTP stays on until the master starts again, e.g. with <command/> or the next update."
+            components={{ command: <span className="font-mono">systemctl restart noryx-master</span> }}
+          />
+        )}
+      </p>
+      {master.sftpError && (
+        <p className="mt-1">
+          <Trans
+            i18nKey="When the master started last, SFTP didn't start: <error/>"
+            components={{ error: <span className="font-mono">{master.sftpError}</span> }}
+          />
+        </p>
+      )}
+      {canRestart && (
+        <div className="mt-3">
+          <RestartButton master={master} next={nextPanel(settings, master)} label={t("Restart now")} />
         </div>
       )}
     </Callout>
