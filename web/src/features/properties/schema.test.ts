@@ -31,6 +31,10 @@ describe("check", () => {
     ["view-distance", " ", "Enter a whole number."],
     ["view-distance", "10.5", "Enter a whole number."],
     ["view-distance", "ten", "Enter a whole number."],
+    // Minecraft would read these as the default.
+    ["max-players", "1e3", "Enter a whole number."],
+    ["max-players", "10.0", "Enter a whole number."],
+    ["max-players", "10 ", "Enter a whole number."],
     ["max-tick-time", "-1", undefined],
     ["max-tick-time", "-2", "The minimum is -1."],
     ["pause-when-empty-seconds", "-60", undefined],

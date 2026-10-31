@@ -409,8 +409,9 @@ export function check(key: string, value: string): string | undefined {
 /** Returns an error message if the value doesn't fit a setting of the kind. */
 export function checkValue(kind: Kind, value: string): string | undefined {
   if (kind.type !== "number") return undefined
+  // Minecraft reads whole numbers only as digits, and others as the default, e.g. 1e3 or 10.0 of a number input.
+  if (!/^-?\d+$/.test(value)) return t("Enter a whole number.")
   const n = Number(value)
-  if (value.trim() === "" || !Number.isInteger(n)) return t("Enter a whole number.")
   if (kind.min !== undefined && n < kind.min) return t("The minimum is {{min}}.", { min: kind.min })
   if (kind.max !== undefined && n > kind.max) return t("The maximum is {{max}}.", { max: kind.max })
 }
