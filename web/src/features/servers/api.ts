@@ -57,6 +57,8 @@ export interface Server {
   initMemoryMb: number
   /** Ports of plugins, e.g. of a web map, which the node publishes on all its addresses. */
   extraPorts: ExtraPort[]
+  /** Players a Bedrock server lets join at once, each over a UDP port of their own after its port; 0 for other servers. */
+  maxPlayers: number
   /** Labels such as lobby, sorted; only in lists of servers. */
   tags: string[]
   /** What the server is for, as plain text; only in lists of servers. */
@@ -95,6 +97,7 @@ export type ServerSettings = Pick<
   | "processLimit"
   | "initMemoryMb"
   | "extraPorts"
+  | "maxPlayers"
 >
 
 /** When the agent stops a server that keeps crashing, and restarts one that stays unhealthy. */
@@ -156,7 +159,10 @@ export const serverKey = (s: { nodeId: string; id: string }) => `${s.nodeId}/${s
 
 export interface NewServer
   extends Partial<
-    Pick<Server, "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone" | "extraPorts">
+    Pick<
+      Server,
+      "java" | "restartPolicy" | "aikarFlags" | "jvmOptions" | "cpuLimit" | "loaderVersion" | "stopTimeout" | "timeZone" | "extraPorts" | "maxPlayers"
+    >
   > {
   name: string
   type: string
@@ -227,7 +233,10 @@ export function useCreateServer() {
 }
 
 /** The settings of a server created from an archive, which brings its own server.properties. */
-export type ImportedSettings = Pick<NewServer, "name" | "type" | "version" | "memoryMb" | "port" | "acceptEula" | "storage" | "java" | "stopTimeout" | "timeZone">
+export type ImportedSettings = Pick<
+  NewServer,
+  "name" | "type" | "version" | "memoryMb" | "port" | "acceptEula" | "storage" | "java" | "stopTimeout" | "timeZone" | "maxPlayers"
+>
 
 /**
  * Creates a server whose data is a ZIP or .tar.gz archive of a server from elsewhere, with upload progress. leftOut

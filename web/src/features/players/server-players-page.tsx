@@ -12,6 +12,7 @@ import type { Network } from "@/features/networks/api"
 import { useNetworkOf } from "@/features/networks/servers"
 import { nodeQuery } from "@/features/nodes/api"
 import { type NodeServer, useServer } from "@/features/servers/api"
+import { isBedrock } from "@/features/servers/server-types"
 import { type ServerUsage, useServerUsage } from "@/features/usage/api"
 import { PlayerMenu } from "./online-players"
 import { PlayerBulkBar } from "./player-bulk-bar"
@@ -41,10 +42,19 @@ export function ServerPlayersPage() {
 
   const tab = search.tab ?? "online"
   const query = (search.q ?? "").toLowerCase()
+  // Bedrock Dedicated Server tells nobody who is online and has no bans.
+  const bedrock = isBedrock(server.type)
   const nodeServer: NodeServer = { ...server, nodeId, nodeName: node?.name ?? "" }
 
   return (
     <>
+      {bedrock && (
+        <Callout icon={InfoIcon} className="mb-6">
+          {t(
+            "Bedrock servers don't tell who is online and have no bans. Their allowlist is their whitelist, and they keep their operators by Xbox user IDs, which they don't list. Kicks and operators take the gamertags of players who are online.",
+          )}
+        </Callout>
+      )}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Segmented<ListKind | "online" | "seen">
           label={t("List")}
@@ -57,7 +67,7 @@ export function ServerPlayersPage() {
           options={[
             { value: "online", label: t("Online") },
             { value: "seen", label: t("Seen") },
-            { value: "banned", label: t("Banned") },
+            ...(bedrock ? [] : [{ value: "banned" as const, label: t("Banned") }]),
             { value: "whitelisted", label: t("Whitelist") },
             { value: "operators", label: t("Operators") },
           ]}
@@ -94,7 +104,7 @@ export function ServerPlayersPage() {
           selection={selection}
           onAct={setDialog}
         />
-      ) : error ? (
+      ) : bedrock ? null : error ? (
         <ErrorCallout error={error} />
       ) : isPending ? (
         <Skeleton className="h-40 rounded-xl" />

@@ -14,7 +14,7 @@ import { nodeQuery } from "@/features/nodes/api"
 import { OperationStatus } from "@/features/operations/operation-status"
 import { useOperation } from "@/features/operations/use-operation"
 import { type Server, serversQuery, useDuplicateServer } from "./api"
-import { nextName, serverType, suggestPort, usedPorts } from "./server-types"
+import { nextName, serverPorts, serverType, suggestPort, usedPorts } from "./server-types"
 
 /** Copies a server with all its data into a new server on the same node; the copy of a game server of a network can join it. */
 export function DuplicateServerDialog({
@@ -68,6 +68,7 @@ function DuplicateServerForm({ nodeId, server, onClose }: { nodeId: string; serv
         server.port + 1,
         node?.portMin ?? undefined,
         node?.portMax ?? undefined,
+        serverPorts(server).length, // a Bedrock server's players take ports after its own
       ),
     network: join && !!joined,
   }

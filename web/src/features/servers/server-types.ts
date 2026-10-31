@@ -13,6 +13,8 @@ export interface ServerType {
   addons?: { kind: "plugins" | "mods"; loaders: string[] }
   /** Why the software reached its end of life: new servers no longer get it, existing ones keep it. */
   endOfLife?: string
+  /** Bedrock Dedicated Server, without Java, plugins or networks. */
+  bedrock?: boolean
 }
 
 const bukkit = ["paper", "spigot", "bukkit"]
@@ -39,12 +41,25 @@ export const serverTypes: ServerType[] = [
       "It can't download its command modules anymore. Without them, it has no /send, /server, /glist, /alert and /find, and Noryx can't move players to other servers. Proxies that downloaded them before keep them. Use Velocity with modern forwarding instead, or BungeeCord, which reads the same config.yml.",
     ),
   },
+  { value: "bedrock", label: "Bedrock", proxy: false, bedrock: true },
 ]
 
 /** Paper and its forks share Paper's configuration. */
 export const isPaper = (type: string) => ["paper", "purpur", "folia", "leaf"].includes(type)
 /** Fabric and Quilt load Fabric mods. */
 export const isFabric = (type: string) => type === "fabric" || type === "quilt"
+/** Bedrock servers run without Java, plugins and networks. */
+export const isBedrock = (type: string) => serverType(type).bedrock === true
+
+/** Players a Bedrock server lets join at once, each over a UDP port of their own after its port. */
+export const defaultBedrockPlayers = 10
+export const maxBedrockPlayers = 100
+
+/** The ports of the node a server uses itself: a Bedrock server's port and those of its players after it. */
+export function serverPorts(s: { type?: string; port: number; maxPlayers?: number }): number[] {
+  const count = s.type && isBedrock(s.type) ? s.maxPlayers || defaultBedrockPlayers : 1
+  return Array.from({ length: count }, (_, i) => s.port + i)
+}
 
 /** The usual memory of servers; any other from minMemoryMb to maxMemoryMb, which agents allow, can be entered. */
 export const memoryOptionsMb = [512, 1024, 2048, 4096, 6144, 8192, 12288, 16384]
@@ -69,11 +84,12 @@ export function serverType(value: string): ServerType {
 }
 
 /**
- * Sensible defaults: proxies listen on 25577 and need far less memory than game servers, modpacks at least 4 GiB. The
- * settings of new servers decide the memory of game servers and proxies.
+ * Sensible defaults: proxies listen on 25577 and need far less memory than game servers, modpacks at least 4 GiB, and
+ * Bedrock servers on 19132. The settings of new servers decide the memory of game servers and proxies.
  */
 export function defaults(type: string, settings = { memoryMb: 2048, proxyMemoryMb: 512 }) {
   if (type === modpack) return { port: 25565, memoryMb: Math.max(4096, settings.memoryMb) }
+  if (isBedrock(type)) return { port: 19132, memoryMb: settings.memoryMb }
   return serverType(type).proxy ? { port: 25577, memoryMb: settings.proxyMemoryMb } : { port: 25565, memoryMb: settings.memoryMb }
 }
 
@@ -83,18 +99,19 @@ export const modpack = "modpack"
 /** Fabric, Quilt, Forge and NeoForge load mods with a mod loader of a version that can be chosen. */
 export const isModded = (type: string) => serverType(type).addons?.kind === "mods"
 
-/** The first free port from the preferred one on, within the node's port range. */
-export function suggestPort(used: number[], preferred: number, min = 1024, max = 65535): number {
+/** The first free port from the preferred one on, within the node's port range, followed by count - 1 free ones, e.g. for the players of a Bedrock server. */
+export function suggestPort(used: number[], preferred: number, min = 1024, max = 65535, count = 1): number {
   const start = preferred >= min && preferred <= max ? preferred : min
-  const free = (p: number) => !used.includes(p)
+  const free = (p: number) => p + count - 1 <= max && Array.from({ length: count }, (_, i) => p + i).every((q) => !used.includes(q))
   for (let p = start; p <= max; p++) if (free(p)) return p
   for (let p = min; p < start; p++) if (free(p)) return p
   return start
 }
 
-/** The ports of servers, also those at which proxies let Bedrock players join and the extra ports of plugins. */
-export const usedPorts = (servers: { port: number; bedrockPort?: number; extraPorts?: { port: number }[] }[] = []) =>
-  servers.flatMap((s) => [s.port, ...(s.bedrockPort ? [s.bedrockPort] : []), ...(s.extraPorts ?? []).map((p) => p.port)])
+/** The ports of servers, also those of the players of Bedrock servers, at which proxies let Bedrock players join and the extra ports of plugins. */
+export const usedPorts = (
+  servers: { type?: string; port: number; maxPlayers?: number; bedrockPort?: number; extraPorts?: { port: number }[] }[] = [],
+) => servers.flatMap((s) => [...serverPorts(s), ...(s.bedrockPort ? [s.bedrockPort] : []), ...(s.extraPorts ?? []).map((p) => p.port)])
 
 /** Suggests a name for a copy, e.g. "Lobby" → "Lobby 2", "Lobby 2" → "Lobby 3". */
 export function nextName(name: string, taken: string[]): string {

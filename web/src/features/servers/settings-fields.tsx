@@ -15,8 +15,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { gameVersionsQuery } from "@/features/plugins/api"
 import { formatMegabytes, formatSeconds } from "@/lib/format"
 import { msg } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 import type { RestartPolicy } from "./api"
-import { containerMemoryMb, maxMemoryMb, memoryOptionsMb, minMemoryMb } from "./server-types"
+import { containerMemoryMb, defaultBedrockPlayers, maxBedrockPlayers, maxMemoryMb, memoryOptionsMb, minMemoryMb } from "./server-types"
 
 // Fields shared by the settings of a server and the templates for new servers.
 
@@ -35,9 +36,22 @@ const restartPolicies: [RestartPolicy, string, string][] = [
   ["never", msg("Only manually"), msg("Starts only when you start it.")],
 ]
 
-/** The Minecraft version of a game server, with the releases as suggestions; empty is the latest. */
-export function VersionField({ id, value, onChange }: { id: string; value: string; onChange: (version: string) => void }) {
-  const { data: releases = [] } = useQuery(gameVersionsQuery)
+/**
+ * The Minecraft version of a game server, with the releases of Java Edition as suggestions, or the version of Bedrock
+ * Dedicated Server with its four numbers; empty is the latest.
+ */
+export function VersionField({
+  id,
+  value,
+  onChange,
+  bedrock,
+}: {
+  id: string
+  value: string
+  onChange: (version: string) => void
+  bedrock?: boolean
+}) {
+  const { data: releases = [] } = useQuery({ ...gameVersionsQuery, enabled: !bedrock })
   return (
     <Field>
       <FieldLabel htmlFor={id}>{t("Minecraft version")}</FieldLabel>
@@ -46,14 +60,42 @@ export function VersionField({ id, value, onChange }: { id: string; value: strin
         list={`${id}-releases`}
         autoComplete="off"
         placeholder={t("Latest")}
+        className={cn(bedrock && "font-mono")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       <datalist id={`${id}-releases`}>
-        {releases.map((release) => (
+        {(bedrock ? ["PREVIEW"] : releases).map((release) => (
           <option key={release} value={release} />
         ))}
       </datalist>
+      {bedrock && <FieldDescription>{t("A version of Bedrock Dedicated Server like 1.26.61.1, or PREVIEW for the newest preview.")}</FieldDescription>}
+    </Field>
+  )
+}
+
+/** How many players a Bedrock server lets join at once, each over a UDP port of their own from the server's port on. */
+export function PlayersField({ id, value, port, onChange }: { id: string; value: number; port: number; onChange: (players: number) => void }) {
+  const players = value || defaultBedrockPlayers
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{t("Players")}</FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        min={1}
+        max={maxBedrockPlayers}
+        required
+        className="w-full font-mono sm:w-40"
+        value={players}
+        onChange={(e) => onChange(e.target.valueAsNumber || 0)}
+      />
+      <FieldDescription>
+        {t(
+          "How many players may join at once. They join at the port over TCP and then play over UDP ports of their own, from the port on: {{first}} to {{last}}. The node publishes them, so they must be free and in its port range.",
+          { first: port, last: port + players - 1 },
+        )}
+      </FieldDescription>
     </Field>
   )
 }

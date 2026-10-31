@@ -33,7 +33,9 @@ export function SaveTemplateDialog({
   const [name, setName] = useState(server.name)
   const [description, setDescription] = useState("")
   const type = serverType(server.type)
-  const properties = useQuery({ ...propertiesQuery(nodeId, server.id), enabled: open && !type.proxy })
+  // Bedrock servers write their server.properties when they start first, so templates leave it out.
+  const withProperties = !type.proxy && !type.bedrock
+  const properties = useQuery({ ...propertiesQuery(nodeId, server.id), enabled: open && withProperties })
   const plugins = useQuery({ ...pluginsQuery({ nodeId, serverId: server.id }), enabled: open && !!type.addons })
   const save = useSaveTemplate()
   const navigate = useNavigate()
@@ -48,7 +50,7 @@ export function SaveTemplateDialog({
   const count = projects.length
   const summary = [
     t("{{software}} with {{memory}} and the server's settings", { software, memory: formatMegabytes(server.memoryMb) }),
-    !type.proxy &&
+    withProperties &&
       t("{{count}} properties of server.properties", {
         count: Object.keys(props).length,
         defaultValue_one: "{{count}} property of server.properties",

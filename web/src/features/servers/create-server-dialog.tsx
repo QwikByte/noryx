@@ -54,8 +54,8 @@ import {
 } from "./api"
 import { ExtraPortsField } from "./extra-ports"
 import { lastNode, rememberNode } from "./last-node"
-import { defaults, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
-import { JavaField, MemoryField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
+import { defaultBedrockPlayers, defaults, isBedrock, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
+import { JavaField, MemoryField, PlayersField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
 import { EndOfLifeNotice, SoftwareOptions } from "./software"
 import { TagList } from "./tags"
 import { type World, worldChanges, worldOf } from "./world"
@@ -190,13 +190,16 @@ function CreateServerForm({
   const { data: servers } = useQuery({ ...serversQuery(nodeId ?? ""), enabled: !!nodeId })
   const locations = node?.info?.storage ?? []
   const proxy = serverType(form.type).proxy
+  // Bedrock servers run without Java and write their server.properties when they start first.
+  const bedrock = isBedrock(form.type)
+  const players = form.maxPlayers || defaultBedrockPlayers
   const fromModpack = form.type === modpack
   const fromArchive = form.source === "archive"
   // The picker only shows once a modpack was chosen as the software.
   const chooseModpack = useCallback((choice?: ModpackChoice) => setForm((f) => f && { ...f, modpack: choice }), [])
   const port =
     form.port ??
-    suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined)
+    suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined, bedrock ? players : 1)
   const storage = form.storage ?? locations.find((l) => l.name === node?.defaultStorage)?.name ?? "default"
   // Tags of a new server need the permission to change the settings of the node's servers.
   const tags = template?.tags ?? []
@@ -226,8 +229,9 @@ function CreateServerForm({
     if (!nodeId) return
     if (me) rememberNode(me.id, nodeId)
     const { name, type, memoryMb, acceptEula, stopTimeout, timeZone } = form
-    const [version, java] = proxy ? ["", ""] : [form.version.trim(), form.java]
+    const [version, java] = proxy ? ["", ""] : [form.version.trim(), bedrock ? "" : form.java]
     const server: NewServer = { name, type, memoryMb, acceptEula, port, storage, version, java, stopTimeout, timeZone }
+    if (bedrock) server.maxPlayers = players
     if (fromArchive) {
       if (form.archive) void createFromArchive(nodeId, server, form.archive)
       return
@@ -253,7 +257,7 @@ function CreateServerForm({
       })
       if (tagsAllowed) server.tags = tags
     }
-    if (!proxy) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }
+    if (!proxy && !bedrock) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }
     const open = (id: string) => navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: id } })
     operation.run((onStart) => create.mutateAsync({ nodeId, server, plugins: template?.plugins.map((p) => p.id), onStart }), {
       title,
@@ -407,7 +411,7 @@ function CreateServerForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SoftwareOptions chosen={form.type} />
+                <SoftwareOptions chosen={form.type} available={node?.info?.serverTypes} />
                 {nodeId && can("plugins.manage", nodeId) && !fromArchive && (
                   <SelectGroup>
                     <SelectSeparator />
@@ -419,7 +423,7 @@ function CreateServerForm({
             </Select>
           </Field>
           {!proxy && !fromModpack && (
-            <VersionField id="server-version" value={form.version} onChange={(version) => setForm({ ...form, version })} />
+            <VersionField id="server-version" value={form.version} onChange={(version) => setForm({ ...form, version })} bedrock={bedrock} />
           )}
         </div>
         <EndOfLifeNotice type={form.type} />
@@ -463,7 +467,10 @@ function CreateServerForm({
             />
           </Field>
         </div>
-        {!!template?.extraPorts.length && (
+        {bedrock && (
+          <PlayersField id="server-players" value={players} port={port} onChange={(maxPlayers) => setForm({ ...form, maxPlayers })} />
+        )}
+        {!!template?.extraPorts.length && !bedrock && (
           <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => setForm({ ...form, extraPorts })} />
         )}
         {locations.length > 1 && (
@@ -484,12 +491,17 @@ function CreateServerForm({
             </Select>
           </Field>
         )}
-        {!proxy && !fromArchive && <WorldFields value={form.world} onChange={(world) => setForm({ ...form, world })} />}
+        {!proxy && !bedrock && !fromArchive && <WorldFields value={form.world} onChange={(world) => setForm({ ...form, world })} />}
+        {bedrock && !fromArchive && (
+          <FieldDescription>
+            {t("The server writes its server.properties when it starts for the first time, with its world, game mode and difficulty, which you can change then.")}
+          </FieldDescription>
+        )}
         <Fold
-          title={proxy ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
-          summary={[!proxy && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
+          title={proxy || bedrock ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
+          summary={[!proxy && !bedrock && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
         >
-          {!proxy && <JavaField id="server-java" value={form.java} onChange={(java) => setForm({ ...form, java })} />}
+          {!proxy && !bedrock && <JavaField id="server-java" value={form.java} onChange={(java) => setForm({ ...form, java })} />}
           <StopTimeoutField
             id="server-stop-timeout"
             value={form.stopTimeout}

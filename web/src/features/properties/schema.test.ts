@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { check, checkValue, definition, definitions, groups, iconMatches } from "./schema"
+import { bedrockDefinitions, check, checkValue, definition, definitions, definitionsOf, groups, iconMatches } from "./schema"
 
 describe("definition", () => {
   it("knows the properties of Minecraft", () => {
@@ -49,6 +49,27 @@ describe("check", () => {
   it("checks values of a kind", () => {
     expect(checkValue({ type: "number" }, "-5")).toBeUndefined()
     expect(checkValue({ type: "text" }, "")).toBeUndefined()
+  })
+})
+
+describe("bedrockDefinitions", () => {
+  it("knows the properties of Bedrock Dedicated Server, which differ from Minecraft's", () => {
+    const known = definitionsOf("bedrock")
+    expect(known).toBe(bedrockDefinitions)
+    expect(definitionsOf("paper")).toBe(definitions)
+    expect(definition("allow-list", "true", known)).toMatchObject({ label: "Allowlist", group: "Players", kind: { type: "boolean" } })
+    expect(definition("level-type", "DEFAULT", known).kind).toMatchObject({
+      type: "select",
+      options: [
+        ["DEFAULT", "Default"],
+        ["FLAT", "Superflat"],
+        ["LEGACY", "Old, limited world"],
+      ],
+    })
+    expect(definition("motd", "x", known).group).toBe("Advanced")
+    expect(check("tick-distance", "13", known)).toBe("The maximum is 12.")
+    expect(check("view-distance", "4", known)).toBe("The minimum is 5.")
+    for (const { group } of Object.values(known)) expect(groups).toContain(group)
   })
 })
 

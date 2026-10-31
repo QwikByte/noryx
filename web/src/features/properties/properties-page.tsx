@@ -15,11 +15,11 @@ import { useOperation } from "@/features/operations/use-operation"
 import { type Server, useServer, useServerAction } from "@/features/servers/api"
 import { propertiesQuery, type ServerProperties, useUpdateProperties } from "./api"
 import { PropertyField } from "./property-field"
-import { check, definition, definitions, groups, iconMatches } from "./schema"
+import { isBedrock } from "@/features/servers/server-types"
+import { check, definition, definitionsOf, groups, iconMatches } from "./schema"
 import { ServerIcon } from "./server-icon"
 
 const route = getRouteApi("/_app/nodes/$nodeId/servers/$serverId/properties")
-const order = Object.keys(definitions)
 
 /** The Properties tab of a server: server.properties as a form. */
 export function PropertiesPage() {
@@ -49,9 +49,13 @@ function PropertiesForm({ nodeId, server, data }: { nodeId: string; server: Serv
   const restart = useServerAction(nodeId)
   const operation = useOperation()
   const locked = new Map(data.locked.map((l) => [l.key, l.reason]))
+  // Bedrock Dedicated Server has properties of its own, and no icon in the server list.
+  const known = definitionsOf(server.type)
+  const order = Object.keys(known)
+  const setting = (key: string) => definition(key, data.properties[key], known)
   const count = Object.keys(changes).length
   const errors = Object.fromEntries(
-    Object.entries(changes).flatMap(([key, value]) => (check(key, value) ? [[key, check(key, value)]] : [])),
+    Object.entries(changes).flatMap(([key, value]) => (check(key, value, known) ? [[key, check(key, value, known)]] : [])),
   )
   const blocker = useBlocker({ shouldBlockFn: () => count > 0, enableBeforeUnload: () => count > 0, withResolver: true })
 
@@ -65,9 +69,9 @@ function PropertiesForm({ nodeId, server, data }: { nodeId: string; server: Serv
 
   const term = search.trim().toLowerCase()
   const keys = Object.keys(data.properties)
-    .filter((key) => !term || [key, t(definition(key).label), t(definition(key).description)].some((s) => s.toLowerCase().includes(term)))
+    .filter((key) => !term || [key, t(setting(key).label), t(setting(key).description)].some((s) => s.toLowerCase().includes(term)))
     .sort((a, b) => (order.indexOf(a) + 1 || order.length + 1) - (order.indexOf(b) + 1 || order.length + 1) || a.localeCompare(b))
-  const icon = can("files.write", nodeId, server.id) && iconMatches(term)
+  const icon = can("files.write", nodeId, server.id) && !isBedrock(server.type) && iconMatches(term)
 
   function save(andRestart: boolean) {
     update.mutate(changes, {
@@ -99,7 +103,7 @@ function PropertiesForm({ nodeId, server, data }: { nodeId: string; server: Serv
       </InputGroup>
       {keys.length === 0 && !icon && <p className="text-sm text-muted-foreground">{t("No setting matches your search.")}</p>}
       {groups.map((group) => {
-        const inGroup = keys.filter((key) => definition(key).group === group)
+        const inGroup = keys.filter((key) => setting(key).group === group)
         const withIcon = icon && group === "Server list"
         if (inGroup.length === 0 && !withIcon) return null
         return (
@@ -111,6 +115,7 @@ function PropertiesForm({ nodeId, server, data }: { nodeId: string; server: Serv
                 <PropertyField
                   key={key}
                   name={key}
+                  setting={setting(key)}
                   value={changes[key] ?? data.properties[key]}
                   locked={locked.get(key)}
                   error={errors[key]}

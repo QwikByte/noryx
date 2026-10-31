@@ -18,12 +18,13 @@ import { cn } from "@/lib/utils"
 import { CrashFields, HealthStartField, ResourceFields } from "./advanced-fields"
 import { freeMemoryMb, initialHeap, type Server, type ServerSettings, serversQuery, useServer, useUpdateImage, useUpdateServer } from "./api"
 import { ExtraPortsField } from "./extra-ports"
-import { isModded, serverType, splitOptions } from "./server-types"
+import { isBedrock, isModded, serverType, splitOptions } from "./server-types"
 import {
   CpuLimitField,
   JavaFields,
   JvmOptionsField,
   MemoryField,
+  PlayersField,
   RestartPolicyField,
   StopTimeoutField,
   TimeZoneField,
@@ -94,8 +95,8 @@ function UpdateImage({ nodeId, server }: { nodeId: string; server: Server }) {
 function settingsOf(s: Server): ServerSettings {
   const { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone, extraPorts } = s
   const settings = { name, version, memoryMb, port, java, restartPolicy, aikarFlags, jvmOptions, cpuLimit, loaderVersion, stopTimeout, timeZone, extraPorts }
-  const { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb } = s
-  return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb }
+  const { healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb, maxPlayers } = s
+  return { ...settings, healthStart, crashLimit, stableAfter, unhealthyRestart, processLimit, initMemoryMb, maxPlayers }
 }
 
 function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
@@ -107,6 +108,8 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
   const { data: servers } = useQuery(serversQuery(nodeId))
   const game = !serverType(server.type).proxy
   const modded = isModded(server.type)
+  // Bedrock servers run without Java and plugins, but take the number of their players.
+  const bedrock = isBedrock(server.type)
   const settings: ServerSettings = { ...form, jvmOptions: splitOptions(form.jvmOptions), initMemoryMb: initialHeap(form) }
   const dirty = JSON.stringify(settings) !== JSON.stringify(initial)
   const blocker = useBlocker({ shouldBlockFn: () => dirty && !update.isPending, enableBeforeUnload: () => dirty, withResolver: true })
@@ -134,6 +137,7 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
               id="settings-version"
               value={form.version === "LATEST" ? "" : form.version}
               onChange={(version) => set({ version: version.trim() || "LATEST" })}
+              bedrock={bedrock}
             />
           )}
           {modded && (
@@ -174,8 +178,11 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
             {modded && form.loaderVersion && ` ${t("Empty the loader version unless it suits the new Minecraft version.")}`}
           </FieldDescription>
         )}
+        {bedrock && <PlayersField id="settings-players" value={form.maxPlayers} port={form.port} onChange={(maxPlayers) => set({ maxPlayers })} />}
         <TimeZoneField value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
-        <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} server={{ nodeId, serverId: server.id }} />
+        {!bedrock && (
+          <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} server={{ nodeId, serverId: server.id }} />
+        )}
       </FormSection>
 
       <FormSection title={t("Starting and stopping")}>
@@ -185,14 +192,16 @@ function SettingsForm({ nodeId, server }: { nodeId: string; server: Server }) {
         <CrashFields id="settings-crashes" value={form} onChange={set} />
       </FormSection>
 
-      <FormSection title={t("Java")}>
-        {game && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
-        <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />
-      </FormSection>
+      {!bedrock && (
+        <FormSection title={t("Java")}>
+          {game && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
+          <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />
+        </FormSection>
+      )}
 
       <FormSection title={t("Resources")}>
         <CpuLimitField value={form.cpuLimit} onChange={(cpuLimit) => set({ cpuLimit })} cpus={node?.info?.cpuCount} />
-        <ResourceFields id="settings-resources" value={form} onChange={set} />
+        <ResourceFields id="settings-resources" value={form} onChange={set} java={!bedrock} />
         <p className="text-sm text-muted-foreground">
           <Trans
             i18nKey="The data is kept in the storage location <name/>."

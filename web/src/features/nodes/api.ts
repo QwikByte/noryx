@@ -23,6 +23,8 @@ export interface NodeInfo {
   runtimeVersion?: string
   /** Directories the node allows for server data, the default location first. */
   storage: StorageLocation[]
+  /** The types of servers the agent creates, e.g. bedrock; agents of older versions don't create Bedrock servers. */
+  serverTypes?: string[]
 }
 
 export interface StorageLocation {
