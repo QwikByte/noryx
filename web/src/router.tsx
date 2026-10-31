@@ -6,6 +6,7 @@ import { HubLayout } from "@/components/hub-layout"
 import { automation, home, library, startPage } from "@/components/navigation"
 import { NotFound } from "@/components/not-found"
 import { PageFocus } from "@/components/page-focus"
+import { PageSkeleton } from "@/components/page-skeleton"
 import { DocumentTitle } from "@/components/page-title"
 import { Toaster } from "@/components/ui/sonner"
 import { accessQuery } from "@/features/access/api"
@@ -43,6 +44,9 @@ function signInAgain(error: Error) {
     void router.navigate({ to: "/two-factor", search: { redirect: href } })
   }
 }
+
+// Pages outside the panel's shell show nothing while they load, as the skeleton of a page is shaped for the shell.
+const noPending = () => null
 
 // Only same-site paths are accepted as redirect targets. The key must be set explicitly,
 // because the router merges the validated values over the raw search parameters.
@@ -96,6 +100,7 @@ const twoFactorRoute = createRoute({
     if (!user.mustSetUpMfa) throw redirect({ to: search.redirect ?? "/" })
   },
   component: lazyRouteComponent(() => import("@/features/auth/two-factor-page"), "TwoFactorPage"),
+  pendingComponent: noPending,
 })
 
 // Users set their password here with a setup link; the token is in the fragment.
@@ -104,6 +109,7 @@ const setupRoute = createRoute({
   path: "/setup",
   staticData: { title: msg("Set your password") },
   component: lazyRouteComponent(() => import("@/features/auth/setup-page"), "SetupPage"),
+  pendingComponent: noPending,
 })
 
 const appRoute = createRoute({
@@ -122,6 +128,7 @@ const appRoute = createRoute({
     if (user.mustSetUpMfa) throw redirect({ to: "/two-factor", search })
   },
   component: AppShell,
+  pendingComponent: noPending,
 })
 
 // Addresses that lead to no page show a hint within the panel, after signing in.
@@ -584,6 +591,10 @@ export const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultErrorComponent: ErrorPage,
+  // While the code of a page loads on a slow link; fast loads don't flash it, and once shown it stays a moment.
+  defaultPendingComponent: PageSkeleton,
+  defaultPendingMs: 300,
+  defaultPendingMinMs: 300,
 })
 
 /** Whether leaving the page would lose something, e.g. unsaved changes or uploads, so that the browser asks first. */
