@@ -4,11 +4,14 @@ export class ApiError extends Error {
   readonly status: number
   /** Tells what the panel may offer, e.g. to confirm the request. */
   readonly code?: string
+  /** The JSON key of the field of the request the error is about, e.g. port or newServers.memoryMb. */
+  readonly field?: string
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, field?: string) {
     super(message)
     this.status = status
     this.code = code
+    this.field = field
   }
 }
 
@@ -115,7 +118,12 @@ export function send<T>(
       xhr.status >= 200 && xhr.status < 300
         ? resolve(xhr.response as T)
         : reject(
-            new ApiError(xhr.status, xhr.response?.error ?? t("The upload failed with status {{status}}.", { status: xhr.status }), xhr.response?.code),
+            new ApiError(
+              xhr.status,
+              xhr.response?.error ?? t("The upload failed with status {{status}}.", { status: xhr.status }),
+              xhr.response?.code,
+              xhr.response?.field,
+            ),
           )
     xhr.onerror = () => reject(new Error(t("The connection to the panel was lost.")))
     xhr.onabort = () => reject(new DOMException(t("The upload was cancelled."), "AbortError"))
@@ -130,5 +138,5 @@ export async function responseError(
   fallback = t("The request failed with status {{status}}.", { status: res.status }),
 ): Promise<ApiError> {
   const data = await res.json().catch(() => ({}))
-  return new ApiError(res.status, data.error ?? fallback, data.code)
+  return new ApiError(res.status, data.error ?? fallback, data.code, data.field)
 }

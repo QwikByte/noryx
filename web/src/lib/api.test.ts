@@ -49,6 +49,16 @@ describe("api", () => {
     expect(api.masterReachable.get()).toBe(true)
   })
 
+  it("tells the field of the request that an error is about", async () => {
+    serve(answer(400, { body: '{"error":"Port must be between 1024 and 65535.","field":"port"}' }), answer(400, { body: '{"error":"Invalid."}' }))
+    await expect(api.api("/nodes/n1/servers", { body: { port: 80 } })).rejects.toMatchObject({
+      status: 400,
+      message: "Port must be between 1024 and 65535.",
+      field: "port",
+    })
+    await expect(api.api("/nodes/n1/servers", { body: {} })).rejects.toMatchObject({ field: undefined })
+  })
+
   it("tells the status of errors without a message", async () => {
     serve(answer(500, { body: "<html>Internal Server Error</html>" }))
     await expect(api.api("/servers")).rejects.toMatchObject({ status: 500, message: "The request failed with status 500." })
@@ -60,6 +70,40 @@ describe("api", () => {
     api.onSignedOut(callback)
     api.signedOut()
     expect(callback).toHaveBeenCalledOnce()
+  })
+})
+
+describe("send", () => {
+  /** Lets XMLHttpRequest answer an upload with status and the JSON body. */
+  function answerUploads(status: number, body: unknown) {
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class {
+        status = 0
+        response: unknown
+        upload = {}
+        onload = () => {}
+        open() {}
+        setRequestHeader() {}
+        send() {
+          this.status = status
+          this.response = body
+          this.onload()
+        }
+      },
+    )
+  }
+
+  it("reads the answer of an upload", async () => {
+    answerUploads(201, { id: "s1" })
+    await expect(api.send("POST", "/nodes/n1/servers/import", "archive")).resolves.toEqual({ id: "s1" })
+  })
+
+  it("throws the error of the master with its code and field", async () => {
+    answerUploads(409, { error: "Port 25565 is already used.", code: "used", field: "port" })
+    const error = await api.send("POST", "/nodes/n1/servers/import", "archive").catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(api.ApiError)
+    expect(error).toMatchObject({ status: 409, message: "Port 25565 is already used.", code: "used", field: "port" })
   })
 })
 
