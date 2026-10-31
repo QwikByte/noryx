@@ -55,7 +55,7 @@ func TestBrowseLive(t *testing.T) {
 				" INSERT INTO notes VALUES (2, NULL, "+tc.bytes+"), (1, 'line\none \"quoted\" "+long+"', NULL);")
 
 			// The agent's own query doesn't count as a connection.
-			if u, err := d.DatastoreUsage(ctx, spec.ID); err != nil || u.Connections < 0 || u.Connections > 1 || u.MemoryBytes == 0 {
+			if u, err := d.DatastoreUsage(ctx, spec.ID); err != nil || u.Connections == nil || *u.Connections > 1 || u.MemoryBytes == 0 {
 				t.Errorf("usage %+v, %v", u, err)
 			}
 

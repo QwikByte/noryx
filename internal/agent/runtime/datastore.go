@@ -50,9 +50,9 @@ type Datastore struct {
 // DatastoreUsage is what a running datastore uses.
 type DatastoreUsage struct {
 	Usage
-	// Connections are the clients connected, without the runtime itself; -1 while the
+	// Connections are the clients connected, without the runtime itself; nil while the
 	// datastore can't tell, e.g. as it starts.
-	Connections int
+	Connections *uint32
 }
 
 // Datastores runs datastores. Each database has a user of the same name with rights on it
