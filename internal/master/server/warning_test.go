@@ -31,7 +31,7 @@ func TestWarning(t *testing.T) {
 		}}
 		ops := operation.New(0)
 		conf := &config{warnings: DefaultWarnings()}
-		h := NewHandler(fakeNodes{conn: agent}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil, conf)
+		h := NewHandler(Deps{Nodes: fakeNodes{conn: agent}, Networks: fakeNetworks{}, Operations: ops, Moves: NewMoves(), Config: conf})
 		mux := http.NewServeMux()
 		mux.HandleFunc("POST /api/nodes/{node}/servers/{id}/restart", h.power("restart"))
 		mux.HandleFunc("POST /api/servers/actions", h.bulk)

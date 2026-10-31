@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -57,84 +58,129 @@ type RestartExit int
 
 func (r RestartExit) Error() string { return fmt.Sprintf("restart with exit code %d", int(r)) }
 
+// master is the running master: what it keeps, what it serves with and where it listens.
+type master struct {
+	cfg       config
+	proxies   auth.Proxies // trusted to tell the address of clients
+	db        *sql.DB
+	ca        *pki.CA
+	cert      *pki.Holder // of the master for its agents
+	conf      *settings.Service
+	panelCert *https.Server // nil if the panel has no certificate of its own
+	panel     net.Listener
+	enroll    net.Listener
+	services  Services
+	// closers close what the master opened, the last first.
+	closers []func() error
+	// restarted is closed when an administrator restarts the master.
+	restarted chan struct{}
+}
+
 func serve(ctx context.Context, cfg config) error {
 	proxies, err := auth.ParseProxies(cfg.trustedProxies)
 	if err != nil {
 		return err
 	}
-	db, err := openDB(cfg.dataDir)
-	if err != nil {
+	m := &master{cfg: cfg, proxies: proxies, restarted: make(chan struct{})}
+	defer m.close()
+	if err := m.open(ctx); err != nil {
 		return err
 	}
-	defer db.Close()
-	ca, err := pki.LoadOrCreateCA(filepath.Join(cfg.dataDir, "pki"))
-	if err != nil {
+	if err := m.listen(); err != nil {
 		return err
 	}
-	cert, err := ca.MasterCertificate()
-	if err != nil {
+	if err := m.start(ctx); err != nil {
 		return err
 	}
-	masterCert, err := pki.NewHolder(cert)
-	if err != nil {
-		return err
-	}
-	publicAddr, err := cfg.publicEnrollAddr()
-	if err != nil {
-		return err
-	}
+	return m.run(ctx)
+}
 
-	master := settings.Master{
-		Version: buildinfo.Version, StartedAt: time.Now(), PanelDefaultAddr: cfg.httpAddr,
-		EnrollListenAddr: cfg.enrollAddr, EnrollAddr: publicAddr, CAFingerprint: pki.Fingerprint(ca.Cert),
-		Restartable: cfg.restartCode != 0,
+func (m *master) close() {
+	for i := len(m.closers) - 1; i >= 0; i-- {
+		_ = m.closers[i]()
 	}
-	if cfg.tlsCert != "" {
-		master.PanelHTTPS = https.Files
-	}
-	conf, err := settings.Load(ctx, db, master, masterCert)
-	if err != nil {
-		return err
-	}
-	panelListener, err := conf.ListenPanel()
-	if err != nil {
-		return err
-	}
-	defer panelListener.Close()
-	panelCert, err := conf.PanelHTTPS(filepath.Join(cfg.dataDir, "https"))
-	if err != nil {
-		return err
-	}
+}
 
+// open opens what the master keeps: the database, the certificate authority with the master's certificate, the
+// settings and the panel's certificate for HTTPS.
+func (m *master) open(ctx context.Context) error {
+	db, err := openDB(m.cfg.dataDir)
+	if err != nil {
+		return err
+	}
+	m.db = db
+	m.closers = append(m.closers, db.Close)
+	if m.ca, err = pki.LoadOrCreateCA(filepath.Join(m.cfg.dataDir, "pki")); err != nil {
+		return err
+	}
+	cert, err := m.ca.MasterCertificate()
+	if err != nil {
+		return err
+	}
+	if m.cert, err = pki.NewHolder(cert); err != nil {
+		return err
+	}
+	publicAddr, err := m.cfg.publicEnrollAddr()
+	if err != nil {
+		return err
+	}
+	desc := settings.Master{
+		Version: buildinfo.Version, StartedAt: time.Now(), PanelDefaultAddr: m.cfg.httpAddr,
+		EnrollListenAddr: m.cfg.enrollAddr, EnrollAddr: publicAddr, CAFingerprint: pki.Fingerprint(m.ca.Cert),
+		Restartable: m.cfg.restartCode != 0,
+	}
+	if m.cfg.tlsCert != "" {
+		desc.PanelHTTPS = https.Files
+	}
+	if m.conf, err = settings.Load(ctx, db, desc, m.cert); err != nil {
+		return err
+	}
+	m.panelCert, err = m.conf.PanelHTTPS(filepath.Join(m.cfg.dataDir, "https"))
+	return err
+}
+
+// listen listens at the addresses of the panel and of the enrollment of nodes.
+func (m *master) listen() error {
+	var err error
+	if m.panel, err = m.conf.ListenPanel(); err != nil {
+		return err
+	}
+	m.closers = append(m.closers, m.panel.Close)
+	if m.enroll, err = net.Listen("tcp", m.cfg.enrollAddr); err != nil {
+		return err
+	}
+	m.closers = append(m.closers, m.enroll.Close)
+	return nil
+}
+
+// start builds the services, sets up logging into the database and starts the work they do in the background
+// until ctx ends.
+func (m *master) start(ctx context.Context) error {
+	db, conf := m.db, m.conf
 	users := auth.NewService(db, conf)
-	nodes := node.NewService(db, ca, masterCert, conf)
-	defer nodes.Close()
+	nodes := node.NewService(db, m.ca, m.cert, conf)
+	m.closers = append(m.closers, func() error { nodes.Close(); return nil })
 	names := logs.NewNames(nodes)
 	logStore := logs.NewStore(db, names, conf)
-	logFile, err := logging.Setup(cfg.log, logStore.Handler(cfg.log.Level))
+	logFile, err := logging.Setup(m.cfg.log, logStore.Handler(m.cfg.log.Level))
 	if err != nil {
 		return err
 	}
-	defer logFile.Close()
+	m.closers = append(m.closers, logFile.Close)
 	logStore.Start(ctx)
-	defer logStore.Close() // before the log file and the database close
+	m.closers = append(m.closers, func() error { logStore.Close(); return nil }) // before the log file and the database close
 	go logStore.Collect(ctx, nodes)
-	go masterCert.Maintain(ctx, time.Hour, ca.MasterCertificate)
+	go m.cert.Maintain(ctx, time.Hour, m.ca.MasterCertificate)
 	go nodes.MaintainCertificates(ctx, 6*time.Hour)
 	go nodes.WatchPresence(ctx, 30*time.Second)
 	if ok, err := users.HasUsers(ctx); err == nil && !ok {
 		slog.Warn("No administrator account exists yet, create one with: noryx-master user add <username>", logging.Auth)
 	}
-	if m := conf.Master(); m.PanelAddrError != "" {
+	if desc := conf.Master(); desc.PanelAddrError != "" {
 		slog.Warn("The panel can't listen at the address from the settings, so it listens at the one from the command line",
-			logging.Settings, "addr", m.PanelAddr, "err", m.PanelAddrError)
+			logging.Settings, "addr", desc.PanelAddr, "err", desc.PanelAddrError)
 	}
 
-	enrollListener, err := net.Listen("tcp", cfg.enrollAddr)
-	if err != nil {
-		return err
-	}
-	grpcServer := nodes.EnrollmentServer()
 	modrinthClient := modrinth.New(modrinth.DefaultAPI, modrinth.DefaultCDN)
 	geyser := geysermc.New(geysermc.DownloadAPI, geysermc.GlobalAPI, geysermc.CacheTime)
 	plugins := plugin.NewService(db, nodes, modrinthClient, hangar.New(hangar.DefaultAPI, hangar.DefaultCDN), geyser)
@@ -167,70 +213,80 @@ func serve(ctx context.Context, cfg config) error {
 	if err := workflows.Start(ctx); err != nil {
 		return err
 	}
-	updates := update.New(nodes, conf, update.Options{DataDir: cfg.dataDir, Prereleases: cfg.prereleases})
+	updates := update.New(nodes, conf, update.Options{DataDir: m.cfg.dataDir, Prereleases: m.cfg.prereleases})
 	go updates.Run(ctx)
 	go usageStore.Run(ctx)
 	go overlays.Run(ctx)
 	fileSets := fileset.NewService(db, nodes, networks, tags, datastores, moves)
 	go fileSets.Run(ctx)
-	// restarted is closed when an administrator restarts the master. Moves would be cut off.
-	restarted, once := make(chan struct{}), sync.Once{}
+	// Restarting would cut off moves and other operations.
 	var restart func() error
-	if cfg.restartCode != 0 {
+	if m.cfg.restartCode != 0 {
+		var once sync.Once
 		restart = func() error {
 			err := cmp.Or(moves.CheckIdle(), ops.CheckIdle())
 			if err == nil {
-				once.Do(func() { close(restarted) })
+				once.Do(func() { close(m.restarted) })
 			}
 			return err
 		}
 	}
+	m.services = Services{
+		Users: users, Access: accessService, Settings: conf, Nodes: nodes, Networks: networks, Overlay: overlays,
+		Plugins: plugins, GeyserMC: geyser, Mojang: mojang.New(mojang.API, mojang.SessionServer, mojang.Textures),
+		Modpacks: modpack.NewService(db, nodes, modrinthClient), Templates: template.NewService(db, plugins), FileSets: fileSets,
+		Datastores: datastore.NewService(datastores, nodes, networks), Tasks: tasks, Workflows: workflows, Copies: copies,
+		Logs: logStore, Notify: notifications, Updates: updates, Usage: usageStore, Sightings: sightings, Tags: tags,
+		Preferences: preference.NewStore(db), Operations: ops, Moves: moves, Restart: restart,
+		HSTS: m.cfg.tlsCert != "" || m.panelCert != nil && m.panelCert.Trusted(),
+	}
+	go keepTidy(ctx, m.services.Tidy)
+	return nil
+}
+
+// run serves the panel and the enrollment of nodes until ctx ends, one of them fails or an administrator restarts
+// the master, and then shuts them down.
+func (m *master) run(ctx context.Context) error {
 	// Requests in flight end when the master stops, so that streams such as the warnings
 	// the panel follows don't hold it up until the timeout.
 	requests, endRequests := context.WithCancel(context.Background())
 	defer endRequests()
-	services := Services{
-		Users: users, Access: accessService, Settings: conf, Nodes: nodes, Networks: networks, Overlay: overlays,
-		Plugins: plugins, GeyserMC: geyser, Mojang: mojang.New(mojang.API, mojang.SessionServer, mojang.Textures), Modpacks: modpack.NewService(db, nodes, modrinthClient), Templates: template.NewService(db, plugins), FileSets: fileSets,
-		Datastores: datastore.NewService(datastores, nodes, networks),
-		Tasks:      tasks, Workflows: workflows, Copies: copies, Logs: logStore, Notify: notifications, Updates: updates, Usage: usageStore, Sightings: sightings, Tags: tags, Preferences: preference.NewStore(db), Operations: ops, Moves: moves, Restart: restart,
-		HSTS: cfg.tlsCert != "" || panelCert != nil && panelCert.Trusted(),
-	}
-	go keepTidy(ctx, services.Tidy)
 	httpServer := &http.Server{
 		BaseContext:       func(net.Listener) context.Context { return requests },
-		Handler:           proxies.Handler(Handler(services)),
+		Handler:           m.proxies.Handler(Handler(m.services)),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Requests themselves have no time limit, as uploads and streams last long.
 		IdleTimeout: 2 * time.Minute,
 		ErrorLog:    logging.ServerErrors(slog.Default()),
 	}
 	httpServer.RegisterOnShutdown(endRequests)
-	if panelCert != nil {
-		httpServer.TLSConfig = panelCert.TLSConfig()
-		go panelCert.Run(ctx, conf.Master().PanelAddr)
+	if m.panelCert != nil {
+		httpServer.TLSConfig = m.panelCert.TLSConfig()
+		go m.panelCert.Run(ctx, m.conf.Master().PanelAddr)
 	}
+	grpcServer := m.services.Nodes.EnrollmentServer()
 
 	errc := make(chan error, 2)
-	go func() { errc <- grpcServer.Serve(enrollListener) }()
+	go func() { errc <- grpcServer.Serve(m.enroll) }()
 	go func() {
 		switch {
-		case cfg.tlsCert != "":
-			errc <- httpServer.ServeTLS(panelListener, cfg.tlsCert, cfg.tlsKey)
-		case panelCert != nil:
-			errc <- httpServer.ServeTLS(panelListener, "", "")
+		case m.cfg.tlsCert != "":
+			errc <- httpServer.ServeTLS(m.panel, m.cfg.tlsCert, m.cfg.tlsKey)
+		case m.panelCert != nil:
+			errc <- httpServer.ServeTLS(m.panel, "", "")
 		default:
-			errc <- httpServer.Serve(panelListener)
+			errc <- httpServer.Serve(m.panel)
 		}
 	}()
-	slog.Info("Master started", "version", buildinfo.Version, "panel", conf.Master().PanelAddr,
-		"enrollment", cfg.enrollAddr, "public_enrollment", conf.EnrollAddr(), "ca_fingerprint", pki.Fingerprint(ca.Cert))
+	slog.Info("Master started", "version", buildinfo.Version, "panel", m.conf.Master().PanelAddr,
+		"enrollment", m.cfg.enrollAddr, "public_enrollment", m.conf.EnrollAddr(), "ca_fingerprint", pki.Fingerprint(m.ca.Cert))
 
+	var err error
 	restarting := false
 	select {
 	case err = <-errc:
 	case <-ctx.Done():
-	case <-restarted:
+	case <-m.restarted:
 		restarting = true
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -246,7 +302,7 @@ func serve(ctx context.Context, cfg config) error {
 		slog.Info("Master stopped")
 	}
 	if restarting {
-		return RestartExit(cfg.restartCode)
+		return RestartExit(m.cfg.restartCode)
 	}
 	return err
 }
@@ -328,7 +384,12 @@ func API(s Services) *http.ServeMux {
 	terminal.NewHandler(s.Nodes, s.Settings, s.Logs, s.Moves.Check).Register(m)
 	node.NewHandler(s.Nodes, s.Networks, s.Overlay, s.Operations, s.FileSets, s.Tidy).Register(m)
 	overlay.NewHandler(s.Overlay, s.Networks, s.Operations).Register(m)
-	server.NewHandler(s.Nodes, s.Networks, s.Tags, s.Plugins, s.Modpacks, s.Operations, s.Moves, s.FileSets, s.Settings, s.Tasks, s.Access, s.Usage, s.Tags, s.Preferences, s.Modpacks, s.Plugins, s.Sightings, s.Copies, s.Workflows, s.Notify, s.FileSets).Register(m)
+	server.NewHandler(server.Deps{
+		Nodes: s.Nodes, Networks: s.Networks, Tags: s.Tags, Plugins: s.Plugins, Modpacks: s.Modpacks, Operations: s.Operations,
+		Moves: s.Moves, FileSets: s.FileSets, Config: s.Settings,
+		Tasks: s.Tasks, Access: s.Access, Usage: s.Usage, Preferences: s.Preferences, Sightings: s.Sightings, Copies: s.Copies,
+		Workflows: s.Workflows, Notify: s.Notify,
+	}).Register(m)
 	operation.NewHandler(s.Operations).Register(m)
 	network.NewHandler(s.Networks, s.Operations, s.FileSets, s.Tidy).Register(m)
 	player.NewHandler(player.NewService(s.Nodes, s.Networks, s.GeyserMC), s.Sightings, player.NewFaces(s.Mojang, s.GeyserMC), s.Operations).Register(m)
