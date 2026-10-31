@@ -74,7 +74,7 @@ export interface NodeOverlay {
   /** The beginning of its public key, as noryx-agent overlay status shows it. */
   fingerprint?: string
   peers: OverlayPeer[]
-  /** Older agents don't tell it. */
+  /** Only once the member is configured. */
   firewall?: FirewallState
   /** What differs, if the rules are incomplete. */
   firewallProblem?: string

@@ -590,9 +590,9 @@ func (s *Service) checkBedrock(ctx context.Context, id string, port uint32) (rel
 }
 
 // networkOf validates a network configuration, which ends up in configuration files.
-// publish lets the client of a backend, the peer with key if one is given, reach its port in
-// the private network of the nodes, and returns the node's address there; without a client,
-// it closes the port there.
+// publish lets the client of a backend, the peer with key, reach its port in the private
+// network of the nodes, and returns the node's address there; without a client, it closes the
+// port there.
 func (s *Service) publish(ctx context.Context, id, client, key string) (string, error) {
 	if client == "" {
 		return "", toStatus(s.overlay.Dismiss(id))
@@ -604,11 +604,7 @@ func (s *Service) publish(ctx context.Context, id, client, key string) (string, 
 	if srv.Type.Proxy() {
 		return "", status.Error(codes.InvalidArgument, "Players reach a proxy at all of the node's addresses.")
 	}
-	var keys []string
-	if key != "" {
-		keys = []string{key}
-	}
-	addr, err := s.overlay.Admit(id, srv.Port, []string{client}, keys)
+	addr, err := s.overlay.Admit(id, srv.Port, []string{client}, []string{key})
 	if status.Code(err) == codes.Unknown {
 		err = status.Error(codes.FailedPrecondition, err.Error())
 	}

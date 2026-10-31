@@ -189,8 +189,8 @@ publishes the server's port only for the proxy's node: no firewall rule and no c
 needed, and the traffic between the nodes is encrypted. Joining restarts nothing: a network shows which of its servers
 move to the private network when it is applied again, which restarts them once for their new port. Leaving applies the
 networks of the node again, which reach the servers at public ports then, and is refused while a network with legacy
-forwarding would reach servers that no firewall protects. Nodes outside, agents of older versions and kernels without
-WireGuard (it is part of Linux since 5.6; RHEL 9 has it only as an unsupported Technology Preview) work as before. The
+forwarding would reach servers that no firewall protects. Nodes outside and kernels without WireGuard (it is part of
+Linux since 5.6; RHEL 9 has it only as an unsupported Technology Preview) work as before. The
 master configures the members every 5 minutes, so those that were offline catch up, and right away after a change, e.g.
 when a node is removed or its address changes. Each node's page shows its address, endpoint, key and peers with their
 latest handshake and traffic, and rotates its key; the overview names members that had no handshake with another one for

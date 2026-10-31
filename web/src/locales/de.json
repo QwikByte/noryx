@@ -3437,7 +3437,6 @@
   "Update the agent of {{name}} to {{version}}": "Agent von {{name}} auf {{version}} aktualisieren",
   "Update the agent of the node first": "Aktualisiere zuerst den Agent des Nodes",
   "Update the agent of the proxy's node for timers and the maintenance of single servers.": "Aktualisiere den Agent auf dem Node des Proxys für Timer und die Wartung einzelner Server.",
-  "Update the agent of this node to see its firewall and the ports it publishes.": "Aktualisiere den Agent dieses Nodes, um seine Firewall und die freigegebenen Ports zu sehen.",
   "Update the agents after the master": "Agents nach dem Master aktualisieren",
   "Update the image": "Image aktualisieren",
   "Update the image of {{name}}": "Image von {{name}} aktualisieren",

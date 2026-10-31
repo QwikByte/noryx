@@ -100,8 +100,8 @@ func TestPublishedAndFirewall(t *testing.T) {
 	m := newMember(t)
 	first, second := peer(t, 1), peer(t, 2)
 	m.configure(first, second)
-	m.admit("survival", 25570, []string{"10.213.0.1"})
-	m.admit(DatastorePrefix+"main", 3306, []string{"10.213.0.1", "10.213.0.2"})
+	m.admit("survival", 25570, first)
+	m.admit(DatastorePrefix+"main", 3306, first, second)
 
 	res, err := m.s.GetOverlay(t.Context(), &noryxv1.GetOverlayRequest{})
 	if err != nil {
@@ -133,6 +133,6 @@ func TestPublishedAndFirewall(t *testing.T) {
 		t.Errorf("without a chain: %v %q", res.GetFirewall(), res.GetFirewallProblem())
 	}
 	if m.k.applied.Peers[0].Ports != nil {
-		t.Errorf("ports of a peer from an older master: %v", m.k.applied.Peers[0].Ports)
+		t.Errorf("ports of a peer that publishes none: %v", m.k.applied.Peers[0].Ports)
 	}
 }

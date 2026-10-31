@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"sync"
@@ -63,10 +62,9 @@ func (k *fakeKernel) Connect(_ context.Context, addr netip.AddrPort) error {
 
 // member is the agent of a member at 10.213.0.3, with the kernel it configures.
 type member struct {
-	t       *testing.T
-	s       *Service
-	k       *fakeKernel
-	dataDir string
+	t *testing.T
+	s *Service
+	k *fakeKernel
 }
 
 func newMember(t *testing.T) member {
@@ -76,7 +74,7 @@ func newMember(t *testing.T) member {
 		t.Fatal(err)
 	}
 	k := &fakeKernel{}
-	return member{t, NewService(dataDir, k), k, dataDir}
+	return member{t, NewService(dataDir, k), k}
 }
 
 // peer returns another node at 10.213.0.n with a new key.
@@ -97,8 +95,13 @@ func (m member) configure(peers ...*noryxv1.OverlayPeer) {
 	}
 }
 
-func (m member) admit(id string, port uint32, clients []string, keys ...string) {
+// admit lets the peers reach a port, with the keys they have now.
+func (m member) admit(id string, port uint32, peers ...*noryxv1.OverlayPeer) {
 	m.t.Helper()
+	var clients, keys []string
+	for _, p := range peers {
+		clients, keys = append(clients, p.GetAddress()), append(keys, p.GetPublicKey())
+	}
 	if _, err := m.s.Admit(id, port, clients, keys); err != nil {
 		m.t.Fatal(err)
 	}
@@ -126,14 +129,13 @@ func client(port uint16, peers ...*noryxv1.OverlayPeer) Client {
 }
 
 // A node that leaves the network no longer reaches the ports published for it, as a node
-// that joins later may get its address. Without keys from the master, as older masters send
-// them, the clients are bound to the keys of their peers.
+// that joins later may get its address.
 func TestClientsLeave(t *testing.T) {
 	m := newMember(t)
 	first, second := peer(t, 1), peer(t, 2)
 	m.configure(first, second)
-	m.admit("server", 25570, []string{"10.213.0.1"})
-	m.admit("datastore", 3306, []string{"10.213.0.1", "10.213.0.2"})
+	m.admit("server", 25570, first)
+	m.admit("datastore", 3306, first, second)
 	m.expect(map[string]Client{"server": client(25570, first), "datastore": client(3306, first, second)})
 
 	m.configure(second)
@@ -151,8 +153,8 @@ func TestClientsBoundToKeys(t *testing.T) {
 	m := newMember(t)
 	removed, kept := peer(t, 1), peer(t, 2)
 	m.configure(removed, kept)
-	m.admit("server", 25570, []string{"10.213.0.1"}, removed.GetPublicKey())
-	m.admit("datastore", 3306, []string{"10.213.0.1", "10.213.0.2"}, removed.GetPublicKey(), kept.GetPublicKey())
+	m.admit("server", 25570, removed)
+	m.admit("datastore", 3306, removed, kept)
 
 	// The peers come again, one of them at another endpoint.
 	moved := &noryxv1.OverlayPeer{PublicKey: kept.GetPublicKey(), Address: kept.GetAddress(), Endpoint: "198.51.100.2:51820"}
@@ -173,6 +175,8 @@ func TestAdmitChecksKeys(t *testing.T) {
 	first, second := peer(t, 1), peer(t, 2)
 	m.configure(first, second)
 	for name, keys := range map[string][]string{
+		"no key":         nil,
+		"an empty key":   {""},
 		"another key":    {second.GetPublicKey()},
 		"keys of others": {first.GetPublicKey(), second.GetPublicKey()},
 	} {
@@ -180,30 +184,8 @@ func TestAdmitChecksKeys(t *testing.T) {
 			t.Errorf("%s: admitted", name)
 		}
 	}
-	if _, err := m.s.Admit("server", 25570, []string{"10.213.0.4"}, nil); err == nil {
+	if _, err := m.s.Admit("server", 25570, []string{"10.213.0.4"}, []string{first.GetPublicKey()}); err == nil {
 		t.Error("admitted an address of no peer")
 	}
-	m.expect(map[string]Client{})
-}
-
-// Clients that older agents kept without keys are bound to the keys of their peers in the
-// state these agents saved, and addresses of no peer are dropped.
-func TestClientsOfOlderAgents(t *testing.T) {
-	m := newMember(t)
-	first := peer(t, 1)
-	saved := fmt.Sprintf(`{"address":"10.213.0.3/24","port":51820,"mtu":1420,
-		"peers":[{"publicKey":%q,"address":"10.213.0.1","endpoint":"203.0.113.1:51820"}],
-		"clients":{"server":{"port":25570,"address":"10.213.0.1"},"datastore":{"port":3306,"address":"10.213.0.9","others":["10.213.0.1"]},"gone":{"port":3307,"address":"10.213.0.9"}}}`,
-		first.GetPublicKey())
-	if err := writeFile(filepath.Join(Dir(m.dataDir), stateFile), []byte(saved)); err != nil {
-		t.Fatal(err)
-	}
-	bound := map[string]Client{"server": client(25570, first), "datastore": client(3306, first)}
-	if st, err := m.s.state(); err != nil || !reflect.DeepEqual(st.Clients, bound) {
-		t.Fatalf("clients %+v (%v), want %+v", st, err, bound)
-	}
-	m.configure(first)
-	m.expect(bound)
-	m.configure(peer(t, 1))
 	m.expect(map[string]Client{})
 }

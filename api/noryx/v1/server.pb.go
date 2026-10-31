@@ -1972,7 +1972,7 @@ type ConfigureNetworkRequest struct {
 	Datastores []string `protobuf:"bytes,11,rep,name=datastores,proto3" json:"datastores,omitempty"`
 	// The public key of the proxy's node in the private network. The node publishes the port
 	// only for its peer at overlay_client with this key, and closes it once that address has
-	// another key. Older masters send none: then the key the peer has now.
+	// another key.
 	OverlayClientKey string `protobuf:"bytes,12,opt,name=overlay_client_key,json=overlayClientKey,proto3" json:"overlay_client_key,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache

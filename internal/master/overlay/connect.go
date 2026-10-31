@@ -6,9 +6,6 @@ import (
 	"net/http"
 	"slices"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
@@ -48,9 +45,6 @@ func (s *Service) Test(ctx context.Context, nodeID, peerID string) ([]PortTest, 
 		var res *noryxv1.TestOverlayPeerResponse
 		err := s.call(ctx, nodeID, func(ctx context.Context, c noryxv1.OverlayServiceClient) (err error) {
 			res, err = c.TestOverlayPeer(ctx, req)
-			if status.Code(err) == codes.Unimplemented {
-				return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to test connections in the private network.")
-			}
 			return err
 		})
 		if err != nil {
@@ -91,8 +85,6 @@ func (s *Service) prepareTest(ctx context.Context, nodeID, peerID string) (Membe
 		return Member{}, nil, errs[j]
 	case reports[peerID].GetAddress() == "":
 		return Member{}, nil, httpapi.Errorf(http.StatusConflict, "The other node isn't configured yet. The master configures it again within 5 minutes.")
-	case reports[peerID].GetFirewall() == noryxv1.OverlayFirewall_OVERLAY_FIREWALL_UNSPECIFIED:
-		return Member{}, nil, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the other node to test connections to it.")
 	}
 	if err := s.configure(ctx, settings, members, members[i], reports); err != nil {
 		return Member{}, nil, err

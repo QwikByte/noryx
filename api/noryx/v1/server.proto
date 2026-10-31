@@ -368,7 +368,7 @@ message ConfigureNetworkRequest {
   repeated string datastores = 11;
   // The public key of the proxy's node in the private network. The node publishes the port
   // only for its peer at overlay_client with this key, and closes it once that address has
-  // another key. Older masters send none: then the key the peer has now.
+  // another key.
   string overlay_client_key = 12;
 }
 

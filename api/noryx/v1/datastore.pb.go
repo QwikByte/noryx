@@ -915,7 +915,7 @@ type PublishDatastoreRequest struct {
 	Clients []string `protobuf:"bytes,3,rep,name=clients,proto3" json:"clients,omitempty"`
 	// The public keys of these nodes in the private network, in the order of clients. The node
 	// publishes the port only for its peers with these keys, and closes it to an address once
-	// it has another key. Older masters send none: then the keys the peers have now.
+	// it has another key.
 	ClientKeys    []string `protobuf:"bytes,4,rep,name=client_keys,json=clientKeys,proto3" json:"client_keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

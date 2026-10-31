@@ -174,7 +174,7 @@ message PublishDatastoreRequest {
   repeated string clients = 3;
   // The public keys of these nodes in the private network, in the order of clients. The node
   // publishes the port only for its peers with these keys, and closes it to an address once
-  // it has another key. Older masters send none: then the keys the peers have now.
+  // it has another key.
   repeated string client_keys = 4;
 }
 

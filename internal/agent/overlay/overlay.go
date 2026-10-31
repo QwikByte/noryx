@@ -200,8 +200,8 @@ func (s *Service) LeaveOverlay(context.Context, *noryxv1.LeaveOverlayRequest) (*
 // Admit lets clients, the addresses in the network of the nodes of a server's proxy or of the
 // servers that use a datastore, reach the port it publishes in the network, as the only ones,
 // as long as their peers have the keys they have now. The master sends these keys, in the
-// order of clients, to make sure that they are the nodes it means; older masters send none.
-// It returns the node's address in the network, at which the port is published.
+// order of clients, to make sure that they are the nodes it means. It returns the node's
+// address in the network, at which the port is published.
 func (s *Service) Admit(id string, port uint32, clients, keys []string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,8 +212,8 @@ func (s *Service) Admit(id string, port uint32, clients, keys []string) (string,
 	if st == nil || len(clients) == 0 || port == 0 || port > 65535 {
 		return "", errors.New("this node is no member of the private network")
 	}
-	if len(keys) != 0 && len(keys) != len(clients) {
-		return "", errors.New("the master sent the keys of other clients")
+	if len(keys) != len(clients) {
+		return "", errors.New("the master didn't send the key of each client")
 	}
 	addrs, bound := make([]netip.Addr, len(clients)), make([]string, len(clients))
 	for i, client := range clients {
@@ -222,7 +222,7 @@ func (s *Service) Admit(id string, port uint32, clients, keys []string) (string,
 		switch {
 		case bound[i] == "" || slices.Contains(addrs[:i], addr):
 			return "", fmt.Errorf("%s is no node of the private network of this node", client)
-		case len(keys) != 0 && keys[i] != bound[i]:
+		case keys[i] != bound[i]:
 			return "", fmt.Errorf("the key of %s in the private network of this node isn't the one the master sent: the master hasn't configured this node since it changed", client)
 		}
 		addrs[i] = addr
@@ -309,7 +309,6 @@ func readState(dir string) (*State, error) {
 	if err := json.Unmarshal(data, &st); err != nil {
 		return nil, err
 	}
-	st.bindClients()
 	return &st, nil
 }
 

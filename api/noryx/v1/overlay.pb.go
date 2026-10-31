@@ -125,7 +125,7 @@ type GetOverlayResponse struct {
 	// The ports the node publishes at its address in the network, and for whom.
 	Published []*OverlayPublished `protobuf:"bytes,6,rep,name=published,proto3" json:"published,omitempty"`
 	// Whether the nftables table of the network is in place; unspecified unless the node is a
-	// member, and from older agents.
+	// member.
 	Firewall OverlayFirewall `protobuf:"varint,7,opt,name=firewall,proto3,enum=noryx.v1.OverlayFirewall" json:"firewall,omitempty"`
 	// What is missing or differs, if the table is incomplete.
 	FirewallProblem string `protobuf:"bytes,8,opt,name=firewall_problem,json=firewallProblem,proto3" json:"firewall_problem,omitempty"`
@@ -501,7 +501,7 @@ type OverlayPeer struct {
 	// host:port at which it is reached; the agent resolves host names.
 	Endpoint string `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	// The TCP ports at which the peer publishes servers or datastores for this node, the only
-	// ones TestOverlayPeer connects to. Older masters send none.
+	// ones TestOverlayPeer connects to.
 	Ports         []uint32 `protobuf:"varint,4,rep,packed,name=ports,proto3" json:"ports,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

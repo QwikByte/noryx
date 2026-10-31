@@ -126,8 +126,8 @@ func (a *peerAgent) peers() []string {
 	return peers
 }
 
-// mesh is a master whose nodes n1, n2 and n3 may join the private network, while n4 runs an
-// agent of an older version and nothing answers for n5.
+// mesh is a master whose nodes n1, n2 and n3 may join the private network, while n4 never
+// joins and nothing answers for n5.
 type mesh struct {
 	*Service
 	agents map[string]*peerAgent
@@ -237,7 +237,6 @@ func TestJoin(t *testing.T) {
 		{"a refused configuration", "n3", func(a *peerAgent) {
 			a.unsupported, a.refuse = "", status.Error(codes.FailedPrecondition, "10.213.0.0/24 overlaps a network of the node.")
 		}, http.StatusConflict, "n3 can't join: 10.213.0.0/24 overlaps a network of the node."},
-		{"an older agent", "n4", nil, http.StatusNotImplemented, "Update the agent of the node to let it join the private network."},
 		{"an unknown node", "n9", nil, http.StatusNotFound, "Node not found."},
 	} {
 		if tc.agent != nil {
@@ -483,7 +482,6 @@ func TestPortTest(t *testing.T) {
 		{"itself", "n1", "n1", nil, http.StatusNotFound},
 		{"from a node that isn't a member", "n4", "n2", nil, http.StatusNotFound},
 		{"to a node that isn't a member", "n1", "n4", nil, http.StatusNotFound},
-		{"to an older agent", "n1", "n2", func(a *peerAgent) { a.firewall = noryxv1.OverlayFirewall_OVERLAY_FIREWALL_UNSPECIFIED }, http.StatusNotImplemented},
 		{"to a node that isn't configured", "n1", "n2", func(a *peerAgent) { a.config = nil }, http.StatusConflict},
 	} {
 		if tc.agent != nil {
