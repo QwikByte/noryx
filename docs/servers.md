@@ -374,6 +374,3 @@ reports others, e.g. as it was offline when they changed:
 - **Interval of measurements:** how often the agent measures what the node, its servers and datastores use (see
   [Usage](monitoring.md#current-values)), from every 5 to every 60 seconds, every 5 unless changed. Longer intervals ask
   the servers less often for their players and ticks per second, while the panel shows changes later.
-
-Agents of older versions don't take these settings, which the panel says as they are saved; they get them once they
-are updated.

@@ -41,7 +41,7 @@ export interface NodeLimits {
   memoryReserveMb: number | null
 }
 
-/** Settings that the agent of a node applies itself; agents of older versions don't take them. */
+/** Settings that the agent of a node applies itself. */
 export interface AgentSettings {
   /** The runtime keeps logFiles files of up to logFileMb MB of the output of each container; 0 for both leaves it to the runtime. */
   logFileMb: number

@@ -16,8 +16,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/access"
@@ -38,7 +36,6 @@ type agent struct {
 
 	mu       sync.Mutex
 	settings *noryxv1.NodeSettings
-	older    bool // knows no settings
 	key      ed25519.PrivateKey
 }
 
@@ -56,9 +53,6 @@ func (a *agent) GetInfo(context.Context, *noryxv1.GetInfoRequest) (*noryxv1.GetI
 func (a *agent) Configure(_ context.Context, req *noryxv1.ConfigureRequest) (*noryxv1.ConfigureResponse, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.older {
-		return nil, status.Error(codes.Unimplemented, "unknown method Configure")
-	}
 	a.settings = req.GetSettings()
 	return &noryxv1.ConfigureResponse{}, nil
 }
@@ -253,12 +247,7 @@ func TestHandler(t *testing.T) {
 	if a.settings.GetLogFileMb() != 20 {
 		t.Errorf("the agent applies %v", a.settings)
 	}
-	a.older = true
 	a.mu.Unlock()
-	if code := serve(admin, "PUT", "/api/nodes/n1", strings.Replace(body, `"logFileMb": 20`, `"logFileMb": 30`, 1), &updated); code != http.StatusOK ||
-		!strings.HasPrefix(updated.Warning, "The agent of the node is too old for the output of containers") {
-		t.Errorf("settings for an older agent: status %d, %+v", code, updated)
-	}
 	offline, err := nodes.Get(t.Context(), "n2")
 	if err != nil {
 		t.Fatal(err)
