@@ -53,7 +53,7 @@ func TestTurnOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := fmt.Sprint(listing(false)); got != "[Other.jar off=false settings=]" {
-		t.Fatalf("listing for older masters = %s", got)
+		t.Fatalf("listing without disabled files = %s", got)
 	}
 	if got := fmt.Sprint(listing(true)); got != "[Other.jar off=false settings= LuckPerms.jar off=true settings=LuckPerms]" {
 		t.Fatalf("listing = %s", got)

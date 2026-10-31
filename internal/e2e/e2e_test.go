@@ -319,9 +319,8 @@ type agent struct {
 	log      *agentlogs.Buffer
 }
 
-// startAgent registers a node and enrolls its agent with a join token. Options of its gRPC
-// server can change its answers, e.g. to those of an older agent.
-func (m *master) startAgent(t *testing.T, name string, opts ...grpc.ServerOption) agent {
+// startAgent registers a node and enrolls its agent with a join token.
+func (m *master) startAgent(t *testing.T, name string) agent {
 	ln := listen(t)
 	n, token, err := m.nodes.Create(t.Context(), name, ln.Addr().String())
 	check(t, err)
@@ -330,8 +329,7 @@ func (m *master) startAgent(t *testing.T, name string, opts ...grpc.ServerOption
 	a.identity, err = agentnode.LoadIdentity(a.dir)
 	check(t, err)
 	creds := credentials.NewTLS(pki.AgentServerTLS(a.identity.Holder, a.identity.CA))
-	opts = append(opts, grpc.Creds(creds))
-	serve(t, app.NewGRPCServer(a.runtime, a.identity, a.dir, storage.New(a.dir), agentoverlay.NewService(a.dir, a.kernel), a.log, opts...), ln)
+	serve(t, app.NewGRPCServer(a.runtime, a.identity, a.dir, storage.New(a.dir), agentoverlay.NewService(a.dir, a.kernel), a.log, grpc.Creds(creds)), ln)
 	return a
 }
 
