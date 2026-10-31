@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -66,7 +67,7 @@ func (r *installation) update(ctx context.Context, res *Result, projects []strin
 	}
 	res.Restart = o.running && slices.ContainsFunc(res.Installed, Installed.loads)
 	if len(failed) > 0 {
-		return fmt.Errorf("%s", strings.Join(failed, " "))
+		return httpapi.Errorf(http.StatusConflict, "%s", strings.Join(failed, " "))
 	}
 	return nil
 }
