@@ -47,7 +47,7 @@ export interface ServerModpack {
   number: string
 }
 
-/** The modpack of a server; null for servers that weren't created from one, or before the master remembered modpacks. */
+/** The modpack of a server; null for servers that weren't created from one. */
 export const serverModpackQuery = (nodeId: string, serverId: string) =>
   queryOptions({
     queryKey: [...serversQuery(nodeId).queryKey, serverId, "modpack"],

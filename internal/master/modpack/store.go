@@ -46,7 +46,7 @@ func (s *Service) remember(ctx context.Context, nodeID, serverID string, p *Pack
 }
 
 // installed returns the version of a modpack a server has; ok is false for servers that
-// weren't created from a pack, or before the master remembered packs.
+// weren't created from a pack.
 func (s *Service) installed(ctx context.Context, nodeID, serverID string) (i installed, ok bool, err error) {
 	var data []byte
 	err = s.db.QueryRowContext(ctx, `SELECT project, version, number, minecraft, loader, files FROM server_modpacks WHERE node_id = ? AND server_id = ?`,

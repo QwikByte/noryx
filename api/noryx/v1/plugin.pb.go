@@ -115,7 +115,7 @@ func (x *PluginFile) GetSettings() string {
 type ListPluginsRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	// Lists the turned-off files too, which older masters don't know.
+	// Lists the turned-off files too.
 	IncludeDisabled bool `protobuf:"varint,2,opt,name=include_disabled,json=includeDisabled,proto3" json:"include_disabled,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache

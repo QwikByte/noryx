@@ -249,6 +249,5 @@ request has a `backup` with a `selection` and a `location`, or `"noBackup": true
 
 If the backup fails, nothing changes, and a server that ran starts again. If something fails after it, the server stays
 stopped, as it may be updated in part, and the error names the backup to restore, if there is one. Copies of a server
-and servers that move to another node keep their pack. Servers created before the master remembered packs have none,
-and their mods are updated on the **Mods** tab. Updating needs the permissions to change the server's settings and to
-manage its plugins and mods, and an agent of this version.
+and servers that move to another node keep their pack. Updating needs the permissions to change the server's settings
+and to manage its plugins and mods.

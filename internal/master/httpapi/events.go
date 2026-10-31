@@ -10,9 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -60,9 +57,6 @@ func StreamLog[T LogLine](w http.ResponseWriter, r *http.Request, open func(ctx 
 	if err == nil {
 		// Errors such as an unknown server arrive with the first message, before any output.
 		res, err = stream.Recv()
-	}
-	if status.Code(err) == codes.Unimplemented {
-		err = Errorf(http.StatusNotImplemented, "The agent of the node doesn't know this log yet. Update it to see the log.")
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
 		WriteError(w, r, err)

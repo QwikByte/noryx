@@ -25,8 +25,8 @@ const (
 	maxEarlierBytes = 4 << 20
 )
 
-// text returns a line of the console, with its colours as Minecraft's codes if the panel
-// asks for them and the agent tells them; agents of older versions don't.
+// text returns a line of the console, with its colours as Minecraft's codes if the client
+// asks for them and the line has any.
 func text(res *noryxv1.StreamLogsResponse, colors bool) string {
 	if colors {
 		return cmp.Or(res.GetFormatted(), res.GetLine())
@@ -35,8 +35,8 @@ func text(res *noryxv1.StreamLogsResponse, colors bool) string {
 }
 
 // logs streams the console of a server, see httpapi.StreamLog, until the server stops. With
-// colors=true, lines keep their colours as Minecraft's codes, which panels of older versions
-// would show.
+// colors=true, as the panel asks, lines keep their colours as Minecraft's codes; scripts of
+// the API get plain text otherwise.
 func (h *Handler) logs(w http.ResponseWriter, r *http.Request) {
 	colors := r.URL.Query().Get("colors") == "true"
 	httpapi.StreamLog(w, r, func(ctx context.Context, tail uint32, after int64) (httpapi.Stream[*noryxv1.StreamLogsResponse], error) {
@@ -49,7 +49,7 @@ func (h *Handler) logs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// colored is a console stream whose lines have their colours if the panel asks for them.
+// colored is a console stream whose lines have their colours if the client asks for them.
 type colored struct {
 	httpapi.Stream[*noryxv1.StreamLogsResponse]
 	colors bool
@@ -136,6 +136,5 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	// Agents of older versions don't tell the output with its colours.
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"output": res.GetOutput(), "formatted": res.GetFormatted()})
 }

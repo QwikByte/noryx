@@ -724,9 +724,6 @@ func (s *Service) Enable(ctx context.Context, ref Ref, fileName string, enabled 
 		return err
 	}
 	_, err = noryxv1.NewPluginServiceClient(conn).EnablePlugin(ctx, &noryxv1.EnablePluginRequest{ServerId: ref.ServerID, FileName: fileName, Enabled: enabled})
-	if status.Code(err) == codes.Unimplemented {
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of this node to turn plugins off.")
-	}
 	return err
 }
 
