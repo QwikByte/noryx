@@ -98,8 +98,9 @@ link and turning on two-factor authentication revoke the user's tokens, as they 
 old password may have created them. A requirement of two-factor authentication applies to the tokens of the users it
 covers until they set it up. Tokens only work on the routes that state their permissions to `access.Mux`; the routes of
 the user's own account (`/api/auth/` and `/api/preferences`) refuse them, so a token can't sign in to the panel, change
-the password or two-factor authentication, end sessions or create and revoke tokens. A wrong token takes an attempt from
-the client's budget of sign-ins, and a client without attempts left can't use tokens either. Pages of other sites can't
+the password or two-factor authentication, end sessions or create and revoke tokens. Besides the API, tokens sign in to
+[SFTP](#sftp), with the same checks. A wrong token takes an attempt from the client's budget of sign-ins, and a client
+without attempts left can't use tokens either. Pages of other sites can't
 use a token in a browser: the master allows no cross-origin requests, so browsers don't send the header, and the
 cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
 a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
@@ -216,6 +217,36 @@ itself, and never special ones such as setuid. The file manager extracts nothing
 file sets, the temporary files of the agent or the files Noryx writes itself, such as `server.properties`, `ops.json`
 and `forwarding.secret`, and refuses the whole archive if it would.
 Extracting and copying need the permission to change files, searching the one to read them.
+
+## SFTP
+
+The master serves SFTP itself, so agents get no new way in and keep obeying only the master: each request of a client
+becomes one of the file manager's calls of the agent of the server's node (listing, reading, writing, creating folders,
+moving and deleting), which checks it as it checks those of the file manager. So secrets stay hidden as there, paths
+stay in the server's folder, writing keeps 1 GB free, and the log names the user, the token and the server of every
+download and change. SFTP is off until the settings name an address, which only administrators may change, as it opens
+a port, and it serves nothing but SFTP: no shell, no commands and no forwarding.
+
+Users sign in with their username and an API token as the password; SSH keys, other methods and the passwords of the
+panel are refused. So a token is as strong as the file manager with the token's permissions: it sees only the servers
+whose files it may browse, and changes only those whose files it may change, not while they move to another node. The
+master checks the token and loads its permissions again for every request, so revoking it, its expiry, disabling its
+user, a requirement of two-factor authentication and changes of the user's groups apply to open connections at once,
+and a token that no longer works ends its connection. A wrong token or username takes an attempt from the client's
+budget of sign-ins, which it shares with the panel and API tokens, and a client without attempts left can't sign in; a
+connection has a minute and 3 attempts to sign in. The log notes sign-ins and failed attempts with the client's
+address, which SFTP gets from the connection, never from a proxy, and never the token.
+
+So that clients can't fill the master's memory, a user has up to 16 connections at once, with up to 64 open files each.
+The master streams files between client and agent: it keeps at most 8 MB of the parts that a connection sends before
+those in front of them, and about a megabyte of each file it reads for parts asked for out of order. A file only
+replaces the one on the server once the client closes it, so a client that goes away before, leaves a gap or writes at
+an offset leaves the file as it was.
+
+The master identifies with an Ed25519 host key, which it creates in its data directory (`sftp/host_key`, mode `0600`)
+the first time SFTP is on; a key it can't load keeps SFTP off. The settings, the file manager and the master's entry of
+its start in the log show its fingerprint, which clients ask to compare when they first connect. `noryx-master backup`
+doesn't hold it, so a master restored elsewhere creates a new one, which clients warn about.
 
 ## Plugins and downloads
 

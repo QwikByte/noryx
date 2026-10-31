@@ -111,6 +111,37 @@ networks with their secrets as `<hidden>`, which saving keeps. Downloads of fold
 way, as they do with the files that [file sets](library.md#file-sets) filled secrets into. Plugins and mods run with the
 server, though, and can read them.
 
+### SFTP
+
+Editors with remote files, scripts and clients such as WinSCP, FileZilla, `sshfs`, `rclone` or `lftp` reach the files
+of servers over SFTP, once an administrator gives it an address under **Settings** → **SFTP**, e.g. `0.0.0.0:2022`;
+empty turns it off. Like the panel's address, it applies when the master starts again. The master serves SFTP itself,
+not the agents, and every request goes to the agent of the server's node like those of the file manager, so the same
+rules apply: secrets stay hidden, paths stay in the server's folder and 1 GB stays free on the node.
+
+- **Signing in:** your username, and an [API token](api.md#api-tokens) as the password, e.g.
+  `sftp -P 2022 alice@panel.example.com`. The token needs the permission to browse and download files of a server to
+  see it, and the one to change files to change them; one with all of your permissions has them where you do. SSH keys
+  and the password of the panel don't work, so that the token's lifetime, permissions and revocation apply.
+- **Paths** are `/<node>/<server>/<path in the server's folder>`: `/` lists the nodes with servers whose files the
+  token may browse, and a node these servers. Nodes and servers are named as in the panel, or by their IDs where
+  another one in the same folder has the same name, regardless of case, or the name can't be one in a path, e.g. as it
+  holds a `/`. IDs always work, e.g. in scripts, as names change. The **SFTP** button of the file manager shows the
+  command that opens the folder of the server, and the fingerprint of the master's host key, which your client asks you
+  to compare the first time it connects; the settings show it too.
+- **Writing** replaces a file as a whole, from the start to the end: it appears once the client closes it, like an
+  upload of the file manager. Resuming an upload, writing at an offset, writing into an existing file without
+  truncating it and truncating fail and leave the file as it was. Renaming never replaces a file, files only move within
+  their server, and removing a folder needs it to be empty. Links can't be made or read. Times, permissions and owners
+  of files stay as the agent sets them; clients that set them, e.g. to keep the time of an upload, get no error, so
+  tools that sync should compare sizes, e.g. `rclone sync --size-only`.
+- A folder lists the first 5000 entries, as in the file manager. Only SFTP is served, no shell, so `rsync` doesn't
+  work, and `scp` only where it uses SFTP, as OpenSSH's does since version 9.0. A user has up to 16 connections at once.
+
+Downloads and changes are logged like those of the file manager, with the user, the token and `via: sftp`, and so are
+sign-ins with the client's address. Revoking a token, its expiry and changes of your permissions apply to open
+connections right away.
+
 ## server.properties
 
 `server.properties` can be edited as a form: grouped settings with switches, choices and validated numbers, a MOTD

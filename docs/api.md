@@ -40,6 +40,12 @@ A token acts as its user, with what both the token and the user may do at the mo
 The log names the token, by its name and ID, besides the user in every entry of what the token did. Creating and
 revoking tokens is logged too.
 
+Tokens also sign in to [SFTP](servers.md#sftp), as the password with the username of their user, e.g. for an editor or
+a script that syncs configuration. There they need the permissions of the file manager: to browse and download files to
+see a server and read its files, and to change files to change them. The same rules apply as to requests: the master
+checks the token and its permissions for every request, so revoking it ends its open connections, and wrong tokens take
+the client's attempts of signing in.
+
 ## Using the API
 
 Send the token in the `Authorization` header. For example, list the servers, whose answer holds the `nodeId` and `id` of

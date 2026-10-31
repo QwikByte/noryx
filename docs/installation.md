@@ -28,8 +28,8 @@ generates one and writes it to `/etc/noryx/admin-password`, which only root can 
 characters and isn't shown while you type it. These options only apply to a new installation; later, both addresses can
 be changed in the panel's settings.
 
-Open port 9443 for the nodes. For plugins and mods, the master needs HTTPS access to `api.modrinth.com` and
-`cdn.modrinth.com`.
+Open port 9443 for the nodes, and the port of [SFTP](servers.md#sftp) for its users if you turn it on in the settings.
+For plugins and mods, the master needs HTTPS access to `api.modrinth.com` and `cdn.modrinth.com`.
 
 ### HTTPS
 
