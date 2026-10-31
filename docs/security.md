@@ -140,14 +140,16 @@ to 28 days, so nothing else becomes part of a command.
 ## Containers
 
 Containers run with `no-new-privileges`, memory and PID limits, and only the capabilities the images need to hand the
-data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies run as the user of their image (uid 1000) from the
-start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
+data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies and Bedrock servers run as the user of their image
+(uid 1000) from the start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
 without communication between containers (`noryx-servers`), and a Velocity proxy shares another one only with its
 backends on the node. The PID limit lets a server's container run 1,024 processes and threads, or up to 8,192 if its
 settings say so, which the agent checks, so that a compromised server can't exhaust the node, e.g. with a fork bomb.
 
 A container publishes the server's port, a proxy's Bedrock port and the extra ports of the server's plugins, nothing
-else. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
+else; a Bedrock server publishes its TCP port and the UDP ports of its players after it, the same in its container,
+which the agent checks like the server's port and which no extra port takes. The node's address that a Bedrock server
+tells its players is one the agent finds itself or its administrator gives it, never one of the master. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
 of the node, and never the server's or its Bedrock port, nor a port the container uses itself: 25565 and 25577, where
 servers and proxies listen inside it, and the console port 25575, which the image sets again on every start, so that
 neither the console nor the game port of a server behind a proxy becomes reachable through them. Each is published at
@@ -184,7 +186,10 @@ load (also from URLs), are refused. A server that got such an option before an u
 removed: the agent logs a warning when it starts, and the panel shows it on the server's page and the overview.
 Settings can't set other variables of the images, such as `CUSTOM_SERVER`, `PLUGINS` or `JVM_XX_OPTS`, which download or
 run code and would get around these checks: besides the variables of checked settings, a container only gets its time
-zone as `TZ`, once the agent found it among the IANA time zones it knows.
+zone as `TZ`, once the agent found it among the IANA time zones it knows. A Bedrock server's version is `LATEST`,
+`PREVIEW` or four numbers, never `EXISTING`, which would run a program from its data, nor `DIRECT_DOWNLOAD_URL`, and
+it takes no settings of Java. Its console reads commands from its standard input like that of a proxy, which only the
+agent writes to; the commands of players take only checked names.
 
 ## File manager
 

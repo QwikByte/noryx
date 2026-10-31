@@ -95,6 +95,22 @@ the players who joined a server with Geyser before. The agent writes them into `
 reload it (`whitelist reload`); stopped servers get the change once they run. Other actions work by name once a player
 joined the server.
 
+## Bedrock servers
+
+[Bedrock servers](servers.md#bedrock-servers) take the actions that Bedrock Dedicated Server has, through its console:
+kicks (`kick`), operators (`op`, `deop`) and its allowlist (`allowlist add`, `allowlist remove`, `allowlist on`,
+`allowlist off`), which is their whitelist in the panel, by the players' gamertags of up to 16 letters, digits and
+underscores, without Floodgate's dot. Gamertags with spaces work only in the server's console. Kicks and operators work
+only for players who are online. Their console doesn't answer, so the panel can't tell whether a command succeeded;
+the output shows it. Changes for a stopped server wait like those of other servers.
+
+Bedrock servers have no bans, so a ban or pardon on one fails with a note, e.g. on all servers; the allowlist keeps
+players out instead. They don't tell who is online, so they have no players online or seen, and messages can't be sent
+to their players from the **Players** page; warnings before restarts and stops, schedules and workflows reach them with
+the commands of Bedrock Dedicated Server (`say`, `tellraw`, `titleraw`). Their **Players** tab shows the allowlist
+(`allowlist.json`) and whether it is on (`allow-list`), but no operators, which they keep by Xbox user IDs
+(`permissions.json`).
+
 ## Permissions
 
 Acting on players needs the permission to manage players on each server; making operators also needs the permission to
