@@ -3037,7 +3037,6 @@
   "The {{shown}} players seen last of {{count}}. Search to find the others._other": "Die {{shown}} zuletzt gesehenen von {{count}} Spielern. Suche, um die anderen zu finden.",
   "The agent can't be reached": "Der Agent ist nicht erreichbar",
   "The agent of {{node}}": "Der Agent von {{node}}",
-  "The agent of this node can't read the end of large files yet. Update it, or download the file.": "Der Agent dieses Nodes kann das Ende großer Dateien noch nicht lesen. Aktualisiere ihn oder lade die Datei herunter.",
   "The archives aren't encrypted": "Die Archive sind nicht verschlüsselt",
   "The backup is deleted from the node. This can't be undone.": "Das Backup wird vom Node gelöscht. Das lässt sich nicht rückgängig machen.",
   "The backup is kept on the node.": "Das Backup wird auf dem Node gespeichert.",

@@ -3037,7 +3037,6 @@
   "The {{shown}} players seen last of {{count}}. Search to find the others._other": "The {{shown}} players seen last of {{count}}. Search to find the others.",
   "The agent can't be reached": "The agent can't be reached",
   "The agent of {{node}}": "The agent of {{node}}",
-  "The agent of this node can't read the end of large files yet. Update it, or download the file.": "The agent of this node can't read the end of large files yet. Update it, or download the file.",
   "The archives aren't encrypted": "The archives aren't encrypted",
   "The backup is deleted from the node. This can't be undone.": "The backup is deleted from the node. This can't be undone.",
   "The backup is kept on the node.": "The backup is kept on the node.",

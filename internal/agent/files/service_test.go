@@ -64,7 +64,7 @@ func TestWriteExpectedVersion(t *testing.T) {
 		t.Fatalf("file = %q", got)
 	}
 
-	// Without an expected version, as from older masters, it is replaced.
+	// Without an expected version, e.g. as an upload replaces a file, it is replaced.
 	if _, err := write(svc, id, "server.properties", nil, "motd=D\nrcon.password=<hidden>\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +73,7 @@ func TestWriteExpectedVersion(t *testing.T) {
 	}
 }
 
-// An archive of chosen files and folders holds only them, without secrets and links, and
-// tells the master so, as older agents archive the whole folder.
+// An archive of chosen files and folders holds only them, without secrets and links.
 func TestArchiveChosen(t *testing.T) {
 	rt := dataRuntime{dir: t.TempDir()}
 	svc, id := NewService(rt), runtime.NewID()
@@ -115,9 +114,6 @@ func TestArchiveChosen(t *testing.T) {
 		}
 		if got := unzip(t, stream.data.Bytes()); !maps.Equal(got, c.want) {
 			t.Errorf("archive of %q in %q = %q, want %q", c.paths, c.dir, got, c.want)
-		}
-		if stream.first.GetPathsOnly() != (c.paths != nil) {
-			t.Errorf("archive of %q in %q: paths only = %v", c.paths, c.dir, stream.first.GetPathsOnly())
 		}
 	}
 
@@ -219,7 +215,7 @@ func TestReadPart(t *testing.T) {
 		want          string
 		start, total  int64
 	}{
-		{"logs/latest.log", 0, 0, "0123456789", 0, 0}, // the whole file, as older masters ask
+		{"logs/latest.log", 0, 0, "0123456789", 0, 0}, // the whole file, without a range
 		{"logs/latest.log", -4, 0, "6789", 6, 10},
 		{"logs/latest.log", -40, 0, "0123456789", 0, 10},
 		{"logs/latest.log", 2, 3, "234", 2, 10},
@@ -353,17 +349,13 @@ func (s *readStream) Send(res *noryxv1.ReadFileResponse) error {
 
 type archiveStream struct {
 	grpc.ServerStream
-	ctx   context.Context
-	first *noryxv1.ArchiveDirectoryResponse
-	data  bytes.Buffer
+	ctx  context.Context
+	data bytes.Buffer
 }
 
 func (s *archiveStream) Context() context.Context { return s.ctx }
 
 func (s *archiveStream) Send(res *noryxv1.ArchiveDirectoryResponse) error {
-	if s.first == nil {
-		s.first = res
-	}
 	s.data.Write(res.GetData())
 	return nil
 }

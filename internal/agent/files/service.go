@@ -250,13 +250,7 @@ func (s *Service) ArchiveDirectory(req *noryxv1.ArchiveDirectoryRequest, stream 
 	r, w := io.Pipe()
 	defer r.Close() // stops WriteZip if the client goes away
 	go func() { w.CloseWithError(datadir.WriteZip(stream.Context(), w, sub, censor, paths...)) }()
-	res := &noryxv1.ArchiveDirectoryResponse{PathsOnly: len(req.GetPaths()) > 0}
-	return sendChunks(r, func(data []byte) error {
-		res.Data = data
-		err := stream.Send(res)
-		res = &noryxv1.ArchiveDirectoryResponse{}
-		return err
-	})
+	return sendChunks(r, func(data []byte) error { return stream.Send(&noryxv1.ArchiveDirectoryResponse{Data: data}) })
 }
 
 // archived returns what an archive of the folder root holds: all of it, or the files and

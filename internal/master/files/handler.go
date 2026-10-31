@@ -98,7 +98,8 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Attachment(w, path.Base(p))
 	setETag(w, first.GetVersion())
-	// Agents of older versions send the whole file, as does one of an empty file.
+	// The agent tells the size of the whole file only for a part of it that was asked for, and
+	// not for an empty file, which comes whole like a file without a range.
 	if total := first.GetFileSize(); total > 0 {
 		start, n := first.GetOffset(), first.GetSize()
 		if n == 0 {
@@ -137,12 +138,9 @@ func byteRange(header string) (offset, limit int64) {
 	return 0, 0
 }
 
-// setETag tells the version of a file, which an upload can expect with If-Match. Agents of
-// older versions don't tell it.
+// setETag tells the version of a file, which an upload can expect with If-Match.
 func setETag(w http.ResponseWriter, v *noryxv1.FileVersion) {
-	if v != nil {
-		w.Header().Set("ETag", fmt.Sprintf(`"%d-%d"`, v.GetModifiedUnixNano(), v.GetSize()))
-	}
+	w.Header().Set("ETag", fmt.Sprintf(`"%d-%d"`, v.GetModifiedUnixNano(), v.GetSize()))
 }
 
 // ifMatch is the version of a file that an upload expects, from an ETag of setETag.
@@ -182,9 +180,6 @@ func (h *Handler) archive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	first, err := stream.Recv()
-	if err == nil && len(names) > 0 && !first.GetPathsOnly() { // an older agent, which archives the whole folder
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to download several files and folders at once.")
-	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -325,7 +320,7 @@ func (h *Handler) extract(w http.ResponseWriter, r *http.Request) {
 				ServerId: spec.ServerID, Path: req.Path, Destination: req.Destination, Overwrite: req.Overwrite,
 			})
 			return err
-		}, "Update the agent of the node to extract archives.")
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -350,7 +345,7 @@ func (h *Handler) copy(w http.ResponseWriter, r *http.Request) {
 		return nil, h.agent(ctx, spec.NodeID, func(ctx context.Context, c noryxv1.FileServiceClient) error {
 			_, err := c.CopyFile(ctx, &noryxv1.CopyFileRequest{ServerId: spec.ServerID, From: req.From, To: req.To})
 			return err
-		}, "Update the agent of the node to copy files.")
+		})
 	})
 }
 
@@ -369,9 +364,6 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	var res *noryxv1.SearchFilesResponse
 	if err == nil {
 		res, err = c.SearchFiles(ctx, &noryxv1.SearchFilesRequest{ServerId: r.PathValue("id"), Path: r.URL.Query().Get("path"), Query: r.URL.Query().Get("query")})
-	}
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to search files.")
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
@@ -397,20 +389,14 @@ func (h *Handler) spec(r *http.Request, kind, subject, step string) operation.Sp
 }
 
 // agent calls the agent of a node within an operation, which follows the call's progress.
-// Agents that don't know the call fail with older.
-func (h *Handler) agent(ctx context.Context, nodeID string, call func(context.Context, noryxv1.FileServiceClient) error, older string) error {
+func (h *Handler) agent(ctx context.Context, nodeID string, call func(context.Context, noryxv1.FileServiceClient) error) error {
 	conn, err := h.files.nodes.Conn(ctx, nodeID)
 	if err != nil {
 		return err
 	}
 	ctx, stop := operation.Agent(ctx, conn)
 	defer stop()
-	if err := call(ctx, noryxv1.NewFileServiceClient(conn)); status.Code(err) == codes.Unimplemented {
-		return httpapi.Errorf(http.StatusNotImplemented, "%s", older)
-	} else if err != nil {
-		return err
-	}
-	return nil
+	return call(ctx, noryxv1.NewFileServiceClient(conn))
 }
 
 // unary reads an optional JSON body into req and runs an operation without result on the node

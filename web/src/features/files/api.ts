@@ -94,7 +94,7 @@ export async function createFolders(s: ServerFiles, paths: string[]) {
 
 export class BinaryFileError extends Error {}
 
-/** A text file, with the version it was read in if the agent tells it. */
+/** A text file, with the version it was read in; none for a file that is gone. */
 export interface TextFile {
   text: string
   version?: string

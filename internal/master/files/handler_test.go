@@ -50,9 +50,7 @@ type agent struct {
 	noryxv1.UnimplementedFileServiceServer
 	content []byte
 	version *noryxv1.FileVersion
-	// older sends whole files without their size, as agents of older versions do.
-	older bool
-	err   error // the answer to the next call, if set
+	err     error // the answer to the next call, if set
 
 	mu      sync.Mutex
 	read    *noryxv1.ReadFileRequest
@@ -70,7 +68,7 @@ func (a *agent) ReadFile(req *noryxv1.ReadFileRequest, stream noryxv1.FileServic
 	size := int64(len(a.content))
 	res := &noryxv1.ReadFileResponse{Size: size, Version: a.version}
 	start, n := int64(0), size
-	if !a.older && (req.GetOffset() != 0 || req.GetLimit() != 0) {
+	if req.GetOffset() != 0 || req.GetLimit() != 0 {
 		// The part the agent sends, see part in internal/agent/files.
 		if start = min(req.GetOffset(), size); req.GetOffset() < 0 {
 			start = max(size+req.GetOffset(), 0)
@@ -163,23 +161,20 @@ func TestDownload(t *testing.T) {
 	h := newHandler(t, a)
 	for _, tc := range []struct {
 		name, rangeHeader string
-		older             bool
 		status            int
 		contentRange      string
 		body              string
 		offset, limit     int64
 	}{
-		{"the whole file", "", false, http.StatusOK, "", "0123456789", 0, 0},
-		{"a part", "bytes=2-5", false, http.StatusPartialContent, "bytes 2-5/10", "2345", 2, 4},
-		{"from an offset", "bytes=7-", false, http.StatusPartialContent, "bytes 7-9/10", "789", 7, 0},
-		{"the end", "bytes=-3", false, http.StatusPartialContent, "bytes 7-9/10", "789", -3, 0},
-		{"more than the file", "bytes=-30", false, http.StatusPartialContent, "bytes 0-9/10", "0123456789", -30, 0},
-		{"beyond the end", "bytes=8-20", false, http.StatusPartialContent, "bytes 8-9/10", "89", 8, 13},
-		{"after the end", "bytes=10-", false, http.StatusRequestedRangeNotSatisfiable, "bytes */10", "", 10, 0},
-		{"several parts", "bytes=0-1,5-6", false, http.StatusOK, "", "0123456789", 0, 0},
-		{"of an older agent", "bytes=2-5", true, http.StatusOK, "", "0123456789", 2, 4},
+		{"the whole file", "", http.StatusOK, "", "0123456789", 0, 0},
+		{"a part", "bytes=2-5", http.StatusPartialContent, "bytes 2-5/10", "2345", 2, 4},
+		{"from an offset", "bytes=7-", http.StatusPartialContent, "bytes 7-9/10", "789", 7, 0},
+		{"the end", "bytes=-3", http.StatusPartialContent, "bytes 7-9/10", "789", -3, 0},
+		{"more than the file", "bytes=-30", http.StatusPartialContent, "bytes 0-9/10", "0123456789", -30, 0},
+		{"beyond the end", "bytes=8-20", http.StatusPartialContent, "bytes 8-9/10", "89", 8, 13},
+		{"after the end", "bytes=10-", http.StatusRequestedRangeNotSatisfiable, "bytes */10", "", 10, 0},
+		{"several parts", "bytes=0-1,5-6", http.StatusOK, "", "0123456789", 0, 0},
 	} {
-		a.older = tc.older
 		w := serve(t, h.download, "GET", "/files/content?path=plugins/x/config.yml", nil, http.Header{"Range": {tc.rangeHeader}})
 		got := []any{w.Code, w.Header().Get("Content-Range"), w.Body.String(), a.read.GetOffset(), a.read.GetLimit()}
 		if want := []any{tc.status, tc.contentRange, tc.body, tc.offset, tc.limit}; !slices.Equal(got, want) {
@@ -196,11 +191,7 @@ func TestDownload(t *testing.T) {
 		}
 	}
 
-	// Older agents tell no version, and the agent's errors arrive with the first message.
-	a.older, a.version = false, nil
-	if w := serve(t, h.download, "GET", "/files/content?path=x", nil, nil); w.Code != http.StatusOK || w.Header().Get("ETag") != "" {
-		t.Errorf("without a version: %d, ETag %q", w.Code, w.Header().Get("ETag"))
-	}
+	// An empty file comes whole, and the agent's errors arrive with the first message.
 	a.content = nil
 	if w := serve(t, h.download, "GET", "/files/content?path=x", nil, http.Header{"Range": {"bytes=-100"}}); w.Code != http.StatusOK || w.Body.Len() != 0 {
 		t.Errorf("an empty file: %d %q", w.Code, w.Body)

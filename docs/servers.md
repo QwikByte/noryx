@@ -77,8 +77,7 @@ backups), creates files and folders, edits configuration files in the browser an
 ZIP archives. A folder can be filtered by name and sorted by name, the largest or the newest first; the browser keeps
 the order for every folder. **Move to…** in the menu of a file or folder moves it into another folder, and **Copy to…**
 copies it there, or into the same folder under a new name, e.g. `world copy`, as long as 1 GB stays free on the node.
-Selected files and folders are downloaded as one ZIP archive, moved, copied or deleted together; agents of older
-versions can't download several of them at once.
+Selected files and folders are downloaded as one ZIP archive, moved, copied or deleted together.
 
 **Extract…** in the menu of a ZIP or `.tar.gz` archive extracts it into its folder or into a new folder in it, e.g. a
 world, a modpack's overrides or the configuration of plugins that were uploaded as one archive. Existing files are only
@@ -91,20 +90,18 @@ can be extracted into another folder, or uploaded and edited on their own.
 **Search** finds text in the text files of the shown folder and the folders in it, regardless of case, and opens a file
 of a match in the editor. Files that only hold secrets are left out and others show them as `<hidden>`, so a search
 never finds a secret. Files larger than 4 MB and binary files are left out, and a search stops after 500 matches or 10
-seconds. Extracting, copying and searching need an up-to-date agent on the node.
+seconds.
 
 If something changed or deleted a file while it was open in the editor, e.g. a plugin, a file set or another user,
 saving shows the difference to the file on the server and offers to load that version or to overwrite it. Agents tell
-the editor the version of a file by when it was modified and its size; with agents of older versions, saving
-overwrites the file as before. Saving a JSON or YAML file with a syntax error, which servers and plugins may fail to
-read, asks first and names the line. The editor highlights JSON, JSON5, YAML, properties, TOML, INI-like files
-(`.conf`, `.cfg`, `.ini`), shell scripts, JavaScript and XML. Each user chooses whether it wraps long lines, whether it
-indents with 2 or 4 spaces or tabs (YAML always with spaces), whether it takes Vim's keys, the size of its text and
-whether it is light in the light theme; **View** next to **Download** has some of these.
+the editor the version of a file by when it was modified and its size. Saving a JSON or YAML file with a syntax error,
+which servers and plugins may fail to read, asks first and names the line. The editor highlights JSON, JSON5, YAML,
+properties, TOML, INI-like files (`.conf`, `.cfg`, `.ini`), shell scripts, JavaScript and XML. Each user chooses whether
+it wraps long lines, whether it indents with 2 or 4 spaces or tabs (YAML always with spaces), whether it takes Vim's
+keys, the size of its text and whether it is light in the light theme; **View** next to **Download** has some of these.
 
 Logs (`.log` files) open read only in a viewer that highlights warnings and errors. Of a large log, it shows the last
-2 MB and loads earlier parts on request; with agents of older versions, large logs can only be downloaded. Archived logs
-(`.log.gz`) are unpacked in the browser, up to their first 16 MB.
+2 MB and loads earlier parts on request. Archived logs (`.log.gz`) are unpacked in the browser, up to their first 16 MB.
 
 Secrets such as the RCON password and the forwarding secret of a network never reach the panel. The file manager hides
 files that only hold secrets (`.rcon-cli.env`, `.rcon-cli.yaml`, `forwarding.secret`, Floodgate's `key.pem`) and shows

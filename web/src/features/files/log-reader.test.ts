@@ -6,12 +6,12 @@ const files = { nodeId: "n1", serverId: "s1" }
 const encode = (text: string) => new TextEncoder().encode(text)
 const lines = (count: number, width = 20) => Array.from({ length: count }, (_, i) => `${String(i).padStart(width - 1, "0")}\n`).join("")
 
-/** Answers the requests of the file manager for a file as an agent does: parts of it, or all of it like older agents. */
-function serve(file: Uint8Array<ArrayBuffer>, { ranges = true, status = 200 } = {}) {
+/** Answers the requests of the file manager for a file as the master does: parts of it, or all of it without a range or if it is empty. */
+function serve(file: Uint8Array<ArrayBuffer>, { status = 200 } = {}) {
   const fetch = vi.fn(async (_url: string, init?: RequestInit) => {
     const range = new Headers(init?.headers).get("Range")
     if (status !== 200) return new Response('{"error":"The server has no such file."}', { status })
-    if (!ranges || !range) return new Response(file, { headers: { "Content-Length": String(file.length) } })
+    if (!range || file.length === 0) return new Response(file, { headers: { "Content-Length": String(file.length) } })
     const [, from, to] = /^bytes=(\d*)-(\d+)$/.exec(range)!
     const start = from === "" ? Math.max(file.length - Number(to), 0) : Number(from)
     const end = from === "" ? file.length - 1 : Math.min(Number(to), file.length - 1)
@@ -64,12 +64,9 @@ describe("readEnd", () => {
     expect(all.head).toHaveLength(0)
   })
 
-  it("reads logs that older agents send whole, unless they are large", async () => {
-    serve(encode("one\ntwo\n"), { ranges: false })
-    await expect(readEnd(files, "latest.log")).resolves.toMatchObject({ text: "one\ntwo\n", start: 0, size: 8 })
-
-    serve(encode(lines(150_000)), { ranges: false })
-    await expect(readEnd(files, "latest.log")).rejects.toThrow("The agent of this node can't read the end of large files yet.")
+  it("reads an empty log", async () => {
+    serve(new Uint8Array())
+    await expect(readEnd(files, "latest.log")).resolves.toMatchObject({ text: "", start: 0, size: 0 })
   })
 
   it("refuses files that aren't text", async () => {
