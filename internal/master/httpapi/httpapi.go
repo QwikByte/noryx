@@ -11,12 +11,18 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const maxBodyBytes = 1 << 20
+
+// bodyTime is how long a client may take to send the body of a JSON request or a webhook, so
+// that clients can't hold connections, also unauthenticated ones, by sending slowly. The server
+// itself has no such limit, as uploads and streams last long.
+var bodyTime = 2 * time.Minute
 
 // statusClientClosed is nginx's status of requests whose client went away before the answer.
 const statusClientClosed = 499
@@ -176,13 +182,26 @@ func Message(err error) string {
 	return e.Message
 }
 
-// ReadJSON decodes a size limited request body into v and rejects unknown fields.
+// LimitBodyTime gives the client of a request bodyTime to send its body, and returns the function
+// that lifts the limit once the body is read: a deadline that passed later would cancel the
+// request while it is handled.
+func LimitBodyTime(w http.ResponseWriter) (lift func()) {
+	rc := http.NewResponseController(w)
+	if rc.SetReadDeadline(time.Now().Add(bodyTime)) != nil { // e.g. a recorder in tests
+		return func() {}
+	}
+	return func() { _ = rc.SetReadDeadline(time.Time{}) }
+}
+
+// ReadJSON decodes a size limited request body into v and rejects unknown fields, if the client
+// sends it within bodyTime.
 func ReadJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	return ReadJSONUpTo(w, r, v, maxBodyBytes)
 }
 
 // ReadJSONUpTo is ReadJSON for bodies of up to limit bytes, e.g. with files.
 func ReadJSONUpTo(w http.ResponseWriter, r *http.Request, v any, limit int64) error {
+	defer LimitBodyTime(w)()
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {

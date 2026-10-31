@@ -138,7 +138,9 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 // hookData are the data of a call of a webhook as templates see them: its body, as JSON if it
 // is, else as text, and the values of its query.
 func hookData(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
+	lift := httpapi.LimitBodyTime(w)
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxHookBody))
+	lift()
 	if err != nil {
 		return nil, httpapi.Errorf(http.StatusRequestEntityTooLarge, "Send up to %d KB.", maxHookBody>>10)
 	}
