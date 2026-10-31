@@ -108,28 +108,44 @@ func Command() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE:  func(cmd *cobra.Command, args []string) error { return backupMaster(cmd.Context(), cfg, args[0]) },
 	}
+	restoreCmd := &cobra.Command{
+		Use: "restore <file>",
+		Short: "Replace the database and the certificate authority with those of an archive of noryx-master backup or of the " +
+			"backup job of the master, while the master is stopped. An encrypted archive's passphrase is read from the terminal, " +
+			"or from " + passphraseEnv,
+		Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error { return restoreMaster(cfg, args[0]) },
+	}
 
-	root.AddCommand(serve, user, nodeCmd, logsCmd, backupCmd)
+	root.AddCommand(serve, user, nodeCmd, logsCmd, backupCmd, restoreCmd)
 	return root
 }
 
-// openDB opens the database in dataDir. Only the owner of dataDir may: files another user,
-// such as root, creates in it would lock the master out.
+// openDB opens the database in dataDir, see checkDataDir.
 func openDB(dataDir string) (*sql.DB, error) {
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+	if err := checkDataDir(dataDir); err != nil {
 		return nil, err
+	}
+	return database.Open(filepath.Join(dataDir, "master.db"))
+}
+
+// checkDataDir creates dataDir if it is missing, and checks that it belongs to the user: files
+// another user, such as root, creates in it would lock the master out.
+func checkDataDir(dataDir string) error {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return err
 	}
 	info, err := os.Stat(dataDir)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if owner, ok := ownerOf(info); ok && owner != strconv.Itoa(os.Getuid()) {
 		if u, err := user.LookupId(owner); err == nil {
 			owner = u.Username
 		}
-		return nil, fmt.Errorf("%s belongs to another user, run this as %s, e.g. with: sudo -u %s noryx-master …", dataDir, owner, owner)
+		return fmt.Errorf("%s belongs to another user, run this as %s, e.g. with: sudo -u %s noryx-master …", dataDir, owner, owner)
 	}
-	return database.Open(filepath.Join(dataDir, "master.db"))
+	return nil
 }
 
 // addNode adds a node and prints its join token, alone on stdout for scripts.

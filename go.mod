@@ -8,6 +8,7 @@ tool (
 )
 
 require (
+	filippo.io/age v1.3.2
 	github.com/containerd/errdefs v1.0.0
 	github.com/google/nftables v0.3.0
 	github.com/jsimonetti/rtnetlink/v2 v2.2.0
@@ -32,6 +33,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect

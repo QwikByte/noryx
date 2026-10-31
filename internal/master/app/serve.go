@@ -104,6 +104,15 @@ func (m *master) close() {
 // open opens what the master keeps: the database, the certificate authority with the master's certificate, the
 // settings and the panel's certificate for HTTPS.
 func (m *master) open(ctx context.Context) error {
+	// noryx-master restore refuses to replace the database and the CA of a master that runs.
+	unlock, err := lockDataDir(m.cfg.dataDir)
+	if errors.Is(err, errRunning) {
+		err = fmt.Errorf("another noryx-master runs with %s", m.cfg.dataDir)
+	}
+	if err != nil {
+		return err
+	}
+	m.closers = append(m.closers, unlock)
 	db, err := openDB(m.cfg.dataDir)
 	if err != nil {
 		return err
