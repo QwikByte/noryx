@@ -491,6 +491,35 @@ func (h *Handler) authenticateToken(r *http.Request, secret string) (User, error
 	return user, err
 }
 
+// SignInWithToken returns the user of an API token for a sign-in without HTTP, e.g. over SFTP,
+// where username has to name the token's user. It counts like a token in the Authorization
+// header: a wrong one takes an attempt from the budget of the client at ip, which the panel's
+// sign-ins share, and a client without attempts left can't sign in. A user who has to set up
+// two-factor authentication first can't sign in either.
+func (h *Handler) SignInWithToken(ctx context.Context, username, secret, ip string) (User, error) {
+	key := ratelimit.Client(ip)
+	if h.clients.Blocked(key) {
+		return User{}, errTooManyAttempts
+	}
+	user, err := User{}, errNoToken
+	if strings.HasPrefix(secret, TokenPrefix) {
+		user, err = h.svc.AuthenticateToken(ctx, secret, cut(ip, 64))
+	}
+	if err == nil && !strings.EqualFold(user.Username, username) {
+		err = errNoToken
+	}
+	if errors.Is(err, errNoToken) {
+		h.clients.Allow(key)
+	}
+	if err == nil {
+		user, err = h.checkMFA(ctx, user)
+	}
+	if err == nil && user.MustSetUpMFA {
+		err = ErrSetUpMFA
+	}
+	return user, err
+}
+
 // sessionToken is the token of the request's session, if any.
 func sessionToken(r *http.Request) string {
 	if c, err := r.Cookie(cookieName); err == nil {

@@ -1,5 +1,6 @@
 // Package files is the file manager of a server: the master streams files between the
-// browser and the agent of the server's node, which confines all paths.
+// browser and the agent of the server's node, which confines all paths. SFTP does what the
+// file manager does with the same calls of the agent, see Service.
 package files
 
 import (

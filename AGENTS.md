@@ -53,7 +53,9 @@ internal/master/
                        rolling restarts, maintenance, Bedrock players and the settings of proxies
   player/              kicks, bans, whitelists and operators on many servers at once, their joined lists, sending
                        players to another server of a network
-  files/               file manager, streamed between the browser and the agent
+  files/               file manager, streamed between the browser and the agent; SFTP shares its calls of the agent
+  sftp/                SFTP for the files of servers with API tokens: SSH server, host key, folders of nodes and
+                       servers, through the same calls of the agents as the file manager
   properties/          server.properties editor
   plugin/              installs, lists and removes plugins and mods of servers, from Modrinth and Hangar
   modrinth/            client for the Modrinth API and CDN

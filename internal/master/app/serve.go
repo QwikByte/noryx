@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/QwikByte/noryx/internal/buildinfo"
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
@@ -42,6 +44,7 @@ import (
 	"github.com/QwikByte/noryx/internal/master/schedule"
 	"github.com/QwikByte/noryx/internal/master/server"
 	"github.com/QwikByte/noryx/internal/master/settings"
+	"github.com/QwikByte/noryx/internal/master/sftp"
 	"github.com/QwikByte/noryx/internal/master/tag"
 	"github.com/QwikByte/noryx/internal/master/template"
 	"github.com/QwikByte/noryx/internal/master/terminal"
@@ -69,7 +72,10 @@ type master struct {
 	panelCert *https.Server // nil if the panel has no certificate of its own
 	panel     net.Listener
 	enroll    net.Listener
-	services  Services
+	// sftp listens for SFTP with the host key, unless SFTP is off.
+	sftp     net.Listener
+	hostKey  ssh.Signer
+	services Services
 	// closers close what the master opened, the last first.
 	closers []func() error
 	// restarted is closed when an administrator restarts the master.
@@ -148,7 +154,7 @@ func (m *master) open(ctx context.Context) error {
 	return err
 }
 
-// listen listens at the addresses of the panel and of the enrollment of nodes.
+// listen listens at the addresses of the panel, of the enrollment of nodes and of SFTP, if it is on.
 func (m *master) listen() error {
 	var err error
 	if m.panel, err = m.conf.ListenPanel(); err != nil {
@@ -159,6 +165,17 @@ func (m *master) listen() error {
 		return err
 	}
 	m.closers = append(m.closers, m.enroll.Close)
+	m.sftp = m.conf.ListenSFTP(func() (string, error) {
+		key, err := sftp.HostKey(filepath.Join(m.cfg.dataDir, "sftp"))
+		if err != nil {
+			return "", err
+		}
+		m.hostKey = key
+		return sftp.Fingerprint(key), nil
+	})
+	if m.sftp != nil {
+		m.closers = append(m.closers, m.sftp.Close)
+	}
 	return nil
 }
 
@@ -188,6 +205,9 @@ func (m *master) start(ctx context.Context) error {
 	if desc := conf.Master(); desc.PanelAddrError != "" {
 		slog.Warn("The panel can't listen at the address from the settings, so it listens at the one from the command line",
 			logging.Settings, "addr", desc.PanelAddr, "err", desc.PanelAddrError)
+	}
+	if desc := conf.Master(); desc.SFTPError != "" {
+		slog.Warn("SFTP is off, as it didn't start", logging.Settings, "addr", conf.Get().SFTPAddr, "err", desc.SFTPError)
 	}
 
 	modrinthClient := modrinth.New(modrinth.DefaultAPI, modrinth.DefaultCDN)
@@ -261,9 +281,10 @@ func (m *master) run(ctx context.Context) error {
 	// the panel follows don't hold it up until the timeout.
 	requests, endRequests := context.WithCancel(context.Background())
 	defer endRequests()
+	signIns := SignIns(m.services)
 	httpServer := &http.Server{
 		BaseContext:       func(net.Listener) context.Context { return requests },
-		Handler:           m.proxies.Handler(Handler(m.services)),
+		Handler:           m.proxies.Handler(handler(m.services, signIns)),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Requests themselves have no time limit, as uploads and streams last long.
 		IdleTimeout: 2 * time.Minute,
@@ -276,8 +297,13 @@ func (m *master) run(ctx context.Context) error {
 	}
 	grpcServer := m.services.Nodes.EnrollmentServer()
 
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
 	go func() { errc <- grpcServer.Serve(m.enroll) }()
+	var sftpServer *sftp.Server
+	if m.sftp != nil {
+		sftpServer = SFTP(m.services, signIns, m.hostKey)
+		go func() { errc <- sftpServer.Serve(m.sftp) }()
+	}
 	go func() {
 		switch {
 		case m.cfg.tlsCert != "":
@@ -288,8 +314,9 @@ func (m *master) run(ctx context.Context) error {
 			errc <- httpServer.Serve(m.panel)
 		}
 	}()
-	slog.Info("Master started", "version", buildinfo.Version, "panel", m.conf.Master().PanelAddr,
-		"enrollment", m.cfg.enrollAddr, "public_enrollment", m.conf.EnrollAddr(), "ca_fingerprint", pki.Fingerprint(m.ca.Cert))
+	desc := m.conf.Master()
+	slog.Info("Master started", "version", buildinfo.Version, "panel", desc.PanelAddr, "enrollment", m.cfg.enrollAddr,
+		"public_enrollment", m.conf.EnrollAddr(), "ca_fingerprint", pki.Fingerprint(m.ca.Cert), "sftp", desc.SFTPAddr, "sftp_host_key", desc.SFTPHostKey)
 
 	var err error
 	restarting := false
@@ -302,6 +329,9 @@ func (m *master) run(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	grpcServer.GracefulStop()
+	if sftpServer != nil {
+		err = errors.Join(err, sftpServer.Close())
+	}
 	err = errors.Join(err, httpServer.Shutdown(shutdownCtx))
 	switch {
 	case err != nil:
@@ -355,16 +385,28 @@ type Services struct {
 	HSTS bool
 }
 
-// Handler returns everything the master serves over HTTP: the panel, the sign-in and the
-// API, which needs a session and loads the user's permissions for every request.
-func Handler(s Services) http.Handler {
-	authHandler := auth.NewHandler(s.Users, s.Settings, func(ctx context.Context, userID int64) (bool, error) {
+// SignIns returns what signs users in to the panel and to SFTP, so that the attempts of a
+// client count together.
+func SignIns(s Services) *auth.Handler {
+	return auth.NewHandler(s.Users, s.Settings, func(ctx context.Context, userID int64) (bool, error) {
 		required := s.Settings.Get().RequireMFA
 		if required.All || len(required.Groups) == 0 {
 			return required.All, nil
 		}
 		return s.Access.InGroups(ctx, userID, required.Groups)
 	})
+}
+
+// SFTP returns the server of SFTP, which identifies with key and signs users in with signIns.
+func SFTP(s Services, signIns *auth.Handler, key ssh.Signer) *sftp.Server {
+	return sftp.NewServer(key, sftp.Deps{Nodes: s.Nodes, Users: signIns, Access: s.Access, Moving: s.Moves.Check})
+}
+
+// Handler returns everything the master serves over HTTP: the panel, the sign-in and the
+// API, which needs a session and loads the user's permissions for every request.
+func Handler(s Services) http.Handler { return handler(s, SignIns(s)) }
+
+func handler(s Services, authHandler *auth.Handler) http.Handler {
 	api := API(s)
 	// The routes of the user's own account and preferences need no permission.
 	authHandler.Register(api)
@@ -404,6 +446,7 @@ func API(s Services) *http.ServeMux {
 	network.NewHandler(s.Networks, s.Operations, s.FileSets, s.Tidy).Register(m)
 	player.NewHandler(player.NewService(s.Nodes, s.Networks, s.GeyserMC), s.Sightings, player.NewFaces(s.Mojang, s.GeyserMC), s.Operations).Register(m)
 	files.NewHandler(files.NewService(s.Nodes), s.Operations).Register(m)
+	sftp.NewHandler(s.Settings, s.Nodes).Register(m)
 	properties.NewHandler(s.Nodes).Register(m)
 	plugin.NewHandler(s.Plugins, s.Operations, s.Networks).Register(m)
 	modpack.NewHandler(s.Modpacks, s.Plugins, s.Operations).Register(m)

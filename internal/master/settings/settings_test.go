@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -96,6 +97,64 @@ func TestPanelAddr(t *testing.T) {
 	listen(s)
 	if s.master.PanelAddr != "127.0.0.1:0" || !strings.Contains(s.master.PanelAddrError, "address already in use") {
 		t.Fatalf("master = %+v", s.master)
+	}
+}
+
+// SFTP is off until the settings name an address, at which it listens from the next start; a
+// master that can't listen there starts without it.
+func TestSFTPAddr(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s, err := Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:8080"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := func() (string, error) { return "SHA256:key", nil }
+	if ln := s.ListenSFTP(key); ln != nil {
+		t.Fatal("SFTP listens while off")
+	}
+	set := func(addr string) error {
+		next := s.Get()
+		next.SFTPAddr = addr
+		_, err := s.Update(t.Context(), next)
+		return err
+	}
+	for _, bad := range []string{"localhost:2022", "127.0.0.1", "127.0.0.1:0", "0.0.0.0:8080"} {
+		if err := set(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	free := freeAddr(t)
+	if err := set(" " + free + " "); err != nil || s.Get().SFTPAddr != free {
+		t.Fatalf("set %s: %v, settings = %+v", free, err, s.Get())
+	}
+	ln := s.ListenSFTP(key)
+	if ln == nil {
+		t.Fatalf("SFTP doesn't listen: %+v", s.master)
+	}
+	if addr, key := s.SFTP(); addr != free || key != "SHA256:key" || s.master.SFTPError != "" {
+		t.Fatalf("SFTP at %s with %s, master = %+v", addr, key, s.master)
+	}
+
+	// Another program at the port keeps SFTP off, and so does a host key that can't be loaded.
+	defer ln.Close()
+	for want, key := range map[string]func() (string, error){
+		"address already in use": key,
+		"bad key":                func() (string, error) { return "", errors.New("bad key") },
+	} {
+		s, err = Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:8080"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.ListenSFTP(key) != nil || !strings.Contains(s.master.SFTPError, want) {
+			t.Fatalf("master = %+v, want %s", s.master, want)
+		}
+		if addr, _ := s.SFTP(); addr != "" {
+			t.Fatalf("SFTP at %s", addr)
+		}
 	}
 }
 
