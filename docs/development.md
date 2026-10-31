@@ -43,6 +43,16 @@ Tests that run containers need root and only run with `NORYX_DOCKER_TEST` set: w
 The panel's unit tests use [Vitest](https://vitest.dev). They sit next to the modules they test, as `*.test.ts` or
 `*.test.tsx`, and run in Node without a browser: `npm test` in `web` runs them once, `npx vitest` again on every change.
 
+A smoke test in `web/e2e` signs in to the panel in Chromium with [Playwright](https://playwright.dev) and opens the
+overview and the console of a server. `TestPanelInBrowser` in `internal/e2e` runs it against a master with the panel
+built in and a fake node, only with `NORYX_PANEL_TEST` set. `CHROMIUM_PATH` makes it use another Chromium than
+Playwright's own, e.g. that of the system:
+
+```sh
+(cd web && npm ci && npm run build && npx playwright install chromium)
+NORYX_PANEL_TEST=1 go test -tags ui -run TestPanelInBrowser ./internal/e2e
+```
+
 ## Windows
 
 Noryx runs on Linux. On Windows, develop in WSL 2, e.g. with `scripts/ubuntu-test.sh`. Natively, only the master builds

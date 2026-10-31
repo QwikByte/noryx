@@ -110,6 +110,7 @@ web/                   admin panel (React, Vite, Tailwind CSS, shadcn/ui), embed
   src/components/      shared components; ui/ holds the shadcn/ui components
   src/lib/             helpers: API client, formatting, i18n, theme
   src/locales/         translations of the panel's texts
+  e2e/                 smoke test of the panel in a browser (Playwright), which TestPanelInBrowser in internal/e2e runs
 docs/                  user documentation
 packaging/             installer, systemd units, options and package scripts; .goreleaser.yaml builds releases
 scripts/               test environments, deploying test builds, release notes
@@ -119,13 +120,14 @@ scripts/               test environments, deploying test builds, release notes
 
 Run what CI runs before you push:
 
-| Command                                                   | Checks                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------ |
-| `go test -race ./...`                                     | all Go tests, including the end-to-end tests                       |
-| `golangci-lint run ./...`                                 | Go code (CI uses golangci-lint v2.14.0)                            |
-| `cd web && npm run lint && npm run build && npm test`     | oxlint, the translations, TypeScript, the build and the unit tests |
-| `make generate`                                           | the generated gRPC code; CI fails while it is out of date          |
-| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh` | the shell scripts                                                  |
+| Command                                                                      | Checks                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `go test -race ./...`                                                        | all Go tests, including the end-to-end tests                       |
+| `golangci-lint run ./...`                                                    | Go code (CI uses golangci-lint v2.14.0)                            |
+| `cd web && npm run lint && npm run build && npm test`                        | oxlint, the translations, TypeScript, the build and the unit tests |
+| `NORYX_PANEL_TEST=1 go test -tags ui -run TestPanelInBrowser ./internal/e2e` | the smoke test of the built panel in Chromium                      |
+| `make generate`                                                              | the generated gRPC code; CI fails while it is out of date          |
+| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh`                    | the shell scripts                                                  |
 
 The tests need Linux. [docs/development.md](docs/development.md) explains how to run master, agent and panel locally.
 
