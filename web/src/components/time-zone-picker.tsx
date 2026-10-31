@@ -23,11 +23,14 @@ export function TimeZonePicker({
   id,
   value,
   onChange,
+  invalid,
   className,
 }: {
   id?: string
   value: string
   onChange: (zone: string) => void
+  /** Marks the choice as refused, e.g. by the master. */
+  invalid?: boolean
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -47,7 +50,7 @@ export function TimeZonePicker({
     <Popover open={open} onOpenChange={toggle}>
       <PopoverTrigger asChild>
         {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger sets aria-expanded and aria-controls */}
-        <Button id={id} type="button" variant="outline" role="combobox" className={cn("justify-between font-normal", className)}>
+        <Button id={id} type="button" variant="outline" role="combobox" aria-invalid={invalid} className={cn("justify-between font-normal", className)}>
           <span className="truncate">{formatTimeZone(current)}</span>
           <CaretUpDownIcon className="text-muted-foreground" />
         </Button>

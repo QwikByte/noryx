@@ -6,13 +6,14 @@ import { Callout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { NumberInput } from "@/components/number-input"
 import { Button } from "@/components/ui/button"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { useDeleteSeenPlayers } from "@/features/players/api"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import type { Retention } from "./api"
 
 /** How long the usage, players seen and finished operations are kept, and whether players seen are recorded at all. */
-export function RetentionFields({ value, onChange }: { value: Retention; onChange: (value: Retention) => void }) {
+export function RetentionFields({ value, onChange, errorAt }: { value: Retention; onChange: (value: Retention) => void; errorAt?: ErrorsAt }) {
   const set = (change: Partial<Retention>) => onChange({ ...value, ...change })
   return (
     <>
@@ -24,6 +25,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         unit={t("days")}
         value={value.usageDays}
         onChange={(usageDays) => set({ usageDays })}
+        errors={errorAt?.("usageDays")}
       >
         {t(
           "From 30 days to a year, for the charts of 30 days, of 90 days from 90 days and of 365 days from a year. The minutes behind the charts of 24 hours and 7 days are kept for a week; a year of hours takes about as much space.",
@@ -49,6 +51,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         unit={t("days")}
         value={value.seenDays}
         onChange={(seenDays) => set({ seenDays })}
+        errors={errorAt?.("seenDays")}
       >
         {t("From a day to a year, also once they are no longer recorded.")}
       </Amount>
@@ -60,6 +63,7 @@ export function RetentionFields({ value, onChange }: { value: Retention; onChang
         unit={t("hours")}
         value={value.operationHours}
         onChange={(operationHours) => set({ operationHours })}
+        errors={errorAt?.("operationHours")}
       >
         {t("Up to a day, and the last 200 at most. The master keeps them in memory, so a restart empties the list.")}
       </Amount>
@@ -104,6 +108,7 @@ function Amount({
   unit,
   value,
   onChange,
+  errors,
   children,
 }: {
   id: string
@@ -113,13 +118,15 @@ function Amount({
   unit: string
   value: number
   onChange: (value: number) => void
+  errors?: FieldErrors
   children: ReactNode
 }) {
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <NumberInput id={id} min={min} max={max} unit={unit} value={value} onChange={onChange} />
+      <NumberInput id={id} min={min} max={max} unit={unit} value={value} onChange={onChange} invalid={!!errors} />
       <FieldDescription>{children}</FieldDescription>
+      <FieldError errors={errors} />
     </Field>
   )
 }

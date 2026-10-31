@@ -4,13 +4,14 @@ import { t } from "i18next"
 import { Chip } from "@/components/chip"
 import { CopyButton } from "@/components/copy-button"
 import { Button } from "@/components/ui/button"
-import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field"
+import { FieldDescription, FieldError, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAccess } from "@/features/access/use-access"
 import { networksQuery } from "@/features/networks/api"
 import { hostOf, joinAddress, key } from "@/features/networks/servers"
 import { nodeQuery } from "@/features/nodes/api"
+import type { FieldErrors } from "@/lib/use-draft"
 import type { ExtraPort, Server } from "./api"
 
 /** As many extra ports as the agent publishes for a server. */
@@ -26,10 +27,12 @@ export function ExtraPortsField({
   value,
   onChange,
   server,
+  errors,
 }: {
   value: ExtraPort[]
   onChange: (ports: ExtraPort[]) => void
   server?: { nodeId: string; serverId: string }
+  errors?: FieldErrors
 }) {
   const { can } = useAccess()
   const { data: networks } = useQuery({ ...networksQuery, enabled: !!server && can("networks.view") })
@@ -94,6 +97,7 @@ export function ExtraPortsField({
         {network &&
           ` ${t("That includes this server of {{network}}, which players otherwise only reach through the proxy.", { network: network.name })}`}
       </FieldDescription>
+      <FieldError errors={errors} />
     </FieldSet>
   )
 }

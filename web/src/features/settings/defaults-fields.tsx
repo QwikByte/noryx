@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { ErrorCallout } from "@/components/callout"
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { groupsQuery } from "@/features/access/api"
@@ -9,6 +9,7 @@ import { GroupPicker } from "@/features/access/group-picker"
 import { useAccess } from "@/features/access/use-access"
 import { languageName, languages, msg, timeWith } from "@/lib/i18n"
 import { accents } from "@/lib/theme"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import type { UserDefaults } from "./public"
 
 // A time in the afternoon shows what each clock means, e.g. 14:30 and 2:30 PM.
@@ -17,12 +18,20 @@ const afternoon = new Date(2000, 0, 1, 14, 30)
 const accentNames = { emerald: msg("Emerald"), blue: msg("Blue"), violet: msg("Violet"), graphite: msg("Graphite") }
 
 /** The language and look of users who haven't chosen them, each with the choices users have, or from the browser. */
-export function UserDefaultsFields({ value, onChange }: { value: UserDefaults; onChange: (value: UserDefaults) => void }) {
+export function UserDefaultsFields({
+  value,
+  onChange,
+  errorAt,
+}: {
+  value: UserDefaults
+  onChange: (value: UserDefaults) => void
+  errorAt?: ErrorsAt
+}) {
   const choice = <K extends keyof UserDefaults>(key: K, label: string, options: { value: UserDefaults[K]; label: string }[]) => (
-    <Field>
+    <Field data-invalid={!!errorAt?.(key)}>
       <FieldLabel htmlFor={`settings-default-${key}`}>{label}</FieldLabel>
       <Select value={value[key] || "browser"} onValueChange={(v) => onChange({ ...value, [key]: v === "browser" ? "" : v })}>
-        <SelectTrigger id={`settings-default-${key}`} className="w-full">
+        <SelectTrigger id={`settings-default-${key}`} aria-invalid={!!errorAt?.(key)} className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -34,6 +43,7 @@ export function UserDefaultsFields({ value, onChange }: { value: UserDefaults; o
           ))}
         </SelectContent>
       </Select>
+      <FieldError errors={errorAt?.(key)} />
     </Field>
   )
   return (
@@ -74,7 +84,7 @@ export function UserDefaultsFields({ value, onChange }: { value: UserDefaults; o
 }
 
 /** The groups that inviting a user preselects; choosing them needs the permission to see users and groups. */
-export function InviteGroupsField({ value, onChange }: { value: string[]; onChange: (groups: string[]) => void }) {
+export function InviteGroupsField({ value, onChange, errors }: { value: string[]; onChange: (groups: string[]) => void; errors?: FieldErrors }) {
   const canSeeGroups = useAccess().can("users.view")
   const groups = useQuery({ ...groupsQuery, enabled: canSeeGroups })
   return (
@@ -99,6 +109,7 @@ export function InviteGroupsField({ value, onChange }: { value: string[]; onChan
       ) : (
         <Skeleton className="h-24 rounded-xl" />
       )}
+      <FieldError errors={errors} />
     </FieldSet>
   )
 }

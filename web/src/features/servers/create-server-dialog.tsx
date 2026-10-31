@@ -41,6 +41,7 @@ import { OperationStatus } from "@/features/operations/operation-status"
 import { useOperation } from "@/features/operations/use-operation"
 import { keptChannels, keptVersions, type Template, templatesQuery } from "@/features/templates/api"
 import { formatBytes, formatSeconds, formatTimeZone } from "@/lib/format"
+import { errorsAt, formError, useDraft } from "@/lib/use-draft"
 import { useUpload } from "@/lib/use-upload"
 import {
   freeMemoryMb,
@@ -78,6 +79,9 @@ type Form = Omit<NewServer, "port" | "storage"> & {
 }
 
 const none = "none"
+
+// The fields that show what the master refused about them.
+const fields = ["name", "type", "version", "memoryMb", "port", "maxPlayers", "extraPorts", "java", "stopTimeout", "timeZone"]
 
 /** A new server as its template has it, or else as the settings of new servers, once they are known. */
 function blank(template?: Template, settings?: NewServerSettings): Form {
@@ -167,17 +171,16 @@ function CreateServerForm({
   template?: Template
   onClose: () => void
 }) {
-  const [changed, setForm] = useState<Form>()
   const create = useCreateServer()
   const importServer = useImportServer()
   const upload = useUpload()
-  const [importError, setImportError] = useState<string>()
+  const [importError, setImportError] = useState<Error>()
   const operation = useOperation()
   const navigate = useNavigate()
   const { data: settings } = useQuery(newServersQuery)
   const { data: templates = [] } = useQuery({ ...templatesQuery, enabled: !fixedTemplate })
   // Until something is chosen, the form follows the settings of new servers and their template as they load.
-  const form = changed ?? blank(fixedTemplate ?? templates.find((candidate) => candidate.id === settings?.template), settings)
+  const { value: form, set, reset } = useDraft(blank(fixedTemplate ?? templates.find((candidate) => candidate.id === settings?.template), settings))
   const { can } = useAccess()
   const { data: me } = useQuery(meQuery)
   const { data: allNodes = [], isPending: nodesPending } = useQuery({ ...nodesQuery, enabled: !fixedNode })
@@ -196,7 +199,7 @@ function CreateServerForm({
   const fromModpack = form.type === modpack
   const fromArchive = form.source === "archive"
   // The picker only shows once a modpack was chosen as the software.
-  const chooseModpack = useCallback((choice?: ModpackChoice) => setForm((f) => f && { ...f, modpack: choice }), [])
+  const chooseModpack = useCallback((modpack?: ModpackChoice) => set({ modpack }), [set])
   const port =
     form.port ??
     suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined, bedrock ? players : 1)
@@ -205,23 +208,27 @@ function CreateServerForm({
   const tags = template?.tags ?? []
   const tagsAllowed = !!nodeId && can("servers.settings", nodeId)
   useBusy(create.isPending || upload.uploading)
+  // A refused request shows at the field it is about, and else below the fields.
+  const error = fromArchive ? importError : create.error
+  const errorAt = errorsAt(error)
+  const refused = formError(error, fields)
 
   const title = t("Create {{name}}", { name: form.name })
 
   // Switching between game server and proxy updates the memory unless it was changed.
   function changeType(type: string) {
     const before = defaults(form.type, settings).memoryMb
-    setForm({ ...form, type, memoryMb: form.memoryMb === before ? defaults(type, settings).memoryMb : form.memoryMb })
+    set({ type, memoryMb: form.memoryMb === before ? defaults(type, settings).memoryMb : form.memoryMb })
   }
 
   // An archive brings its own data, so neither a template nor a modpack applies.
   function chooseSource(source: Form["source"]) {
-    setForm({ ...form, source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? (settings?.type ?? "paper") : form.type })
+    set({ source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? (settings?.type ?? "paper") : form.type })
   }
 
   function chooseTemplate(id: string) {
     const chosen = templates.find((candidate) => candidate.id === id)
-    setForm({ ...blank(chosen, settings), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
+    reset({ ...blank(chosen, settings), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
   }
 
   function submit(event: FormEvent) {
@@ -288,7 +295,7 @@ function CreateServerForm({
       onClose()
       void navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: created.id } })
     } catch (e) {
-      setImportError((e as Error).message)
+      setImportError(e as Error)
     }
   }
 
@@ -370,7 +377,7 @@ function CreateServerForm({
             {/* Radix reports "" while the options of a new value load; that is no choice. */}
             <Select
               value={nodeId ?? ""}
-              onValueChange={(id) => id && setForm({ ...form, nodeId: id, port: undefined, storage: undefined })}
+              onValueChange={(id) => id && set({ nodeId: id, port: undefined, storage: undefined })}
             >
               <SelectTrigger id="server-node" className="w-full">
                 <SelectValue placeholder={nodesPending ? t("Loading nodes…") : t("No node is online")} />
@@ -392,22 +399,24 @@ function CreateServerForm({
             </Select>
           </Field>
         )}
-        <Field>
+        <Field data-invalid={!!errorAt("name")}>
           <FieldLabel htmlFor="server-name">{t("Name")}</FieldLabel>
           <Input
             id="server-name"
             placeholder={t("Lobby")}
             required
             maxLength={32}
+            aria-invalid={!!errorAt("name")}
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) => set({ name: e.target.value })}
           />
+          <FieldError errors={errorAt("name")} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
+          <Field data-invalid={!!errorAt("type")}>
             <FieldLabel htmlFor="server-type">{t("Software")}</FieldLabel>
             <Select value={form.type} onValueChange={changeType} disabled={!!template}>
-              <SelectTrigger id="server-type" className="w-full">
+              <SelectTrigger id="server-type" aria-invalid={!!errorAt("type")} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -421,9 +430,10 @@ function CreateServerForm({
                 )}
               </SelectContent>
             </Select>
+            <FieldError errors={errorAt("type")} />
           </Field>
           {!proxy && !fromModpack && (
-            <VersionField id="server-version" value={form.version} onChange={(version) => setForm({ ...form, version })} bedrock={bedrock} />
+            <VersionField id="server-version" value={form.version} onChange={(version) => set({ version })} bedrock={bedrock} errors={errorAt("version")} />
           )}
         </div>
         <EndOfLifeNotice type={form.type} />
@@ -436,7 +446,7 @@ function CreateServerForm({
               accept=".zip,.tar.gz,.tgz,application/zip,application/gzip"
               required
               disabled={upload.uploading}
-              onChange={(e) => setForm({ ...form, archive: e.target.files?.[0] })}
+              onChange={(e) => set({ archive: e.target.files?.[0] })}
             />
             <FieldDescription>
               {t(
@@ -450,10 +460,11 @@ function CreateServerForm({
           <MemoryField
             id="server-memory"
             value={form.memoryMb}
-            onChange={(memoryMb) => setForm({ ...form, memoryMb })}
+            onChange={(memoryMb) => set({ memoryMb })}
             freeMb={freeMemoryMb(node, servers)}
+            errors={errorAt("memoryMb")}
           />
-          <Field>
+          <Field data-invalid={!!errorAt("port")}>
             <FieldLabel htmlFor="server-port">{t("Port")}</FieldLabel>
             <Input
               id="server-port"
@@ -461,22 +472,24 @@ function CreateServerForm({
               min={1024}
               max={65535}
               required
+              aria-invalid={!!errorAt("port")}
               className="font-mono"
               value={port}
-              onChange={(e) => setForm({ ...form, port: e.target.valueAsNumber || 0 })}
+              onChange={(e) => set({ port: e.target.valueAsNumber || 0 })}
             />
+            <FieldError errors={errorAt("port")} />
           </Field>
         </div>
         {bedrock && (
-          <PlayersField id="server-players" value={players} port={port} onChange={(maxPlayers) => setForm({ ...form, maxPlayers })} />
+          <PlayersField id="server-players" value={players} port={port} onChange={(maxPlayers) => set({ maxPlayers })} errors={errorAt("maxPlayers")} />
         )}
         {!!template?.extraPorts.length && !bedrock && (
-          <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => setForm({ ...form, extraPorts })} />
+          <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => set({ extraPorts })} errors={errorAt("extraPorts")} />
         )}
         {locations.length > 1 && (
           <Field>
             <FieldLabel htmlFor="server-storage">{t("Storage")}</FieldLabel>
-            <Select value={storage} onValueChange={(storage) => setForm({ ...form, storage })}>
+            <Select value={storage} onValueChange={(storage) => set({ storage })}>
               <SelectTrigger id="server-storage" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -491,7 +504,7 @@ function CreateServerForm({
             </Select>
           </Field>
         )}
-        {!proxy && !bedrock && !fromArchive && <WorldFields value={form.world} onChange={(world) => setForm({ ...form, world })} />}
+        {!proxy && !bedrock && !fromArchive && <WorldFields value={form.world} onChange={(world) => set({ world })} />}
         {bedrock && !fromArchive && (
           <FieldDescription>
             {t("The server writes its server.properties when it starts for the first time, with its world, game mode and difficulty, which you can change then.")}
@@ -500,21 +513,23 @@ function CreateServerForm({
         <Fold
           title={proxy || bedrock ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
           summary={[!proxy && !bedrock && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
+          invalid={["java", "stopTimeout", "timeZone"].some(errorAt)}
         >
-          {!proxy && !bedrock && <JavaField id="server-java" value={form.java} onChange={(java) => setForm({ ...form, java })} />}
+          {!proxy && !bedrock && <JavaField id="server-java" value={form.java} onChange={(java) => set({ java })} errors={errorAt("java")} />}
           <StopTimeoutField
             id="server-stop-timeout"
             value={form.stopTimeout}
-            onChange={(stopTimeout) => setForm({ ...form, stopTimeout })}
+            onChange={(stopTimeout) => set({ stopTimeout })}
+            errors={errorAt("stopTimeout")}
           />
-          <TimeZoneField id="server-time-zone" value={form.timeZone} onChange={(timeZone) => setForm({ ...form, timeZone })} />
+          <TimeZoneField id="server-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} errors={errorAt("timeZone")} />
         </Fold>
         {!proxy && (
           <Field orientation="horizontal">
             <Checkbox
               id="server-eula"
               checked={form.acceptEula}
-              onCheckedChange={(v) => setForm({ ...form, acceptEula: v === true })}
+              onCheckedChange={(v) => set({ acceptEula: v === true })}
             />
             <FieldLabel htmlFor="server-eula" className="font-normal">
               <span>
@@ -537,9 +552,8 @@ function CreateServerForm({
           </Field>
         )}
         {proxy && <FieldDescription>{t("Proxies always run the latest release of their software.")}</FieldDescription>}
-        {create.error && <FieldError>{create.error.message}</FieldError>}
+        {refused && <FieldError>{refused}</FieldError>}
         {upload.progress !== undefined && <UploadProgress progress={upload.progress} done={t("Creating the server and unpacking the archive…")} />}
-        {importError && <FieldError>{importError}</FieldError>}
       </FieldGroup>
       <DialogFooter>
         {upload.uploading ? (

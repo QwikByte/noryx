@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAccess } from "@/features/access/use-access"
 import { msg } from "@/lib/i18n"
+import { errorsAt, formError, useDraft } from "@/lib/use-draft"
 import {
   type FileSet,
   fileSetQuery,
@@ -45,6 +46,9 @@ const tabs = [
 // The states of servers that applying the set changes.
 const pending: State[] = ["outdated", "changed", "missing", "left"]
 
+// The fields of a set that the Files tab shows what the master refused about.
+const fields = ["name", "description", "targets", "variables"]
+
 type Tab = (typeof tabs)[number]["id"]
 
 export function FileSetPage() {
@@ -62,8 +66,8 @@ export function FileSetPage() {
 /** A set with its files and settings as they are edited, which saving stores as a new version. */
 function SetEditor({ set }: { set: FileSet }) {
   const editable = useAccess().can("filesets.manage")
-  const [draft, setDraft] = useState(() => draftOf(set))
-  const [dirty, setDirty] = useState(false)
+  // Without changes of its own, the draft follows what others save.
+  const { value: draft, dirty, set: change, reset } = useDraft(draftOf(set))
   // Saving or discarding loads the stored set into the editors again.
   const [generation, setGeneration] = useState(0)
   const [tab, setTab] = useState<Tab>("files")
@@ -75,30 +79,26 @@ function SetEditor({ set }: { set: FileSet }) {
   const navigate = useNavigate()
   const blocker = useBlocker({ shouldBlockFn: () => dirty && !save.isPending, enableBeforeUnload: () => dirty, withResolver: true })
 
-  // Without changes of its own, the editor follows what others save.
+  // Without changes of its own, the editors load what others save too.
   const [shown, setShown] = useState(set)
   if (set !== shown && !dirty) {
     setShown(set)
-    setDraft(draftOf(set))
     setGeneration((g) => g + 1)
   }
+  // A refused change shows at the field it is about on the Files tab, and else in the bar of unsaved changes.
+  const refused = formError(save.error, tab === "files" ? fields : [])
 
-  const change = (next: Partial<SetInput>) => {
-    setDraft((d) => ({ ...d, ...next }))
-    setDirty(true)
-  }
-  // Saving stores a new version, and opens the preview of applying it if asked to.
+  // Saving stores a new version, which the draft follows then, and opens the preview of applying it if asked to.
   const store = (apply = false) =>
     save.mutate(draft, {
       onSuccess: (saved) => {
-        reset(saved)
+        discard()
         if (apply) setApplying(saved)
         else toast.success(t("Saved {{name}}", { name: saved.name }))
       },
     })
-  const reset = (to: FileSet) => {
-    setDraft(draftOf(to))
-    setDirty(false)
+  const discard = () => {
+    reset()
     setGeneration((g) => g + 1)
   }
 
@@ -156,7 +156,18 @@ function SetEditor({ set }: { set: FileSet }) {
           )
         })}
       </div>
-      {tab === "files" && <Workspace key={generation} set={set} draft={draft} editable={editable} selected={selected} onSelect={setSelected} onChange={change} />}
+      {tab === "files" && (
+        <Workspace
+          key={generation}
+          set={set}
+          draft={draft}
+          editable={editable}
+          selected={selected}
+          onSelect={setSelected}
+          onChange={change}
+          errorAt={errorsAt(save.error)}
+        />
+      )}
       {tab === "servers" && <ServersTab set={set} />}
       {tab === "history" && (
         <HistoryTab
@@ -178,12 +189,12 @@ function SetEditor({ set }: { set: FileSet }) {
               <span aria-hidden className="size-2 rounded-full bg-warning" />
               {t("Unsaved changes")}
             </p>
-            <p className={save.error ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
-              {save.error?.message ?? t("Saving creates a new version but doesn't change any servers until the set is applied.")}
+            <p className={refused ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+              {refused ?? t("Saving creates a new version but doesn't change any servers until the set is applied.")}
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" disabled={save.isPending} onClick={() => reset(set)}>
+            <Button variant="ghost" disabled={save.isPending} onClick={discard}>
               {t("Discard")}
             </Button>
             <Button variant={draft.targets.length > 0 ? "outline" : "default"} disabled={save.isPending} onClick={() => store()}>

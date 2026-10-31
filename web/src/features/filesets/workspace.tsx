@@ -41,6 +41,7 @@ import { CodeEditor, type EditorHandle } from "@/features/files/code-editor"
 import { PathPicker, type Picked, PickDialog, ServerSelect } from "@/features/files/path-picker"
 import { formatBytes } from "@/lib/format"
 import { msg } from "@/lib/i18n"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import { type FileSet, type SetFile, type SetInput, usedSecrets, usedVariables } from "./api"
 import { download, holdsCode, imageType, maxFileBytes, setFileOf, sizeOf } from "./binary"
 import { FileTree } from "./file-tree"
@@ -64,6 +65,7 @@ export function Workspace({
   selected,
   onSelect,
   onChange,
+  errorAt,
 }: {
   set: FileSet
   draft: SetInput
@@ -71,6 +73,8 @@ export function Workspace({
   selected?: string
   onSelect: (path: string) => void
   onChange: (change: Partial<SetInput>) => void
+  /** What the master refused of the set, at its fields. */
+  errorAt?: ErrorsAt
 }) {
   const [dialog, setDialog] = useState<"new" | "rename" | "import" | "secret" | "variable">()
   const editor = useRef<EditorHandle>(null)
@@ -176,7 +180,7 @@ export function Workspace({
         />
       )}
       <div className="lg:col-span-2 2xl:col-span-1">
-        <SidePanel set={set} draft={draft} editable={editable} onChange={onChange} />
+        <SidePanel set={set} draft={draft} editable={editable} onChange={onChange} errorAt={errorAt} />
       </div>
 
       {dialog === "new" && (
@@ -432,7 +436,8 @@ function PathDialog({
   onSubmit: (path: string, bytes?: Uint8Array) => void
 }) {
   const [path, setPath] = useState(initial)
-  const [error, setError] = useState<string>()
+  const [problem, setProblem] = useState<{ at: "path" | "upload"; message: string }>()
+  const errors = (at: "path" | "upload"): FieldErrors | undefined => (problem?.at === at ? [problem] : undefined)
   const [server, setServer] = useState<ServerFiles>()
   const [browsing, setBrowsing] = useState(false)
   const [uploaded, setUploaded] = useState<{ name: string; bytes: Uint8Array }>()
@@ -440,8 +445,8 @@ function PathDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const [clean, problem] = cleanPath(path, files)
-    if (problem) return setError(problem)
+    const [clean, message] = cleanPath(path, files)
+    if (message) return setProblem({ at: "path", message })
     onSubmit(clean, uploaded?.bytes)
     onClose()
   }
@@ -450,11 +455,11 @@ function PathDialog({
     if (!picked) return
     try {
       setUploaded({ name: picked.name, bytes: await readUpload(picked) })
-      setError(undefined)
+      setProblem(undefined)
       if (!name) setPath(`${path}${picked.name}`)
     } catch (e) {
       setUploaded(undefined)
-      setError((e as Error).message)
+      setProblem({ at: "upload", message: (e as Error).message })
     }
   }
 
@@ -466,20 +471,30 @@ function PathDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{t("Servers get the file at this path in their folder.")}</DialogDescription>
           </DialogHeader>
-          <Field>
+          <Field data-invalid={!!errors("path")}>
             <FieldLabel htmlFor="fileset-path">{t("Path in the server folder")}</FieldLabel>
-            <Input id="fileset-path" className="font-mono" autoFocus required placeholder={examplePath} value={path} onChange={(e) => setPath(e.target.value)} />
-            {error && <FieldError>{error}</FieldError>}
+            <Input
+              id="fileset-path"
+              className="font-mono"
+              autoFocus
+              required
+              aria-invalid={!!errors("path")}
+              placeholder={examplePath}
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+            />
+            <FieldError errors={errors("path")} />
           </Field>
           {upload && (
-            <Field>
+            <Field data-invalid={!!errors("upload")}>
               <FieldLabel htmlFor="fileset-upload">{t("Content")}</FieldLabel>
-              <Input id="fileset-upload" type="file" onChange={(e) => void choose(e.target.files?.[0])} />
+              <Input id="fileset-upload" type="file" aria-invalid={!!errors("upload")} onChange={(e) => void choose(e.target.files?.[0])} />
               <FieldDescription>
                 {uploaded
                   ? t("{{name}}, {{size}}", { name: uploaded.name, size: formatBytes(uploaded.bytes.length) })
                   : t("Empty, or a file of your computer of up to 1 MiB, e.g. an image, which servers get as it is.")}
               </FieldDescription>
+              <FieldError errors={errors("upload")} />
             </Field>
           )}
           {browsing ? (

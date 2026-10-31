@@ -4,12 +4,13 @@ import { t } from "i18next"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { networksQuery } from "@/features/networks/api"
 import { allServersQuery } from "@/features/servers/api"
 import { NetworkField, TagField } from "@/features/servers/group-fields"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import type { FileSet, SetInput, Target } from "./api"
 import { targetKey, targetLabel } from "./labels"
 import { PanelSection } from "./panel-section"
@@ -17,27 +18,56 @@ import { SecretsSection } from "./secrets"
 import { VariablesSection } from "./variables"
 
 /** What a set is for and what it needs besides its files: its targets, variables, secrets and details. */
-export function SidePanel({ set, draft, editable, onChange }: { set: FileSet; draft: SetInput; editable: boolean; onChange: (change: Partial<SetInput>) => void }) {
+export function SidePanel({
+  set,
+  draft,
+  editable,
+  onChange,
+  errorAt,
+}: {
+  set: FileSet
+  draft: SetInput
+  editable: boolean
+  onChange: (change: Partial<SetInput>) => void
+  errorAt?: ErrorsAt
+}) {
   return (
     <div className="grid content-start items-start gap-4 lg:grid-cols-2 2xl:grid-cols-1">
-      <TargetsSection targets={draft.targets} editable={editable} onChange={(targets) => onChange({ targets })} />
-      <VariablesSection variables={draft.variables} files={draft.files} editable={editable} onChange={(variables) => onChange({ variables })} />
+      <TargetsSection targets={draft.targets} editable={editable} onChange={(targets) => onChange({ targets })} errors={errorAt?.("targets")} />
+      <VariablesSection
+        variables={draft.variables}
+        files={draft.files}
+        editable={editable}
+        onChange={(variables) => onChange({ variables })}
+        errors={errorAt?.("variables")}
+      />
       <SecretsSection set={set} files={draft.files} editable={editable} />
       <PanelSection icon={NotePencilIcon} title={t("Details")}>
-        <Field>
+        <Field data-invalid={!!errorAt?.("name")}>
           <FieldLabel htmlFor="fileset-name">{t("Name")}</FieldLabel>
-          <Input id="fileset-name" required maxLength={64} disabled={!editable} value={draft.name} onChange={(e) => onChange({ name: e.target.value })} />
+          <Input
+            id="fileset-name"
+            required
+            maxLength={64}
+            disabled={!editable}
+            aria-invalid={!!errorAt?.("name")}
+            value={draft.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+          />
+          <FieldError errors={errorAt?.("name")} />
         </Field>
-        <Field>
+        <Field data-invalid={!!errorAt?.("description")}>
           <FieldLabel htmlFor="fileset-description">{t("Description")}</FieldLabel>
           <Textarea
             id="fileset-description"
             maxLength={500}
             rows={3}
             disabled={!editable}
+            aria-invalid={!!errorAt?.("description")}
             value={draft.description}
             onChange={(e) => onChange({ description: e.target.value })}
           />
+          <FieldError errors={errorAt?.("description")} />
         </Field>
       </PanelSection>
     </div>
@@ -45,7 +75,17 @@ export function SidePanel({ set, draft, editable, onChange }: { set: FileSet; dr
 }
 
 /** The tags and networks whose servers a set is for, with how many servers each covers. */
-function TargetsSection({ targets, editable, onChange }: { targets: Target[]; editable: boolean; onChange: (targets: Target[]) => void }) {
+function TargetsSection({
+  targets,
+  editable,
+  onChange,
+  errors,
+}: {
+  targets: Target[]
+  editable: boolean
+  onChange: (targets: Target[]) => void
+  errors?: FieldErrors
+}) {
   const { data: networks } = useQuery(networksQuery)
   const { data: servers } = useQuery(allServersQuery)
   const [adding, setAdding] = useState(false)
@@ -102,6 +142,7 @@ function TargetsSection({ targets, editable, onChange }: { targets: Target[]; ed
           })}
         </ul>
       )}
+      <FieldError errors={errors} />
       {adding && (
         <Dialog open onOpenChange={setAdding}>
           <DialogContent className="sm:max-w-lg">

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { networksQuery } from "@/features/networks/api"
 import { allServersQuery } from "@/features/servers/api"
 import { msg } from "@/lib/i18n"
+import type { FieldErrors } from "@/lib/use-draft"
 import { type SetFile, type Value, type ValueKind, type Variable, usedVariables } from "./api"
 import { PanelSection } from "./panel-section"
 
@@ -34,11 +35,14 @@ export function VariablesSection({
   files,
   editable,
   onChange,
+  errors,
 }: {
   variables: Variable[]
   files: SetFile[]
   editable: boolean
   onChange: (variables: Variable[]) => void
+  /** What the master refused of the variables. */
+  errors?: FieldErrors
 }) {
   const [editing, setEditing] = useState<{ name?: string }>()
   const used = usedVariables(files)
@@ -108,6 +112,7 @@ export function VariablesSection({
       <p className="text-xs text-muted-foreground">
         {t("A server gets its own value, else its network's, else that of the first of its tags in alphabetical order, else the one for all servers.")}
       </p>
+      <FieldError errors={errors} />
       {editing && (
         <VariableDialog
           variable={editing.name ? (variables.find((v) => v.name === editing.name) ?? { name: editing.name, values: [] }) : undefined}

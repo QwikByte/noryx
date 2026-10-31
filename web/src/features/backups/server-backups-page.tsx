@@ -49,6 +49,7 @@ import { describeSchedule } from "@/features/schedules/describe"
 import { allServersQuery, type NodeServer, type Server, serverKey, useServer } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
 import { formatBytes, formatDateTime } from "@/lib/format"
+import { errorsAt, formError, useDraft } from "@/lib/use-draft"
 import {
   type Backup,
   backupFilesQuery,
@@ -330,11 +331,14 @@ function RestoreDialog({
 }) {
   const { can } = useAccess()
   const own = can("backups.restore", nodeId, server.id)
-  const [into, setInto] = useState(own || !others[0] ? here : serverKey(others[0]))
-  const [part, setPart] = useState<"all" | "chosen">("all")
-  const [folder, setFolder] = useState("")
-  const [picked, setPicked] = useState<Picked[]>([])
-  const [snapshotFirst, setSnapshotFirst] = useState(true)
+  const { value: draft, set } = useDraft({
+    into: own || !others[0] ? here : serverKey(others[0]),
+    part: "all" as "all" | "chosen",
+    folder: "",
+    picked: [] as Picked[],
+    snapshotFirst: true,
+  })
+  const { into, part, folder, picked, snapshotFirst } = draft
   const target = others.find((s) => serverKey(s) === into)
   const name = target?.name ?? server.name
   const paths = part === "chosen" ? picked.map((p) => p.path) : []
@@ -358,7 +362,7 @@ function RestoreDialog({
             {others.length > 0 && (
               <Field>
                 <FieldLabel htmlFor="restore-into">{t("Restore into")}</FieldLabel>
-                <Select value={into} onValueChange={setInto}>
+                <Select value={into} onValueChange={(into) => set({ into })}>
                   <SelectTrigger id="restore-into" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -387,7 +391,7 @@ function RestoreDialog({
                 label={t("What to restore")}
                 className="w-fit"
                 value={part}
-                onChange={setPart}
+                onChange={(part) => set({ part })}
                 options={[
                   { value: "all", label: t("All of it") },
                   { value: "chosen", label: t("Chosen files and folders") },
@@ -399,9 +403,9 @@ function RestoreDialog({
                     server={{ nodeId, serverId: server.id }}
                     list={(path) => backupFilesQuery({ nodeId, serverId: server.id }, backup.id, path)}
                     folder={folder}
-                    onFolder={setFolder}
+                    onFolder={(folder) => set({ folder })}
                     picked={picked}
-                    onPick={setPicked}
+                    onPick={(picked) => set({ picked })}
                   />
                   {error ? (
                     <FieldError>{error}</FieldError>
@@ -412,7 +416,7 @@ function RestoreDialog({
               )}
             </FieldSet>
             <Field orientation="horizontal">
-              <Switch id="restore-snapshot" checked={snapshotFirst} onCheckedChange={setSnapshotFirst} />
+              <Switch id="restore-snapshot" checked={snapshotFirst} onCheckedChange={(snapshotFirst) => set({ snapshotFirst })} />
               <FieldContent>
                 <FieldLabel htmlFor="restore-snapshot">{t("Back up what is replaced first")}</FieldLabel>
                 <FieldDescription>{t("As a backup made by hand, which undoes the restore if it was the wrong backup.")}</FieldDescription>
@@ -471,6 +475,7 @@ function LabelDialog({ nodeId, server, backup, onClose }: { nodeId: string; serv
               id="backup-new-label"
               autoFocus
               maxLength={64}
+              aria-invalid={!!update.error}
               placeholder={t("Before the update")}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -534,11 +539,12 @@ function CreateBackupForm({
   create: ReturnType<typeof useBackups>["create"]
   onClose: () => void
 }) {
-  const [label, setLabel] = useState("")
-  const [selection, setSelection] = useState(defaultSelection)
-  const [location, setLocation] = useState("")
+  const { value: backup, set } = useDraft({ label: "", selection: defaultSelection, location: "" })
+  const { label, selection, location } = backup
   const { data: node } = useQuery(nodeQuery(nodeId))
   const operation = useOperation()
+  // A refused backup shows at the paths it is about, and else below the fields.
+  const refused = formError(create.error, ["selection.paths", "selection.exclude"])
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -581,13 +587,18 @@ function CreateBackupForm({
             maxLength={64}
             placeholder={t("Before the update")}
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={(e) => set({ label: e.target.value })}
           />
         </Field>
-        <SelectionField value={selection} server={{ nodeId, serverId: server.id }} onChange={setSelection} />
-        <LocationField locations={node?.info?.storage.map((l) => l.name) ?? []} value={location} onChange={setLocation} />
+        <SelectionField
+          value={selection}
+          server={{ nodeId, serverId: server.id }}
+          onChange={(selection) => set({ selection })}
+          errorAt={errorsAt(create.error, "selection")}
+        />
+        <LocationField locations={node?.info?.storage.map((l) => l.name) ?? []} value={location} onChange={(location) => set({ location })} />
       </FieldGroup>
-      {create.error && <FieldError>{create.error.message}</FieldError>}
+      {refused && <FieldError>{refused}</FieldError>}
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="outline" disabled={create.isPending}>

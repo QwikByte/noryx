@@ -8,6 +8,7 @@ export function NumberInput({
   unit,
   value,
   onChange,
+  invalid,
 }: {
   id: string
   min: number
@@ -15,6 +16,8 @@ export function NumberInput({
   unit: string
   value: number
   onChange: (value: number) => void
+  /** Marks the value as refused, e.g. by the master. */
+  invalid?: boolean
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -24,6 +27,7 @@ export function NumberInput({
         required
         min={min}
         max={max}
+        aria-invalid={invalid}
         className="font-mono sm:w-32"
         value={value}
         onChange={(e) => onChange(e.target.valueAsNumber || 0)}
