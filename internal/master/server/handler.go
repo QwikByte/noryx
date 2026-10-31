@@ -548,10 +548,12 @@ func (h *Handler) createServer(ctx context.Context, n newServer) (any, error) {
 			_, err := c.DeleteServer(ctx, &noryxv1.DeleteServerRequest{Id: id})
 			return err
 		})
-		if deleted == nil {
-			h.forget(ctx, n.nodeID, id) // e.g. its modpack
+		if deleted != nil {
+			// Only then: a join of err alone would hide the agent's message behind its status.
+			return nil, errors.Join(err, deleted)
 		}
-		return nil, errors.Join(err, deleted)
+		h.forget(ctx, n.nodeID, id) // e.g. its modpack
+		return nil, err
 	}
 	created := struct {
 		view

@@ -153,8 +153,9 @@ func (s *Service) run(ctx context.Context, u update) (*Change, error) {
 		operation.Step(ctx, "archive")
 		if err := backUp(ctx, conn, srv.GetId(), change.Backup, sel, u.backup.Location); err != nil {
 			if running { // nothing changed yet
-				_, startErr := servers.StartServer(ctx, &noryxv1.StartServerRequest{Id: srv.GetId()})
-				err = errors.Join(err, startErr)
+				if _, startErr := servers.StartServer(ctx, &noryxv1.StartServerRequest{Id: srv.GetId()}); startErr != nil {
+					err = errors.Join(err, startErr) // only then, as a join of err alone hides the agent's message
+				}
 			}
 			return nil, err
 		}
