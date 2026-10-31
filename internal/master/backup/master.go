@@ -160,6 +160,13 @@ func ReadMaster(r io.Reader, passphrase func() (string, error), dir string) (Mas
 	if err != nil {
 		return m, fmt.Errorf("read the archive: %w", err)
 	}
+	// The archive holds only the names below, none of which leaves dir; the root keeps every write
+	// within it anyway.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return m, err
+	}
+	defer root.Close()
 	archive := tar.NewReader(gz)
 	for {
 		h, err := archive.Next()
@@ -169,14 +176,17 @@ func ReadMaster(r io.Reader, passphrase func() (string, error), dir string) (Mas
 		if err != nil {
 			return m, fmt.Errorf("read the archive: %w", err)
 		}
+		name := filepath.FromSlash(strings.TrimSuffix(h.Name, "/"))
 		switch {
+		case strings.Contains(h.Name, ".."):
+			err = fmt.Errorf("the archive holds %q, which leads out of its folder", h.Name)
 		case h.Typeflag == tar.TypeDir && (h.Name == pkiDir+"/" || h.Name == SFTPDir+"/"):
-			err = os.MkdirAll(filepath.Join(dir, strings.TrimSuffix(h.Name, "/")), 0o700)
+			err = root.MkdirAll(name, 0o700)
 		case h.Typeflag == tar.TypeReg && (h.Name == masterDB || pkiFile.MatchString(h.Name) || h.Name == sftpHostKey):
 			if h.Name == masterDB {
 				m.Made = h.ModTime
 			}
-			err = extract(archive, filepath.Join(dir, filepath.FromSlash(h.Name)))
+			err = extract(archive, root, name)
 		default:
 			return m, fmt.Errorf("the archive holds %q, which an archive of noryx-master backup doesn't", h.Name)
 		}
@@ -227,11 +237,12 @@ func decrypt(r io.Reader, passphrase func() (string, error)) (io.Reader, error) 
 	return dec, nil
 }
 
-func extract(r io.Reader, path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+// extract writes what r reads to the new file name in root.
+func extract(r io.Reader, root *os.Root, name string) error {
+	if err := root.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) //nolint:gosec // a checked name in a new folder
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
