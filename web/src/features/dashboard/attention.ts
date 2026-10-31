@@ -33,7 +33,8 @@ const expiring = 14 * 86_400_000
 
 /**
  * What needs attention across nodes, servers, networks, the private network of the nodes, backup jobs and schedules, and
- * what servers and nodes use beyond their thresholds, the most urgent first.
+ * what servers and nodes use beyond their thresholds, the most urgent first. unbackedMaster tells administrators that no
+ * job backs up the master.
  */
 export function problemsOf(
   nodes: Node[],
@@ -44,9 +45,21 @@ export function problemsOf(
   datastores: Datastore[] = [],
   tasks: AutomationTask[] = [],
   warnings: UsageWarning[] = [],
+  unbackedMaster = false,
 ): Problem[] {
   const problems: Problem[] = []
   const add = (p: Problem) => problems.push(p)
+  if (unbackedMaster) {
+    add({
+      key: "master-backup",
+      tone: "warning",
+      title: t("The master isn't backed up yet"),
+      detail: t(
+        "Its database and certificate authority: without them, every node has to be connected again, and the master loses track of the copies of backups.",
+      ),
+      link: { to: "/backups/master" },
+    })
+  }
   for (const s of servers) {
     const link = { to: "/nodes/$nodeId/servers/$serverId", params: { nodeId: s.nodeId, serverId: s.id } } as const
     const exit = s.exitCode ? t("exit code {{code}}", { code: s.exitCode }) : undefined

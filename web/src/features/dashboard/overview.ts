@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { useAccess } from "@/features/access/use-access"
+import { masterJobs } from "@/features/backups/api"
 import { datastoresQuery } from "@/features/datastores/api"
 import { networksQuery } from "@/features/networks/api"
 import { useNetworkOf } from "@/features/networks/servers"
@@ -45,11 +46,12 @@ export function useProblems() {
   const { data: overlay } = useQuery(overlayQuery)
   const { data: datastores } = useQuery({ ...datastoresQuery, enabled: access.can("datastores.view") })
   const tasks = useAutomationTasks()
+  const { data: masterBackups } = useQuery({ ...masterJobs.tasksQuery, enabled: access.admin })
   const { data: warnings } = useQuery(warningsQuery)
   const { hidden: items } = useHidden()
   // Renders again now and then, so that what was hidden for a while shows again on time.
   const now = useNow(true, 30_000)
-  const all = problemsOf(nodes, servers, networks, usages, overlay, datastores, tasks, warnings)
+  const all = problemsOf(nodes, servers, networks, usages, overlay, datastores, tasks, warnings, access.admin && masterBackups?.length === 0)
   const isHidden = (p: Problem) => items.some((h) => isOf(h, p) && Date.parse(h.until) > now)
   return { all, hidden: all.filter(isHidden), problems: all.filter((p) => !isHidden(p)) }
 }

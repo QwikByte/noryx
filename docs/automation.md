@@ -129,7 +129,8 @@ the master itself.
   apart from the backups of the servers there and out of their reach; the master relays them, and the node needs an
   up-to-date agent. Keep them away from the master's machine. The job keeps as many of the newest archives there as it
   should, at least 1, and deletes its older ones there, never anything else; archives in a place that it no longer keeps
-  them in stay there. There is one such job at most. Its runs, its last and next run and its failures show like those
+  them in stay there. There is one such job at most, and while there is none, **Needs attention** reminds administrators
+of it. Its runs, its last and next run and its failures show like those
   of other jobs, also in **Needs attention**, the **Agenda** and as warnings of the category **Backups** in the log,
   which [notifications](monitoring.md#notifications) can send.
 - **Passphrase.** With a passphrase of at least 12 characters, the job encrypts the archives with
