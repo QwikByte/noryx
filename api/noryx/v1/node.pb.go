@@ -77,7 +77,10 @@ type GetInfoResponse struct {
 	RuntimeName    string `protobuf:"bytes,9,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
 	RuntimeVersion string `protobuf:"bytes,10,opt,name=runtime_version,json=runtimeVersion,proto3" json:"runtime_version,omitempty"`
 	// The settings the agent applies; older agents leave them out.
-	Settings      *NodeSettings `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
+	Settings *NodeSettings `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
+	// The types of servers the agent creates, e.g. for the panel to offer only those. Older
+	// agents leave it empty: they create all types up to SERVER_TYPE_QUILT.
+	ServerTypes   []ServerType `protobuf:"varint,12,rep,packed,name=server_types,json=serverTypes,proto3,enum=noryx.v1.ServerType" json:"server_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,6 +188,13 @@ func (x *GetInfoResponse) GetRuntimeVersion() string {
 func (x *GetInfoResponse) GetSettings() *NodeSettings {
 	if x != nil {
 		return x.Settings
+	}
+	return nil
+}
+
+func (x *GetInfoResponse) GetServerTypes() []ServerType {
+	if x != nil {
+		return x.ServerTypes
 	}
 	return nil
 }
@@ -657,8 +667,8 @@ var File_noryx_v1_node_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x13noryx/v1/node.proto\x12\bnoryx.v1\"\x10\n" +
-	"\x0eGetInfoRequest\"\xae\x03\n" +
+	"\x13noryx/v1/node.proto\x12\bnoryx.v1\x1a\x15noryx/v1/server.proto\"\x10\n" +
+	"\x0eGetInfoRequest\"\xe7\x03\n" +
 	"\x0fGetInfoResponse\x12#\n" +
 	"\ragent_version\x18\x01 \x01(\tR\fagentVersion\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x0e\n" +
@@ -671,7 +681,8 @@ const file_noryx_v1_node_proto_rawDesc = "" +
 	"\fruntime_name\x18\t \x01(\tR\vruntimeName\x12'\n" +
 	"\x0fruntime_version\x18\n" +
 	" \x01(\tR\x0eruntimeVersion\x122\n" +
-	"\bsettings\x18\v \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\"y\n" +
+	"\bsettings\x18\v \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\x127\n" +
+	"\fserver_types\x18\f \x03(\x0e2\x14.noryx.v1.ServerTypeR\vserverTypes\"y\n" +
 	"\x0fStorageLocation\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1d\n" +
@@ -730,26 +741,28 @@ var file_noryx_v1_node_proto_goTypes = []any{
 	(*NodeSettings)(nil),               // 9: noryx.v1.NodeSettings
 	(*ConfigureRequest)(nil),           // 10: noryx.v1.ConfigureRequest
 	(*ConfigureResponse)(nil),          // 11: noryx.v1.ConfigureResponse
+	(ServerType)(0),                    // 12: noryx.v1.ServerType
 }
 var file_noryx_v1_node_proto_depIdxs = []int32{
 	2,  // 0: noryx.v1.GetInfoResponse.storage:type_name -> noryx.v1.StorageLocation
 	9,  // 1: noryx.v1.GetInfoResponse.settings:type_name -> noryx.v1.NodeSettings
-	9,  // 2: noryx.v1.ConfigureRequest.settings:type_name -> noryx.v1.NodeSettings
-	0,  // 3: noryx.v1.NodeService.GetInfo:input_type -> noryx.v1.GetInfoRequest
-	3,  // 4: noryx.v1.NodeService.CreateCSR:input_type -> noryx.v1.CreateCSRRequest
-	5,  // 5: noryx.v1.NodeService.InstallCertificate:input_type -> noryx.v1.InstallCertificateRequest
-	7,  // 6: noryx.v1.NodeService.Update:input_type -> noryx.v1.UpdateRequest
-	10, // 7: noryx.v1.NodeService.Configure:input_type -> noryx.v1.ConfigureRequest
-	1,  // 8: noryx.v1.NodeService.GetInfo:output_type -> noryx.v1.GetInfoResponse
-	4,  // 9: noryx.v1.NodeService.CreateCSR:output_type -> noryx.v1.CreateCSRResponse
-	6,  // 10: noryx.v1.NodeService.InstallCertificate:output_type -> noryx.v1.InstallCertificateResponse
-	8,  // 11: noryx.v1.NodeService.Update:output_type -> noryx.v1.UpdateResponse
-	11, // 12: noryx.v1.NodeService.Configure:output_type -> noryx.v1.ConfigureResponse
-	8,  // [8:13] is the sub-list for method output_type
-	3,  // [3:8] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	12, // 2: noryx.v1.GetInfoResponse.server_types:type_name -> noryx.v1.ServerType
+	9,  // 3: noryx.v1.ConfigureRequest.settings:type_name -> noryx.v1.NodeSettings
+	0,  // 4: noryx.v1.NodeService.GetInfo:input_type -> noryx.v1.GetInfoRequest
+	3,  // 5: noryx.v1.NodeService.CreateCSR:input_type -> noryx.v1.CreateCSRRequest
+	5,  // 6: noryx.v1.NodeService.InstallCertificate:input_type -> noryx.v1.InstallCertificateRequest
+	7,  // 7: noryx.v1.NodeService.Update:input_type -> noryx.v1.UpdateRequest
+	10, // 8: noryx.v1.NodeService.Configure:input_type -> noryx.v1.ConfigureRequest
+	1,  // 9: noryx.v1.NodeService.GetInfo:output_type -> noryx.v1.GetInfoResponse
+	4,  // 10: noryx.v1.NodeService.CreateCSR:output_type -> noryx.v1.CreateCSRResponse
+	6,  // 11: noryx.v1.NodeService.InstallCertificate:output_type -> noryx.v1.InstallCertificateResponse
+	8,  // 12: noryx.v1.NodeService.Update:output_type -> noryx.v1.UpdateResponse
+	11, // 13: noryx.v1.NodeService.Configure:output_type -> noryx.v1.ConfigureResponse
+	9,  // [9:14] is the sub-list for method output_type
+	4,  // [4:9] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_noryx_v1_node_proto_init() }
@@ -757,6 +770,7 @@ func file_noryx_v1_node_proto_init() {
 	if File_noryx_v1_node_proto != nil {
 		return
 	}
+	file_noryx_v1_server_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

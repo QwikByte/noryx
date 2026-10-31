@@ -47,9 +47,10 @@ func CheckExtraPorts(ports []*ExtraPort, port, bedrockPort uint32) string {
 	return ""
 }
 
-// Uses reports whether a server uses a port of its node: its own, the UDP port at which Bedrock
-// players join a proxy, or one of its extra ports.
+// Uses reports whether a server uses a port of its node: its own, those of the players of a
+// Bedrock server, the UDP port at which Bedrock players join a proxy, or one of its extra ports.
 func (s *Server) Uses(port uint32) bool {
-	return s.GetPort() == port || s.GetBedrockPort() != 0 && s.GetBedrockPort() == port ||
+	return port >= s.GetPort() && port <= LastPort(s.GetType(), s.GetPort(), s.GetMaxPlayers()) ||
+		s.GetBedrockPort() != 0 && s.GetBedrockPort() == port ||
 		slices.ContainsFunc(s.GetExtraPorts(), func(p *ExtraPort) bool { return p.GetPort() == port })
 }
