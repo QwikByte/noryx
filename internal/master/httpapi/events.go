@@ -62,7 +62,7 @@ func StreamLog[T LogLine](w http.ResponseWriter, r *http.Request, open func(ctx 
 		res, err = stream.Recv()
 	}
 	if status.Code(err) == codes.Unimplemented {
-		err = Errorf(http.StatusNotImplemented, "Update the agent of the node to see this log.")
+		err = Errorf(http.StatusNotImplemented, "The agent of the node doesn't know this log yet. Update it to see the log.")
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
 		WriteError(w, r, err)

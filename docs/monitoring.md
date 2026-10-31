@@ -17,8 +17,8 @@ players and the ticks per second come through the server's console port (`list`,
 open, because servers log every new one. Game servers behind a proxy only listen within the network of their proxy,
 where the status request can't reach them, so their console tells the number of players too. A network counts the
 players of its game servers, like the **Players** page, or those its proxy counts while the agents can't tell them, e.g.
-agents of older versions. Server cards show CPU, memory and players; the **Usage** tab of a server and the node page
-show the rest. Agents measure the CPU, memory and connections of the datastores of their node too, and the size of their
+as the consoles of its game servers don't answer. Server cards show CPU, memory and players; the **Usage** tab of a
+server and the node page show the rest. Agents measure the CPU, memory and connections of the datastores of their node too, and the size of their
 data every minute.
 
 ### History
@@ -64,8 +64,8 @@ server uses too much CPU" and "A server uses less CPU again"; nothing in between
 ticks per second while the console doesn't answer, changes nothing, but a measure that went unmeasured for more than 5
 minutes, e.g. while its node was offline, starts counting its minutes again. A server that stops, a threshold that is
 turned off and a node that is removed end their warnings without an entry. The master keeps this in memory: after it
-restarts, a measure that is still beyond its threshold warns again once its minutes have passed. Agents older than the
-master don't tell the CPU limit of a server, so until they are updated, its CPU counts against all cores of its node.
+restarts, a measure that is still beyond its threshold warns again once its minutes have passed. The CPU of a server
+without a CPU limit counts against all cores of its node.
 
 Warnings show up in the bell like every warning of the log, and **Needs attention** on the overview lists the servers
 and nodes that are beyond a threshold now, with the latest value and how long it has lasted, to the users who may see

@@ -49,7 +49,7 @@ func TestStreamLog(t *testing.T) {
 		{"again", "?after=7", &lines{}, http.StatusOK, maxTail, "event: end\ndata:\n\n"},
 		{"invalid after", "?after=x", &lines{}, http.StatusBadRequest, 0, ""},
 		{"unknown", "", &lines{err: status.Error(codes.NotFound, "Datastore not found.")}, http.StatusNotFound, logTail, ""},
-		{"older agent", "", &lines{err: status.Error(codes.Unimplemented, "unknown method")}, http.StatusNotImplemented, logTail, ""},
+		{"an agent without the log", "", &lines{err: status.Error(codes.Unimplemented, "unknown method")}, http.StatusNotImplemented, logTail, ""},
 	} {
 		w := httptest.NewRecorder()
 		var tail uint32

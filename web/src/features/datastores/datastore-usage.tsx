@@ -21,7 +21,7 @@ export function DatastoreUsage({ datastore: ds }: { datastore: Datastore }) {
   const points = day?.points ?? []
   const cpuLimit = usage?.cpuLimitMillis ?? ds.cpuMillis
   const memoryLimit = usage?.memoryLimitBytes || ds.memoryMb * 1024 ** 2
-  // Agents of older versions don't measure datastores.
+  // A datastore that started just now has no measurement until the agent takes the next one.
   const idle = ds.state === "stopped" ? t("Not running") : t("Not measured yet")
 
   const charts: ChartSpec<DatastorePoint>[] = [

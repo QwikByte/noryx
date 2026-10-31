@@ -20,7 +20,7 @@ const patience = 2 * time.Second
 
 // Agent prepares a call to the agent of conn whose progress belongs to the operation of
 // ctx: it returns the context for the call, and stop, which stops following the call once
-// it returned. Agents of older versions tell nothing, which only leaves the steps.
+// it returned. Without progress from the agent, e.g. as it can't follow the call, the steps remain.
 func Agent(ctx context.Context, conn grpc.ClientConnInterface) (call context.Context, stop func()) {
 	r := from(ctx)
 	if r == nil {
