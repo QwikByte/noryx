@@ -1,7 +1,8 @@
 import { t } from "i18next"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import type { ErrorsAt } from "@/lib/use-draft"
 import type { UpdateAgents } from "./api"
 
 interface UpdateSettings {
@@ -11,10 +12,18 @@ interface UpdateSettings {
 }
 
 /** How often the master looks for new releases, and whether it updates the agents after itself. */
-export function UpdateFields({ value, onChange }: { value: UpdateSettings; onChange: (change: Partial<UpdateSettings>) => void }) {
+export function UpdateFields({
+  value,
+  onChange,
+  errorAt,
+}: {
+  value: UpdateSettings
+  onChange: (change: Partial<UpdateSettings>) => void
+  errorAt?: ErrorsAt
+}) {
   return (
     <>
-      <Field>
+      <Field data-invalid={!!errorAt?.("updateCheckHours")}>
         <FieldLabel htmlFor="settings-update-check-hours">{t("Check every")}</FieldLabel>
         <div className="flex items-center gap-2">
           <Input
@@ -23,6 +32,7 @@ export function UpdateFields({ value, onChange }: { value: UpdateSettings; onCha
             required
             min={1}
             max={24}
+            aria-invalid={!!errorAt?.("updateCheckHours")}
             className="font-mono sm:w-32"
             disabled={!value.checkUpdates}
             value={value.updateCheckHours}
@@ -33,6 +43,7 @@ export function UpdateFields({ value, onChange }: { value: UpdateSettings; onCha
         <FieldDescription>
           {t("From 1 to 24 hours. GitHub answers 60 such requests an hour per IP address, shared with everything behind it.")}
         </FieldDescription>
+        <FieldError errors={errorAt?.("updateCheckHours")} />
       </Field>
       <Field orientation="horizontal">
         <Switch

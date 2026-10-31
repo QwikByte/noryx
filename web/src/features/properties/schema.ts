@@ -1,4 +1,5 @@
 import { t } from "i18next"
+import { isBedrock } from "@/features/servers/server-types"
 import { msg } from "@/lib/i18n"
 
 export type Kind =
@@ -395,22 +396,121 @@ export const definitions: Record<string, Definition> = {
   },
 }
 
-/** The definition of a property. Unknown ones go under Advanced, as a switch if they look boolean. */
-export function definition(key: string, value?: string): Definition {
-  const kind: Kind = value === "true" || value === "false" ? { type: "boolean" } : { type: "text", mono: true }
-  return definitions[key] ?? { label: key, description: "", group: "Advanced", kind }
+/** Known properties of the server.properties of Bedrock Dedicated Server, which has its own; others appear under Advanced. */
+export const bedrockDefinitions: Record<string, Definition> = {
+  gamemode: {
+    ...definitions.gamemode,
+    kind: {
+      type: "select",
+      options: [
+        ["survival", msg("Survival")],
+        ["creative", msg("Creative")],
+        ["adventure", msg("Adventure")],
+      ],
+    },
+  },
+  difficulty: definitions.difficulty,
+  "force-gamemode": definitions["force-gamemode"],
+  "allow-cheats": {
+    label: msg("Cheats"),
+    description: msg("Commands such as /gamemode and /give work, for the players whose permissions allow them."),
+    group: "Gameplay",
+    kind: bool,
+  },
+  "level-name": definitions["level-name"],
+  "level-seed": definitions["level-seed"],
+  "level-type": {
+    ...definitions["level-type"],
+    kind: {
+      type: "select",
+      options: [
+        ["DEFAULT", msg("Default")],
+        ["FLAT", msg("Superflat")],
+        ["LEGACY", msg("Old, limited world")],
+      ],
+    },
+  },
+  "view-distance": { ...definitions["view-distance"], kind: num(5) },
+  "tick-distance": { ...definitions["simulation-distance"], kind: num(4, 12) },
+  "max-players": definitions["max-players"],
+  "allow-list": {
+    label: msg("Allowlist"),
+    description: msg("Only players on the allowlist can join. Add them on the Players tab, or in the console with allowlist add <name>."),
+    group: "Players",
+    kind: bool,
+  },
+  "online-mode": {
+    label: msg("Online mode"),
+    description: msg("Checks with Xbox Live that players own their account. Turned off, anyone can join with any name."),
+    group: "Players",
+    kind: bool,
+  },
+  "default-player-permission-level": {
+    label: msg("Permissions of new players"),
+    description: msg("What players may do when they join for the first time."),
+    group: "Players",
+    kind: {
+      type: "select",
+      options: [
+        ["visitor", msg("Visitor – only looks around")],
+        ["member", msg("Member – plays")],
+        ["operator", msg("Operator – also runs commands")],
+      ],
+    },
+  },
+  "player-idle-timeout": definitions["player-idle-timeout"],
+  "server-name": {
+    label: msg("Server name"),
+    description: msg("Shown to players in their list of servers."),
+    group: "Server list",
+    kind: { type: "text" },
+  },
+  "enable-lan-visibility": {
+    label: msg("Visible in the local network"),
+    description: msg("Players in the same network as the node find the server among their LAN games."),
+    group: "Server list",
+    kind: bool,
+  },
+  "texturepack-required": {
+    label: msg("Required"),
+    description: msg("Players must download the resource packs of the world to join."),
+    group: "Resource pack",
+    kind: bool,
+  },
+  "compression-threshold": {
+    label: msg("Compression threshold"),
+    description: msg("Packets bigger than this many bytes are compressed."),
+    group: "Performance",
+    kind: num(0, 65535),
+  },
+  "max-threads": {
+    label: msg("Threads"),
+    description: msg("Threads the server uses at most. 0 uses as many as it can."),
+    group: "Performance",
+    kind: num(0),
+  },
 }
 
-/** Returns an error message if the value doesn't fit the property. */
-export function check(key: string, value: string): string | undefined {
-  return checkValue(definition(key).kind, value)
+/** The known properties of the server.properties of servers of a type. */
+export const definitionsOf = (type: string) => (isBedrock(type) ? bedrockDefinitions : definitions)
+
+/** The definition of a property among the known ones. Unknown ones go under Advanced, as a switch if they look boolean. */
+export function definition(key: string, value?: string, known = definitions): Definition {
+  const kind: Kind = value === "true" || value === "false" ? { type: "boolean" } : { type: "text", mono: true }
+  return known[key] ?? { label: key, description: "", group: "Advanced", kind }
+}
+
+/** Returns an error message if the value doesn't fit the property among the known ones. */
+export function check(key: string, value: string, known = definitions): string | undefined {
+  return checkValue(definition(key, undefined, known).kind, value)
 }
 
 /** Returns an error message if the value doesn't fit a setting of the kind. */
 export function checkValue(kind: Kind, value: string): string | undefined {
   if (kind.type !== "number") return undefined
+  // Minecraft reads whole numbers only as digits, and others as the default, e.g. 1e3 or 10.0 of a number input.
+  if (!/^-?\d+$/.test(value)) return t("Enter a whole number.")
   const n = Number(value)
-  if (value.trim() === "" || !Number.isInteger(n)) return t("Enter a whole number.")
   if (kind.min !== undefined && n < kind.min) return t("The minimum is {{min}}.", { min: kind.min })
   if (kind.max !== undefined && n > kind.max) return t("The maximum is {{max}}.", { max: kind.max })
 }

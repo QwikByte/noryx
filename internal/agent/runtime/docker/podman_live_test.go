@@ -102,7 +102,7 @@ func TestPodmanLive(t *testing.T) {
 
 	t.Run("console", func(t *testing.T) {
 		id := runtime.NewID()
-		liveContainer(t, d, id, &container.Config{User: proxyUser, OpenStdin: true, Cmd: []string{"sh", "-c", "while read l; do echo got $l; done"}}, &container.HostConfig{})
+		liveContainer(t, d, id, &container.Config{User: imageUser, OpenStdin: true, Cmd: []string{"sh", "-c", "while read l; do echo got $l; done"}}, &container.HostConfig{})
 		time.Sleep(time.Second)
 		for _, cmd := range []string{"first", "second", "third"} {
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

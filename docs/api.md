@@ -40,6 +40,12 @@ A token acts as its user, with what both the token and the user may do at the mo
 The log names the token, by its name and ID, besides the user in every entry of what the token did. Creating and
 revoking tokens is logged too.
 
+Tokens also sign in to [SFTP](servers.md#sftp), as the password with the username of their user, e.g. for an editor or
+a script that syncs configuration. There they need the permissions of the file manager: to browse and download files to
+see a server and read its files, and to change files to change them. The same rules apply as to requests: the master
+checks the token and its permissions for every request, so revoking it ends its open connections, and wrong tokens take
+the client's attempts of signing in.
+
 ## Using the API
 
 Send the token in the `Authorization` header. For example, list the servers, whose answer holds the `nodeId` and `id` of
@@ -52,7 +58,10 @@ curl -fsS -X POST -H "Authorization: Bearer $NORYX_TOKEN" https://panel.example.
 ```
 
 - Requests and answers are JSON. A failed request answers with its HTTP status and `{"error": "…"}`, which tells why,
-  sometimes with a `code`.
+  sometimes with a `code`. If it is about a field of the request, `field` names it by its JSON key, with dots between
+  the keys of nested objects, e.g. `{"error": "Port must be between 1024 and 65535.", "field": "port"}` or
+  `"field": "newServers.memoryMb"`, so that a form can show it next to that field. Errors that the agent of a node
+  finds name no field.
 - `401` means that the token is missing, wrong, expired or revoked, or that its user is disabled; `403` that the token
   or its user lacks a permission. A client gets 5 wrong tokens, then one every 12 seconds, together with its attempts to
   sign in; until it has one left, `429` answers even its right tokens.

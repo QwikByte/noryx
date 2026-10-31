@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package noryx.v1;
 
+import "noryx/v1/server.proto";
+
 option go_package = "github.com/QwikByte/noryx/api/noryx/v1;noryxv1";
 
 // NodeService is served by every agent and describes the machine it runs on.
@@ -43,6 +45,9 @@ message GetInfoResponse {
   string runtime_version = 10;
   // The settings the agent applies; older agents leave them out.
   NodeSettings settings = 11;
+  // The types of servers the agent creates, e.g. for the panel to offer only those. Older
+  // agents leave it empty: they create all types up to SERVER_TYPE_QUILT.
+  repeated ServerType server_types = 12;
 }
 
 // StorageLocation is a directory the node's administrator allowed for server data.

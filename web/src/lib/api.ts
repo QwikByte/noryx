@@ -4,17 +4,21 @@ export class ApiError extends Error {
   readonly status: number
   /** Tells what the panel may offer, e.g. to confirm the request. */
   readonly code?: string
+  /** The JSON key of the field of the request the error is about, e.g. port or newServers.memoryMb. */
+  readonly field?: string
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, field?: string) {
     super(message)
     this.status = status
     this.code = code
+    this.field = field
   }
 }
 
 export interface RequestInit {
   method?: string
   body?: unknown
+  signal?: AbortSignal
 }
 
 // The master's version, which its answers to signed-in users tell: first the one the panel came
@@ -26,6 +30,16 @@ let outdated = () => {}
 export function onOutdated(callback: () => void) {
   outdated = callback
 }
+
+let signedOutCallback = () => {}
+
+/** Calls back when the session turns out to have expired outside of queries and changes, e.g. for a stream of events. */
+export function onSignedOut(callback: () => void) {
+  signedOutCallback = callback
+}
+
+/** Tells that the session expired, see onSignedOut. */
+export const signedOut = () => signedOutCallback()
 
 // Whether the master answered the last request. While it restarts, there is no answer, or one
 // from a proxy in front of it: 502 to 504, without the version that the master's answers to
@@ -57,9 +71,10 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
       method: init.method ?? (hasBody ? "POST" : "GET"),
       headers: hasBody ? { "Content-Type": "application/json" } : undefined,
       body: hasBody ? JSON.stringify(init.body) : undefined,
+      signal: init.signal,
     })
   } catch (e) {
-    setReachable(false)
+    if (!init.signal?.aborted) setReachable(false)
     throw e
   }
   const answered = res.headers.get("Noryx-Version")
@@ -103,7 +118,12 @@ export function send<T>(
       xhr.status >= 200 && xhr.status < 300
         ? resolve(xhr.response as T)
         : reject(
-            new ApiError(xhr.status, xhr.response?.error ?? t("The upload failed with status {{status}}.", { status: xhr.status }), xhr.response?.code),
+            new ApiError(
+              xhr.status,
+              xhr.response?.error ?? t("The upload failed with status {{status}}.", { status: xhr.status }),
+              xhr.response?.code,
+              xhr.response?.field,
+            ),
           )
     xhr.onerror = () => reject(new Error(t("The connection to the panel was lost.")))
     xhr.onabort = () => reject(new DOMException(t("The upload was cancelled."), "AbortError"))
@@ -118,5 +138,5 @@ export async function responseError(
   fallback = t("The request failed with status {{status}}.", { status: res.status }),
 ): Promise<ApiError> {
   const data = await res.json().catch(() => ({}))
-  return new ApiError(res.status, data.error ?? fallback, data.code)
+  return new ApiError(res.status, data.error ?? fallback, data.code, data.field)
 }

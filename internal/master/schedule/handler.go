@@ -19,20 +19,20 @@ const (
 	agenda = 7 * 24 * time.Hour
 )
 
-// Handler serves the tasks of one kind under a path, e.g. /api/backup-jobs. Tasks run on
-// any server, so their permissions apply everywhere.
+// Handler serves the tasks of one kind under a path, e.g. /api/backup-jobs, to the users that
+// view and manage allow. Tasks run on any server, so their permissions apply everywhere.
 type Handler struct {
 	svc          *Service
 	kind         string
-	view, manage access.Permission
+	view, manage access.Need
 }
 
-func NewHandler(svc *Service, kind string, view, manage access.Permission) *Handler {
+func NewHandler(svc *Service, kind string, view, manage access.Need) *Handler {
 	return &Handler{svc: svc, kind: kind, view: view, manage: manage}
 }
 
 func (h *Handler) Register(mux access.Mux, base string) {
-	view, manage := access.Everywhere(h.view), access.Everywhere(h.manage)
+	view, manage := h.view, h.manage
 	// With ?node=…&server=…, only the tasks that cover the server.
 	mux.Handle("GET "+base, view, func(w http.ResponseWriter, r *http.Request) {
 		var tasks []Task
@@ -85,6 +85,14 @@ func (h *Handler) save(status int, op func(ctx context.Context, id string, in In
 			return
 		}
 		logging.Note(r.Context(), slog.String("name", in.Name))
+		// A secret is never logged, only that it changes.
+		if in.Secret != nil {
+			change := "set"
+			if *in.Secret == "" {
+				change = "removed"
+			}
+			logging.Note(r.Context(), slog.String("secret", change))
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		t, err := op(ctx, r.PathValue("id"), in, author(r))

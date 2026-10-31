@@ -31,7 +31,7 @@ func TestWarning(t *testing.T) {
 		}}
 		ops := operation.New(0)
 		conf := &config{warnings: DefaultWarnings()}
-		h := NewHandler(fakeNodes{conn: agent}, fakeNetworks{}, nil, nil, nil, ops, NewMoves(), nil, conf)
+		h := NewHandler(Deps{Nodes: fakeNodes{conn: agent}, Networks: fakeNetworks{}, Operations: ops, Moves: NewMoves(), Config: conf})
 		mux := http.NewServeMux()
 		mux.HandleFunc("POST /api/nodes/{node}/servers/{id}/restart", h.power("restart"))
 		mux.HandleFunc("POST /api/servers/actions", h.bulk)
@@ -136,7 +136,10 @@ func TestValidateWarnings(t *testing.T) {
 	if err := w.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := w.Commands(w.Restart, 5); err != nil || !slices.Equal(got, []string{`minecraft:title @a actionbar {"text":"Neustart in 5 Minuten"}`}) {
+	if got, err := w.Commands(noryxv1.ServerType_SERVER_TYPE_PAPER, w.Restart, 5); err != nil || !slices.Equal(got, []string{`minecraft:title @a actionbar {"text":"Neustart in 5 Minuten"}`}) {
+		t.Fatalf("commands %q, %v", got, err)
+	}
+	if got, err := w.Commands(noryxv1.ServerType_SERVER_TYPE_BEDROCK, w.Restart, 5); err != nil || !slices.Equal(got, []string{`titleraw @a actionbar {"rawtext":[{"text":"Neustart in 5 Minuten"}]}`}) {
 		t.Fatalf("commands %q, %v", got, err)
 	}
 }

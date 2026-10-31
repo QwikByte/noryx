@@ -92,7 +92,7 @@ func TestPlugins(t *testing.T) {
 		}
 	}
 	// The panel reads the list of what was installed also where nothing was.
-	if r := installed.Results[2]; r.Error != "Vanilla servers can't load plugins or mods." || r.Installed == nil {
+	if r := installed.Results[2]; r.Error != "Vanilla and Bedrock servers can't load plugins or mods." || r.Installed == nil {
 		t.Fatalf("vanilla result = %+v", r)
 	}
 	if got := file(lobbyRef, "luckperms-2.0.jar"); got != "luckperms 2.0" {

@@ -1,5 +1,6 @@
 // Package files is the file manager of a server: the master streams files between the
-// browser and the agent of the server's node, which confines all paths.
+// browser and the agent of the server's node, which confines all paths. SFTP does what the
+// file manager does with the same calls of the agent, see Service.
 package files
 
 import (
@@ -15,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -35,18 +35,13 @@ const (
 	longTimeout = 2 * time.Hour
 )
 
-// Nodes provides connections to node agents.
-type Nodes interface {
-	Conn(ctx context.Context, nodeID string) (grpc.ClientConnInterface, error)
-}
-
 type Handler struct {
-	nodes Nodes
+	files *Service
 	ops   *operation.Operations
 }
 
-func NewHandler(nodes Nodes, ops *operation.Operations) *Handler {
-	return &Handler{nodes: nodes, ops: ops}
+func NewHandler(files *Service, ops *operation.Operations) *Handler {
+	return &Handler{files: files, ops: ops}
 }
 
 func (h *Handler) Register(mux access.Mux) {
@@ -80,12 +75,7 @@ func toView(f *noryxv1.FileInfo) fileView {
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), opTimeout)
 	defer cancel()
-	c, err := h.client(ctx, r)
-	if err != nil {
-		httpapi.WriteError(w, r, err)
-		return
-	}
-	res, err := c.ListFiles(ctx, &noryxv1.ListFilesRequest{ServerId: r.PathValue("id"), Path: r.URL.Query().Get("path")})
+	res, err := h.files.List(ctx, r.PathValue("node"), r.PathValue("id"), r.URL.Query().Get("path"))
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -98,20 +88,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
-	c, err := h.client(r.Context(), r)
-	if err != nil {
-		httpapi.WriteError(w, r, err)
-		return
-	}
 	p := r.URL.Query().Get("path")
 	req := &noryxv1.ReadFileRequest{ServerId: r.PathValue("id"), Path: p}
 	req.Offset, req.Limit = byteRange(r.Header.Get("Range"))
-	stream, err := c.ReadFile(r.Context(), req)
-	if err != nil {
-		httpapi.WriteError(w, r, err)
-		return
-	}
-	first, err := stream.Recv() // errors such as a missing file arrive here
+	first, stream, err := h.files.Read(r.Context(), r.PathValue("node"), req)
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -191,7 +171,7 @@ func (h *Handler) archive(w http.ResponseWriter, r *http.Request) {
 	if len(names) > 0 {
 		logging.Note(ctx, slog.Any("names", names))
 	}
-	c, err := h.client(ctx, r)
+	c, err := h.files.Client(ctx, r.PathValue("node"))
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -223,13 +203,9 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context()) // cancelling discards the partial file
 	defer cancel()
 	expected, err := ifMatch(r)
-	var c noryxv1.FileServiceClient
-	if err == nil {
-		c, err = h.client(ctx, r)
-	}
 	var res *noryxv1.WriteFileResponse
 	if err == nil {
-		res, err = Write(ctx, c, &noryxv1.WriteFileHeader{
+		res, err = h.files.Write(ctx, r.PathValue("node"), &noryxv1.WriteFileHeader{
 			ServerId: r.PathValue("id"), Path: r.URL.Query().Get("path"), Overwrite: r.URL.Query().Get("overwrite") == "true",
 			Size: max(r.ContentLength, 0), Expected: expected,
 		}, http.MaxBytesReader(w, r.Body, maxUploadBytes))
@@ -305,10 +281,9 @@ func (h *Handler) createDirectory(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Path string `json:"path"`
 	}
-	h.unary(w, r, &req, func(ctx context.Context, c noryxv1.FileServiceClient, id string) error {
+	h.unary(w, r, &req, func(ctx context.Context, node, id string) error {
 		logging.Note(ctx, slog.String("path", req.Path))
-		_, err := c.CreateDirectory(ctx, &noryxv1.CreateDirectoryRequest{ServerId: id, Path: req.Path})
-		return err
+		return h.files.CreateDirectory(ctx, node, id, req.Path)
 	})
 }
 
@@ -317,17 +292,15 @@ func (h *Handler) move(w http.ResponseWriter, r *http.Request) {
 		From string `json:"from"`
 		To   string `json:"to"`
 	}
-	h.unary(w, r, &req, func(ctx context.Context, c noryxv1.FileServiceClient, id string) error {
+	h.unary(w, r, &req, func(ctx context.Context, node, id string) error {
 		logging.Note(ctx, slog.String("from", req.From), slog.String("to", req.To))
-		_, err := c.MoveFile(ctx, &noryxv1.MoveFileRequest{ServerId: id, From: req.From, To: req.To})
-		return err
+		return h.files.Move(ctx, node, id, req.From, req.To)
 	})
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
-	h.unary(w, r, nil, func(ctx context.Context, c noryxv1.FileServiceClient, id string) error {
-		_, err := c.DeleteFile(ctx, &noryxv1.DeleteFileRequest{ServerId: id, Path: r.URL.Query().Get("path")})
-		return err
+	h.unary(w, r, nil, func(ctx context.Context, node, id string) error {
+		return h.files.Delete(ctx, node, id, r.URL.Query().Get("path"))
 	})
 }
 
@@ -392,7 +365,7 @@ type match struct {
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), opTimeout)
 	defer cancel()
-	c, err := h.client(ctx, r)
+	c, err := h.files.Client(ctx, r.PathValue("node"))
 	var res *noryxv1.SearchFilesResponse
 	if err == nil {
 		res, err = c.SearchFiles(ctx, &noryxv1.SearchFilesRequest{ServerId: r.PathValue("id"), Path: r.URL.Query().Get("path"), Query: r.URL.Query().Get("query")})
@@ -426,7 +399,7 @@ func (h *Handler) spec(r *http.Request, kind, subject, step string) operation.Sp
 // agent calls the agent of a node within an operation, which follows the call's progress.
 // Agents that don't know the call fail with older.
 func (h *Handler) agent(ctx context.Context, nodeID string, call func(context.Context, noryxv1.FileServiceClient) error, older string) error {
-	conn, err := h.nodes.Conn(ctx, nodeID)
+	conn, err := h.files.nodes.Conn(ctx, nodeID)
 	if err != nil {
 		return err
 	}
@@ -440,32 +413,21 @@ func (h *Handler) agent(ctx context.Context, nodeID string, call func(context.Co
 	return nil
 }
 
-// unary reads an optional JSON body into req and runs an operation without result.
-func (h *Handler) unary(w http.ResponseWriter, r *http.Request, req any, op func(context.Context, noryxv1.FileServiceClient, string) error) {
+// unary reads an optional JSON body into req and runs an operation without result on the node
+// and server of the request.
+func (h *Handler) unary(w http.ResponseWriter, r *http.Request, req any, op func(ctx context.Context, node, id string) error) {
 	ctx, cancel := context.WithTimeout(r.Context(), opTimeout)
 	defer cancel()
 	var err error
 	if req != nil {
 		err = httpapi.ReadJSON(w, r, req)
 	}
-	var c noryxv1.FileServiceClient
 	if err == nil {
-		c, err = h.client(ctx, r)
-	}
-	if err == nil {
-		err = op(ctx, c, r.PathValue("id"))
+		err = op(ctx, r.PathValue("node"), r.PathValue("id"))
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) client(ctx context.Context, r *http.Request) (noryxv1.FileServiceClient, error) {
-	conn, err := h.nodes.Conn(ctx, r.PathValue("node"))
-	if err != nil {
-		return nil, err
-	}
-	return noryxv1.NewFileServiceClient(conn), nil
 }

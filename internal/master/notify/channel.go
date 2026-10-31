@@ -18,6 +18,7 @@ import (
 	_ "time/tzdata" // channels give times in IANA time zones, which minimal systems don't have
 	"unicode"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -259,7 +260,7 @@ func address(s string) (string, error) {
 
 const channelColumns = `id, name, kind, email, secret, created_at, messages_per_minute, entries_per_message, time_zone`
 
-func scanChannel(row interface{ Scan(...any) error }) (Channel, error) {
+func scanChannel(row database.Scanner) (Channel, error) {
 	var (
 		ch    Channel
 		email string

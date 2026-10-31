@@ -97,12 +97,24 @@ function describe(a: Alerts) {
 
 /** Chooses whether everything pops up, or only what is about pinned and chosen servers, nodes and categories. */
 function ChooseDialog({ trigger }: { trigger: ReactNode }) {
-  const { alerts, change } = useAlerts()
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <ChooseForm onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** What pops up as the user has it each time the dialog opens. */
+function ChooseForm({ onClose }: { onClose: () => void }) {
+  const { alerts, change } = useAlerts()
   const [form, setForm] = useState(alerts)
   const [search, setSearch] = useState("")
-  const { data: nodes = [] } = useQuery({ ...nodesQuery, enabled: open })
-  const { data: servers = [] } = useQuery({ ...allServersQuery, enabled: open })
+  const { data: nodes = [] } = useQuery(nodesQuery)
+  const { data: servers = [] } = useQuery(allServersQuery)
   const set = (change: Partial<Alerts>) => setForm({ ...form, ...change })
   const toggle = (list: "nodes" | "servers" | "categories", id: string, on: boolean) =>
     set({ [list]: on ? [...form[list], id] : form[list].filter((x) => x !== id) })
@@ -112,90 +124,79 @@ function ChooseDialog({ trigger }: { trigger: ReactNode }) {
     event.preventDefault()
     // Servers and nodes that are gone since they were chosen go too.
     change({ ...form, nodes: form.nodes.filter((id) => nodes.some((n) => n.id === id)), servers: form.servers.filter((id) => servers.some((s) => s.id === id)) })
-    setOpen(false)
+    onClose()
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) setForm(alerts)
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Choose what pops up")}</DialogTitle>
-            <DialogDescription>{t("New warnings and errors pop up as toasts, and on the desktop if you turned that on.")}</DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Select value={form.only ? "chosen" : "all"} onValueChange={(v) => set({ only: v === "chosen" })}>
-              <SelectTrigger aria-label={t("What pops up")} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("About everything I may see")}</SelectItem>
-                <SelectItem value="chosen">{t("Only about what I choose")}</SelectItem>
-              </SelectContent>
-            </Select>
-            {form.only && (
-              <>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Checkbox checked={form.pinned} onCheckedChange={(on) => set({ pinned: on === true })} />
-                  {t("My pinned servers")}
-                </label>
-                <FieldSet>
-                  <FieldLegend variant="label">{t("Servers")}</FieldLegend>
-                  <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Search servers…")} aria-label={t("Search servers")} />
-                  <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border p-3">
-                    {found.length === 0 && <p className="text-sm text-muted-foreground">{t("No server found.")}</p>}
-                    {found.map((s) => (
-                      <label key={s.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox checked={form.servers.includes(s.id)} onCheckedChange={(on) => toggle("servers", s.id, on === true)} />
-                        <span className="truncate">{s.name}</span>
-                        <span className="truncate text-muted-foreground">{s.nodeName}</span>
-                      </label>
-                    ))}
-                  </div>
-                </FieldSet>
-                {nodes.length > 0 && (
-                  <FieldSet>
-                    <FieldLegend variant="label">{t("Nodes, with all their servers")}</FieldLegend>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
-                      {nodes.map((n) => (
-                        <label key={n.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                          <Checkbox checked={form.nodes.includes(n.id)} onCheckedChange={(on) => toggle("nodes", n.id, on === true)} />
-                          <span className="truncate">{n.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </FieldSet>
-                )}
-                <FieldSet>
-                  <FieldLegend variant="label">{t("Categories")}</FieldLegend>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
-                    {Object.entries(categories).map(([id, label]) => (
-                      <label key={id} className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox checked={form.categories.includes(id)} onCheckedChange={(on) => toggle("categories", id, on === true)} />
-                        {t(label)}
-                      </label>
-                    ))}
-                  </div>
-                  <FieldDescription>{t("Also entries about no server, e.g. of sign-ins or the master itself.")}</FieldDescription>
-                </FieldSet>
-              </>
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Choose what pops up")}</DialogTitle>
+        <DialogDescription>{t("New warnings and errors pop up as toasts, and on the desktop if you turned that on.")}</DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Select value={form.only ? "chosen" : "all"} onValueChange={(v) => set({ only: v === "chosen" })}>
+          <SelectTrigger aria-label={t("What pops up")} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("About everything I may see")}</SelectItem>
+            <SelectItem value="chosen">{t("Only about what I choose")}</SelectItem>
+          </SelectContent>
+        </Select>
+        {form.only && (
+          <>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox checked={form.pinned} onCheckedChange={(on) => set({ pinned: on === true })} />
+              {t("My pinned servers")}
+            </label>
+            <FieldSet>
+              <FieldLegend variant="label">{t("Servers")}</FieldLegend>
+              <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Search servers…")} aria-label={t("Search servers")} />
+              <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border p-3">
+                {found.length === 0 && <p className="text-sm text-muted-foreground">{t("No server found.")}</p>}
+                {found.map((s) => (
+                  <label key={s.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox checked={form.servers.includes(s.id)} onCheckedChange={(on) => toggle("servers", s.id, on === true)} />
+                    <span className="truncate">{s.name}</span>
+                    <span className="truncate text-muted-foreground">{s.nodeName}</span>
+                  </label>
+                ))}
+              </div>
+            </FieldSet>
+            {nodes.length > 0 && (
+              <FieldSet>
+                <FieldLegend variant="label">{t("Nodes, with all their servers")}</FieldLegend>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+                  {nodes.map((n) => (
+                    <label key={n.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox checked={form.nodes.includes(n.id)} onCheckedChange={(on) => toggle("nodes", n.id, on === true)} />
+                      <span className="truncate">{n.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </FieldSet>
             )}
-          </FieldGroup>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit">{t("Save")}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <FieldSet>
+              <FieldLegend variant="label">{t("Categories")}</FieldLegend>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+                {Object.entries(categories).map(([id, label]) => (
+                  <label key={id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox checked={form.categories.includes(id)} onCheckedChange={(on) => toggle("categories", id, on === true)} />
+                    {t(label)}
+                  </label>
+                ))}
+              </div>
+              <FieldDescription>{t("Also entries about no server, e.g. of sign-ins or the master itself.")}</FieldDescription>
+            </FieldSet>
+          </>
+        )}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit">{t("Save")}</Button>
+      </DialogFooter>
+    </form>
   )
 }

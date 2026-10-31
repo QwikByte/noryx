@@ -39,19 +39,23 @@ func DefaultNewServers() NewServers {
 func (n NewServers) Validate() error {
 	typ := noryxv1.ParseServerType(n.Type)
 	memory := func(mb uint32) bool { return mb >= noryxv1.MinMemoryMB && mb <= noryxv1.MaxMemoryMB }
+	memoryField := "memoryMb"
+	if memory(n.MemoryMB) {
+		memoryField = "proxyMemoryMb"
+	}
 	switch {
 	case typ == noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED || typ.Slug() != n.Type:
-		return httpapi.Errorf(http.StatusBadRequest, "Choose the software of new servers.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "type", "Choose the software of new servers.")
 	case !memory(n.MemoryMB) || !memory(n.ProxyMemoryMB):
-		return httpapi.Errorf(http.StatusBadRequest, "Give new servers %d to %d MB of memory.", noryxv1.MinMemoryMB, noryxv1.MaxMemoryMB)
+		return httpapi.FieldErrorf(http.StatusBadRequest, memoryField, "Give new servers %d to %d MB of memory.", noryxv1.MinMemoryMB, noryxv1.MaxMemoryMB)
 	case !noryxv1.ValidJava(n.Java):
-		return httpapi.Errorf(http.StatusBadRequest, "Choose Java 8, 11, 17, 21 or 25 for new game servers, or the newest.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "java", "Choose Java 8, 11, 17, 21 or 25 for new game servers, or the newest.")
 	case n.StopTimeout == 0 || !noryxv1.ValidStopTimeout(n.StopTimeout):
-		return httpapi.Errorf(http.StatusBadRequest, "Give new servers %.0f seconds to %.0f minutes to stop.", noryxv1.MinStopTimeout.Seconds(), noryxv1.MaxStopTimeout.Minutes())
+		return httpapi.FieldErrorf(http.StatusBadRequest, "stopTimeout", "Give new servers %.0f seconds to %.0f minutes to stop.", noryxv1.MinStopTimeout.Seconds(), noryxv1.MaxStopTimeout.Minutes())
 	case !noryxv1.ValidTimeZone(n.TimeZone):
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a time zone for new servers such as Europe/Berlin, or none for UTC.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "timeZone", "Choose a time zone for new servers such as Europe/Berlin, or none for UTC.")
 	case !templateID.MatchString(n.Template):
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a template for new servers, or none.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "template", "Choose a template for new servers, or none.")
 	}
 	return nil
 }

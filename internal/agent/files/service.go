@@ -25,6 +25,7 @@ import (
 	"github.com/QwikByte/noryx/internal/agent/archive"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
 	"github.com/QwikByte/noryx/internal/agent/fileset"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 	"github.com/QwikByte/noryx/internal/agent/secrets"
 	"github.com/QwikByte/noryx/internal/agent/storage"
@@ -502,13 +503,7 @@ func (s *Service) open(ctx context.Context, id, p string) (*datadir.Dir, string,
 		return nil, "", err
 	}
 	dir, err := s.rt.Data(ctx, id)
-	if errors.Is(err, runtime.ErrNotFound) {
-		return nil, "", status.Error(codes.NotFound, "Server not found.")
-	}
-	if err != nil {
-		return nil, "", status.Error(codes.Internal, err.Error())
-	}
-	return dir, name, nil
+	return dir, name, grpcerr.Status(err)
 }
 
 // clean returns a path of the file manager as a name in the data directory. No path leads into
@@ -586,26 +581,17 @@ func sendChunks(r io.Reader, send func([]byte) error) error {
 	}
 }
 
+// known are the errors of files that the service answers with a code and a text.
+var known = []grpcerr.Known{
+	{Err: fs.ErrNotExist, Code: codes.NotFound, Text: "File or folder not found."},
+	{Err: fs.ErrExist, Code: codes.AlreadyExists, Text: "A file or folder with this name exists already."},
+	{Err: fs.ErrPermission, Code: codes.PermissionDenied, Text: "The agent isn't allowed to access this file."},
+	{Err: datadir.ErrLink, Code: codes.InvalidArgument, Text: "This path leads through a link of the server, which the file manager doesn't follow."},
+}
+
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, fs.ErrNotExist):
-		return status.Error(codes.NotFound, "File or folder not found.")
-	case errors.Is(err, fs.ErrExist):
-		return status.Error(codes.AlreadyExists, "A file or folder with this name already exists.")
-	case errors.Is(err, fs.ErrPermission):
-		return status.Error(codes.PermissionDenied, "The agent isn't allowed to access this file.")
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, datadir.ErrLink):
-		return status.Error(codes.InvalidArgument, "This path leads through a link of the server, which the file manager doesn't follow.")
-	case strings.Contains(err.Error(), "path escapes from parent"): // os.Root, e.g. through a symbolic link
+	if datadir.Escapes(err) {
 		return status.Error(codes.InvalidArgument, "This path leads outside of the server folder.")
 	}
-	return status.Error(codes.Internal, err.Error())
+	return grpcerr.Status(err, known...)
 }

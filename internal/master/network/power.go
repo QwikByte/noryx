@@ -105,7 +105,7 @@ func (s *Service) each(ctx context.Context, servers []Backend, call serverCall) 
 				err = call(ctx, noryxv1.NewServerServiceClient(conn), b.ServerID)
 			}
 			if err != nil {
-				errs[i] = fmt.Errorf("%s: %s", b.Name, message(err))
+				errs[i] = fmt.Errorf("%s: %s", b.Name, httpapi.Message(err))
 			}
 		})
 	}

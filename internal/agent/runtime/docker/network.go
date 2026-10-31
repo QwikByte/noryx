@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -31,6 +30,9 @@ func (d *Docker) Configure(ctx context.Context, id string, network runtime.Netwo
 	c, spec, err := d.inspect(ctx, id)
 	if err != nil {
 		return false, err
+	}
+	if spec.Type.Bedrock() {
+		return false, runtime.ErrUnsupported
 	}
 	if c, err = d.attach(ctx, c, network.Datastores); err != nil {
 		return false, err
@@ -213,10 +215,10 @@ func (d *Docker) release(ctx context.Context, proxyID string, backends []runtime
 
 // prepare readies a server that is about to start. On Podman, the servers are kept apart
 // again, in case the tables of the agent were removed, and its networks must have the bridges
-// that the tables match. A proxy gets its data handed to the user it runs as, and listens on
-// the port its container publishes, as the default configuration of the Velocity image listens
-// on another one. A stopped proxy of an older agent, which ran it as root, is created again to
-// run as that user.
+// that the tables match. A proxy or Bedrock server gets its data handed to the user it runs as,
+// and a proxy listens on the port its container publishes, as the default configuration of the
+// Velocity image listens on another one. A stopped proxy of an older agent, which ran it as
+// root, is created again to run as that user.
 func (d *Docker) prepare(ctx context.Context, id string) error {
 	if d.podman != nil {
 		if err := Isolate(); err != nil {
@@ -227,7 +229,7 @@ func (d *Docker) prepare(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := d.checkNetworks(ctx, c); err != nil || !spec.Type.Proxy() {
+	if err := d.checkNetworks(ctx, c); err != nil || !images[spec.Type].asUser() {
 		return err
 	}
 	path, err := d.dataPath(spec)
@@ -239,13 +241,13 @@ func (d *Docker) prepare(ctx context.Context, id string) error {
 		return err
 	}
 	defer data.Close()
-	if err := data.HandOver(proxyUID, proxyUID); err != nil {
+	if err := data.HandOver(imageUID, imageUID); err != nil || !spec.Type.Proxy() {
 		return err
 	}
 	if _, err := mcnet.ProxyBind(data, spec.Type, images[spec.Type].port); err != nil {
 		return err
 	}
-	if c.Config.User != proxyUser && !c.State.Running {
+	if c.Config.User != imageUser && !c.State.Running {
 		return d.recreate(ctx, c, spec, false)
 	}
 	return nil
@@ -329,38 +331,18 @@ func (d *Docker) checkNetworks(ctx context.Context, c container.InspectResponse)
 	return nil
 }
 
-// recreate replaces the container c of a server to change its settings; the data on the host
-// stays, and so do the networks of the server. The old container is kept until the new one
-// exists, so that a failure leaves the server as it was. A running server is stopped
-// gracefully and started again.
+// recreate replaces the container c of a server to change its settings, see replace; the
+// server keeps its networks. A running server is stopped gracefully and started again.
 func (d *Docker) recreate(ctx context.Context, c container.InspectResponse, spec runtime.Spec, running bool) error {
-	if running {
-		if err := d.Stop(ctx, spec.ID); err != nil {
-			return err
-		}
-	}
-	name, old := containerName(spec.ID), containerName(spec.ID)+"-old"
-	if _, err := d.cli.ContainerRename(ctx, name, client.ContainerRenameOptions{NewName: old}); err != nil {
-		return err
-	}
-	// The replacement finishes also when ctx ends, e.g. with the timeout of the master's call:
-	// otherwise the server could be left without its container, stopped, or with an old one
-	// in the way of the next replacement.
-	ctx = context.WithoutCancel(ctx)
-	if err := d.createContainer(ctx, spec, placement(c, spec), datastoreNetworks(c)...); err != nil {
-		_, renameErr := d.cli.ContainerRename(ctx, old, client.ContainerRenameOptions{NewName: name})
-		if renameErr == nil && running {
-			renameErr = d.Start(ctx, spec.ID)
-		}
-		return errors.Join(err, renameErr)
-	}
-	if _, err := d.cli.ContainerRemove(ctx, old, client.ContainerRemoveOptions{}); err != nil {
-		return err
-	}
-	if !running {
-		return nil
-	}
-	return d.Start(ctx, spec.ID)
+	return d.replace(ctx, replacement{
+		name:    containerName(spec.ID),
+		running: running,
+		stop:    func(ctx context.Context) error { return d.Stop(ctx, spec.ID) },
+		create: func(ctx context.Context) error {
+			return d.createContainer(ctx, spec, placement(c, spec), datastoreNetworks(c)...)
+		},
+		start: func(ctx context.Context) error { return d.Start(ctx, spec.ID) },
+	})
 }
 
 // datastoreNetworks returns the internal networks of datastores a container is in.

@@ -30,6 +30,7 @@ import (
 	"github.com/QwikByte/noryx/internal/buildinfo"
 	"github.com/QwikByte/noryx/internal/enrollment"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/ratelimit"
 	"github.com/QwikByte/noryx/internal/pki"
@@ -75,9 +76,9 @@ func (l Limits) Validate() error {
 	switch {
 	case (l.PortMin == nil) != (l.PortMax == nil),
 		l.PortMin != nil && (*l.PortMin < 1024 || *l.PortMax > 65535 || *l.PortMin > *l.PortMax):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a port range from 1024 to 65535, or none.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "portMin", "Enter a port range from 1024 to 65535, or none.")
 	case l.MemoryReserveMB != nil && *l.MemoryReserveMB > 1<<20:
-		return httpapi.Errorf(http.StatusBadRequest, "Enter the memory to keep free in MB.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "memoryReserveMb", "Enter the memory to keep free in MB.")
 	}
 	return nil
 }
@@ -131,6 +132,8 @@ type Service struct {
 	// gen counts the changes and removals of connections, so that Conn doesn't store a
 	// connection to a node that changed while it was loaded.
 	gen uint64
+	// loaded, if set, runs whenever Conn loaded a node, so that tests can change it meanwhile.
+	loaded func()
 	// expiries are expiries of node certificates that are stored already, so that checking a
 	// node writes to the database only once it presents a newer certificate.
 	expiries map[string]time.Time
@@ -195,7 +198,7 @@ func (s *Service) Update(ctx context.Context, n Node) (Node, error) {
 			log_file_mb = ?, log_files = ?, keep_free_gb = ?, stats_interval_seconds = ?
 		WHERE id = ?`, n.Name, n.Address, n.DefaultStorage, n.PortMin, n.PortMax, n.MemoryReserveMB,
 		n.LogFileMB, n.LogFiles, n.KeepFreeGB, n.StatsIntervalSeconds, n.ID)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
 	if err != nil {
@@ -244,7 +247,7 @@ func (s *Service) NewJoinToken(ctx context.Context, id string) (JoinToken, error
 	expires := time.Now().Add(s.config.JoinTokenTTL())
 	res, err := s.db.ExecContext(ctx, `UPDATE nodes SET join_secret_hash = ?, join_expires_at = ? WHERE id = ?`,
 		hash[:], expires.Unix(), id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
 	token := enrollment.Token{Master: s.config.EnrollAddr(), NodeID: id, Secret: secret, CAFingerprint: pki.Fingerprint(s.ca.Cert)}
@@ -287,13 +290,13 @@ func (s *Service) Enroll(ctx context.Context, req *noryxv1.EnrollRequest) (*nory
 	}
 	// The join token is used up only if the master signs the certificate, and checked first.
 	var cert []byte
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		hash := sha256.Sum256([]byte(req.GetSecret()))
 		now := time.Now().Unix()
 		res, err := tx.ExecContext(ctx, `
 			UPDATE nodes SET join_secret_hash = NULL, join_expires_at = NULL, enrolled_at = ?
 			WHERE id = ? AND join_secret_hash = ? AND join_expires_at > ?`, now, req.GetNodeId(), hash[:], now)
-		if err == nil && rowsAffected(res) != 1 {
+		if err == nil && database.RowsAffected(res) != 1 {
 			return status.Error(codes.PermissionDenied, "join token is invalid, expired or already used")
 		}
 		if err == nil {
@@ -312,18 +315,6 @@ func (s *Service) Enroll(ctx context.Context, req *noryxv1.EnrollRequest) (*nory
 		s.seen(ctx, req.GetNodeId(), c.NotAfter)
 	}
 	return &noryxv1.EnrollResponse{CertificateDer: cert, CaCertificateDer: s.ca.Cert.Raw}, nil
-}
-
-// inTx runs fn in a transaction that is committed if fn succeeds.
-func (s *Service) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		return errors.Join(err, tx.Rollback())
-	}
-	return tx.Commit()
 }
 
 func (s *Service) List(ctx context.Context) ([]Node, error) {
@@ -354,7 +345,7 @@ func (s *Service) Get(ctx context.Context, id string) (Node, error) {
 // Delete removes a node. Its agent keeps running but is no longer contacted.
 func (s *Service) Delete(ctx context.Context, id string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM nodes WHERE id = ?`, id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
 	s.mu.Lock()
@@ -383,6 +374,9 @@ func (s *Service) Conn(ctx context.Context, id string) (grpc.ClientConnInterface
 		n, err := s.Get(ctx, id)
 		if err != nil {
 			return nil, err
+		}
+		if s.loaded != nil {
+			s.loaded()
 		}
 		if n.EnrolledAt == nil {
 			return nil, httpapi.Errorf(http.StatusConflict, "Node %q has not been enrolled yet.", n.Name)
@@ -422,9 +416,7 @@ func (s *Service) Close() {
 	}
 }
 
-type scanner interface{ Scan(dest ...any) error }
-
-func scanNode(row scanner) (Node, error) {
+func scanNode(row database.Scanner) (Node, error) {
 	var n Node
 	var enrolledAt, certExpiresAt sql.NullInt64
 	var createdAt int64
@@ -451,9 +443,4 @@ func nullable[T any](v sql.Null[T]) *T {
 		return nil
 	}
 	return &v.V
-}
-
-func rowsAffected(res sql.Result) int64 {
-	n, _ := res.RowsAffected()
-	return n
 }

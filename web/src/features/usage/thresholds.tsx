@@ -9,11 +9,12 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormSection } from "@/components/form-section"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { msg } from "@/lib/i18n"
+import type { ErrorsAt } from "@/lib/use-draft"
 import { cn } from "@/lib/utils"
 import { type Measure, type Threshold, type Thresholds, type ThresholdsView, thresholdsQuery, useUpdateThresholds } from "./api"
 
@@ -53,12 +54,14 @@ export function ThresholdFields({
   value,
   defaults,
   onChange,
+  errorAt,
 }: {
   id: string
   kind: "servers" | "nodes"
   value: Thresholds
   defaults?: Thresholds
   onChange: (value: Thresholds) => void
+  errorAt?: ErrorsAt
 }) {
   return (
     <ul className="divide-y rounded-xl border">
@@ -70,6 +73,7 @@ export function ThresholdFields({
         const change = (c: Partial<Threshold>) => set({ ...threshold, ...c })
         const fixed = !!defaults && !own
         const key = `${id}-${measure}`
+        const errors = errorAt?.(measure)
         const inputs = {
           value: (
             <Input
@@ -79,6 +83,7 @@ export function ThresholdFields({
               max={measure === "tps" ? 20 : 100}
               step="any"
               disabled={fixed}
+              aria-invalid={!!errors}
               aria-label={t("Threshold of {{measure}}", { measure: t(label) })}
               className="w-20 font-mono"
               value={threshold.value}
@@ -92,6 +97,7 @@ export function ThresholdFields({
               min={0}
               max={1440}
               disabled={fixed}
+              aria-invalid={!!errors}
               aria-label={t("Minutes of {{measure}}", { measure: t(label) })}
               className="w-20 font-mono"
               value={threshold.minutes}
@@ -131,6 +137,7 @@ export function ThresholdFields({
                 )}
               </p>
             )}
+            <FieldError errors={errors} />
           </li>
         )
       })}

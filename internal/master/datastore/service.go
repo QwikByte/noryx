@@ -313,7 +313,7 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 		return err
 	})
 	if err != nil {
-		return View{}, errors.Join(err, s.store.delete(ctx, ds.ID))
+		return View{}, undone(err, s.store.delete(ctx, ds.ID))
 	}
 	ds, warning := taken(ds, created)
 	if warning != "" {
@@ -522,11 +522,21 @@ func (s *Service) AddDatabase(ctx context.Context, id, name string) (Database, e
 	}
 	if err := s.ensure(ctx, ds, db); err != nil {
 		if i < 0 {
-			err = errors.Join(err, s.store.dropDatabase(context.WithoutCancel(ctx), id, name))
+			err = undone(err, s.store.dropDatabase(context.WithoutCancel(ctx), id, name))
 		}
 		return Database{}, err
 	}
 	return db, nil
+}
+
+// undone returns the error of a change, and that of undoing it if that failed too. Joining a
+// nil error would wrap an error of an agent, whose message the panel then shows as "rpc error:
+// code = … desc = …".
+func undone(err, undoErr error) error {
+	if undoErr == nil {
+		return err
+	}
+	return errors.Join(err, undoErr)
 }
 
 func (s *Service) ensure(ctx context.Context, ds Datastore, db Database) error {

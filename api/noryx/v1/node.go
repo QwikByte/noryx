@@ -2,6 +2,7 @@ package noryxv1
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -71,4 +72,13 @@ func (s *NodeSettings) Problem() string {
 		return fmt.Sprintf("Measure every %d to %d seconds.", MinStatsInterval, MaxStatsInterval)
 	}
 	return ""
+}
+
+// Creates reports whether the agent creates servers of the type. Older agents don't tell
+// their types: they create those up to SERVER_TYPE_QUILT.
+func (r *GetInfoResponse) Creates(t ServerType) bool {
+	if len(r.GetServerTypes()) == 0 {
+		return t > ServerType_SERVER_TYPE_UNSPECIFIED && t <= ServerType_SERVER_TYPE_QUILT
+	}
+	return slices.Contains(r.GetServerTypes(), t)
 }

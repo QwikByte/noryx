@@ -2,17 +2,25 @@ package app
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"filippo.io/age"
+
 	"github.com/QwikByte/noryx/internal/master/auth"
+	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/settings"
+	"github.com/QwikByte/noryx/internal/master/sftp"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
@@ -102,5 +110,216 @@ func extract(t *testing.T, file, dir string) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// newMaster creates a master in dir with a user and a CA, as a master that ran once would have.
+func newMaster(t *testing.T, dir, username string) *pki.CA {
+	t.Helper()
+	db, err := openDB(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	conf, err := settings.Load(t.Context(), db, settings.Master{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.NewService(db, conf).CreateUser(t.Context(), username, "correct horse battery"); err != nil {
+		t.Fatal(err)
+	}
+	ca, err := pki.LoadOrCreateCA(filepath.Join(dir, "pki"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ca
+}
+
+// state returns the contents of the files of the database and the CA in dir.
+func state(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, _ := filepath.Rel(dir, path)
+		if rel == "master.db" || strings.HasPrefix(rel, "master.db-") || strings.HasPrefix(rel, "pki") {
+			data, err := os.ReadFile(path)
+			files[rel] = string(data)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
+// users returns the users of the master in dir.
+func users(t *testing.T, dir string) []string {
+	t.Helper()
+	db, err := openDB(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT username FROM users ORDER BY username`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// noryx-master restore replaces the database and the CA with those of an archive, also an
+// encrypted one, and keeps what it replaced. It refuses while the master runs, with a wrong
+// passphrase or a damaged archive, and replaces nothing then.
+func TestRestoreMaster(t *testing.T) {
+	dir := t.TempDir()
+	old := config{dataDir: filepath.Join(dir, "old")}
+	oldCA := newMaster(t, old.dataDir, "admin")
+	plain := filepath.Join(dir, "master.tar.gz")
+	if err := backupMaster(t.Context(), old, plain); err != nil {
+		t.Fatal(err)
+	}
+	// Encrypted like the backup job of the master does, with a lower work factor for the test.
+	data, err := os.ReadFile(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := age.NewScryptRecipient("correct horse battery staple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient.SetWorkFactor(10)
+	var buf bytes.Buffer
+	w, err := age.Encrypt(&buf, recipient)
+	if err == nil {
+		_, err = w.Write(data)
+	}
+	if err = errors.Join(err, w.Close()); err != nil {
+		t.Fatal(err)
+	}
+	encrypted := filepath.Join(dir, "master.tar.gz.age")
+	damaged := filepath.Join(dir, "damaged.tar.gz.age")
+	changed := bytes.Clone(buf.Bytes())
+	changed[len(changed)-10] ^= 1
+	if err := errors.Join(os.WriteFile(encrypted, buf.Bytes(), 0o600), os.WriteFile(damaged, changed, 0o600)); err != nil {
+		t.Fatal(err)
+	}
+
+	// The new master, e.g. on another machine after installing it, has a CA and users of its own.
+	cfg := config{dataDir: filepath.Join(dir, "new")}
+	newMaster(t, cfg.dataDir, "other")
+	before := state(t, cfg.dataDir)
+	unlock, err := lockDataDir(cfg.dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreMaster(cfg, plain); err == nil || !strings.Contains(err.Error(), "stop it first") {
+		t.Errorf("restore while the master runs: %v", err)
+	}
+	if err := unlock(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(passphraseEnv, "wrong horse battery staple")
+	if err := restoreMaster(cfg, encrypted); !errors.Is(err, backup.ErrPassphrase) {
+		t.Errorf("restore with a wrong passphrase: %v", err)
+	}
+	t.Setenv(passphraseEnv, "correct horse battery staple")
+	if err := restoreMaster(cfg, damaged); err == nil {
+		t.Error("restored a damaged archive")
+	}
+	if err := restoreMaster(cfg, filepath.Join(dir, "missing.tar.gz")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("restore of a missing file: %v", err)
+	}
+	if after := state(t, cfg.dataDir); !maps.Equal(before, after) {
+		t.Fatal("a restore that failed changed the database or the CA")
+	}
+	for _, pattern := range []string{"replaced-*", ".*"} {
+		if left, _ := filepath.Glob(filepath.Join(cfg.dataDir, pattern)); len(left) != 0 {
+			t.Errorf("failed restores left %v", left)
+		}
+	}
+
+	if err := restoreMaster(cfg, encrypted); err != nil {
+		t.Fatal(err)
+	}
+	if got := users(t, cfg.dataDir); !slices.Equal(got, []string{"admin"}) {
+		t.Errorf("users after restoring = %v", got)
+	}
+	if ca, err := pki.LoadOrCreateCA(filepath.Join(cfg.dataDir, "pki")); err != nil || !ca.Cert.Equal(oldCA.Cert) {
+		t.Errorf("the CA wasn't restored: %v", err)
+	}
+	// What it replaced is kept.
+	replaced, _ := filepath.Glob(filepath.Join(cfg.dataDir, "replaced-*"))
+	if len(replaced) != 1 || users(t, replaced[0])[0] != "other" || state(t, replaced[0])["pki/ca.pem"] != before["pki/ca.pem"] {
+		t.Errorf("replaced = %v", replaced)
+	}
+	if temp, _ := filepath.Glob(filepath.Join(cfg.dataDir, ".*")); len(temp) != 0 {
+		t.Errorf("the restore left %v", temp)
+	}
+
+	// Into an empty data directory, there is nothing to keep.
+	empty := config{dataDir: filepath.Join(dir, "empty")}
+	if err := restoreMaster(empty, plain); err != nil {
+		t.Fatal(err)
+	}
+	if got := users(t, empty.dataDir); !slices.Equal(got, []string{"admin"}) {
+		t.Errorf("users after restoring into an empty directory = %v", got)
+	}
+	if replaced, _ := filepath.Glob(filepath.Join(empty.dataDir, "replaced-*")); len(replaced) != 0 {
+		t.Errorf("replaced = %v", replaced)
+	}
+}
+
+// A restore takes the host key of SFTP from the archive, so that clients still trust the master,
+// and keeps the master's own if the archive has none.
+func TestRestoreMasterHostKey(t *testing.T) {
+	dir := t.TempDir()
+	keyOf := func(dataDir string) string {
+		t.Helper()
+		key, err := sftp.HostKey(filepath.Join(dataDir, backup.SFTPDir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sftp.Fingerprint(key)
+	}
+	old := config{dataDir: filepath.Join(dir, "old")}
+	newMaster(t, old.dataDir, "admin")
+	without := filepath.Join(dir, "without.tar.gz")
+	if err := backupMaster(t.Context(), old, without); err != nil {
+		t.Fatal(err)
+	}
+	oldKey := keyOf(old.dataDir)
+	with := filepath.Join(dir, "with.tar.gz")
+	if err := backupMaster(t.Context(), old, with); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{dataDir: filepath.Join(dir, "new")}
+	newMaster(t, cfg.dataDir, "other")
+	newKey := keyOf(cfg.dataDir)
+	if err := restoreMaster(cfg, without); err != nil {
+		t.Fatal(err)
+	}
+	if got := keyOf(cfg.dataDir); got != newKey {
+		t.Errorf("an archive without a host key replaced the master's: %s, want %s", got, newKey)
+	}
+	if err := restoreMaster(cfg, with); err != nil {
+		t.Fatal(err)
+	}
+	if got := keyOf(cfg.dataDir); got != oldKey {
+		t.Errorf("host key after restoring %s, want the archive's %s", got, oldKey)
 	}
 }

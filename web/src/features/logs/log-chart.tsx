@@ -90,34 +90,34 @@ function HourChart({ buckets, onSelectHour }: { buckets: LogBucket[]; onSelectHo
             className="relative flex h-full items-end gap-0.5"
           >
             {buckets.map((b, i) => (
-              <button
-                key={b.start}
-                type="button"
-                role="listitem"
-                aria-label={t("{{hour}}: {{info}} info, {{warnings}} warnings, {{errors}} errors", {
-                  hour: hourOf(b),
-                  info: b.info + b.debug,
-                  warnings: b.warn,
-                  errors: b.error,
-                })}
-                onPointerEnter={() => setActive(i)}
-                onFocus={() => setActive(i)}
-                onBlur={() => setActive(undefined)}
-                onClick={() => onSelectHour(new Date(b.start))}
-                className="group flex h-full flex-1 items-end justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {totalOf(b) > 0 && (
-                  <span
-                    className="flex w-full max-w-6 flex-col-reverse gap-0.5 overflow-hidden rounded-t-[4px] transition-[filter] group-hover:brightness-110 group-focus-visible:brightness-110"
-                    style={{ height: `max(${(totalOf(b) / max) * 100}%, 3px)` }}
-                  >
-                    {series.map(({ key, fill }) => {
-                      const n = key === "info" ? b.info + b.debug : b[key]
-                      return n > 0 && <span key={key} className={cn("min-h-px", fill)} style={{ flex: `${n} 0 0` }} />
-                    })}
-                  </span>
-                )}
-              </button>
+              <div key={b.start} role="listitem" className="flex h-full flex-1">
+                <button
+                  type="button"
+                  aria-label={t("{{hour}}: {{info}} info, {{warnings}} warnings, {{errors}} errors", {
+                    hour: hourOf(b),
+                    info: b.info + b.debug,
+                    warnings: b.warn,
+                    errors: b.error,
+                  })}
+                  onPointerEnter={() => setActive(i)}
+                  onFocus={() => setActive(i)}
+                  onBlur={() => setActive(undefined)}
+                  onClick={() => onSelectHour(new Date(b.start))}
+                  className="group flex h-full w-full items-end justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {totalOf(b) > 0 && (
+                    <span
+                      className="flex w-full max-w-6 flex-col-reverse gap-0.5 overflow-hidden rounded-t-[4px] transition-[filter] group-hover:brightness-110 group-focus-visible:brightness-110"
+                      style={{ height: `max(${(totalOf(b) / max) * 100}%, 3px)` }}
+                    >
+                      {series.map(({ key, fill }) => {
+                        const n = key === "info" ? b.info + b.debug : b[key]
+                        return n > 0 && <span key={key} className={cn("min-h-px", fill)} style={{ flex: `${n} 0 0` }} />
+                      })}
+                    </span>
+                  )}
+                </button>
+              </div>
             ))}
           </div>
           {shown && active !== undefined && (

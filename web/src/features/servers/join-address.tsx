@@ -8,6 +8,7 @@ import { networksQuery } from "@/features/networks/api"
 import { hostOf, joinAddress, key } from "@/features/networks/servers"
 import { nodeQuery } from "@/features/nodes/api"
 import { type Server, serversQuery } from "./api"
+import { isBedrock, serverPorts } from "./server-types"
 
 /**
  * The address players join a server at, to copy: the host of its node's address and its port,
@@ -36,7 +37,13 @@ export function JoinAddress({ nodeId, server }: { nodeId: string; server: Server
   return (
     <Chip
       icon={GlobeIcon}
-      title={network ? t("Players join through the proxy of {{network}}", { network: network.name }) : t("Players join at this address")}
+      title={
+        network
+          ? t("Players join through the proxy of {{network}}", { network: network.name })
+          : isBedrock(server.type)
+            ? t("Players join at this address and play over the UDP ports {{first}} to {{last}}", { first: server.port, last: serverPorts(server).at(-1) })
+            : t("Players join at this address")
+      }
       className="py-0 pr-0.5"
     >
       <span className="font-mono">{address}</span>

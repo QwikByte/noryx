@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -77,25 +77,38 @@ func (s Server) Report(t Task, category slog.Attr, action string, err error) err
 // ReportChange is Report for an action that tells what it changed on the server, if anything,
 // e.g. the plugins it updated.
 func (s Server) ReportChange(t Task, category slog.Attr, action, change string, err error) error {
-	attrs := []any{category, "task", t.Name, logging.KeyNode, s.NodeID, logging.KeyNodeName, s.NodeName,
-		logging.KeyServer, s.GetId(), logging.KeyServerName, s.GetName()}
-	step := Step{Action: action, Server: s.GetName(), Node: s.NodeName, Outcome: Succeeded, Change: change}
+	step := Step{Action: action, Server: s.GetName(), Node: s.NodeName, Change: change}
+	return s.journal.report(t, category, step, s.GetName()+" on "+s.NodeName+": ", err,
+		logging.KeyNode, s.NodeID, logging.KeyNodeName, s.NodeName, logging.KeyServer, s.GetId(), logging.KeyServerName, s.GetName())
+}
+
+// ReportChange records an action of a run of the task that concerns no server, e.g. backing up
+// the master, like Server.ReportChange.
+func (t Task) ReportChange(category slog.Attr, action, change string, err error) error {
+	return t.journal.report(t, category, Step{Action: action, Change: change}, "", err)
+}
+
+// report logs the outcome of a step of a task with attrs and records it in the run. It returns
+// the step's error, with where in front, e.g. "lobby on node-1: ", unless it was skipped.
+func (j *journal) report(t Task, category slog.Attr, step Step, where string, err error, attrs ...any) error {
+	attrs = append([]any{category, "task", t.Name}, attrs...)
+	step.Outcome = Succeeded
 	var skipped Skipped
 	switch {
-	case err == nil && change != "":
-		slog.Info(action, append(attrs, "change", change)...)
+	case err == nil && step.Change != "":
+		slog.Info(step.Action, append(attrs, "change", step.Change)...)
 	case err == nil:
-		slog.Info(action, attrs...)
+		slog.Info(step.Action, attrs...)
 	case errors.As(err, &skipped):
-		slog.Info(action+" skipped", append(attrs, "reason", string(skipped))...)
-		s.journal.note(fmt.Sprintf("%s on %s: %s", s.GetName(), s.NodeName, skipped))
+		slog.Info(step.Action+" skipped", append(attrs, "reason", string(skipped))...)
+		j.note(where + string(skipped))
 		step.Outcome, step.Detail, err = OutcomeSkipped, string(skipped), nil
 	default:
 		msg := status.Convert(err).Message()
-		slog.Warn(action+" failed", append(attrs, "err", msg)...)
-		step.Outcome, step.Detail, err = Failed, msg, fmt.Errorf("%s on %s: %s", s.GetName(), s.NodeName, msg)
+		slog.Warn(step.Action+" failed", append(attrs, "err", msg)...)
+		step.Outcome, step.Detail, err = Failed, msg, errors.New(where+msg)
 	}
-	s.journal.step(step)
+	j.step(step)
 	return err
 }
 
@@ -131,11 +144,11 @@ func (j *journal) end(r *Run, err error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	slices.Sort(j.notes)
-	r.EndedAt, r.Note = time.Now(), clip(strings.Join(slices.Compact(j.notes), "\n"))
+	r.EndedAt, r.Note = time.Now(), database.Clip(strings.Join(slices.Compact(j.notes), "\n"), maxError)
 	r.Steps = append([]Step{}, j.steps[:min(len(j.steps), maxSteps)]...)
 	switch {
 	case err != nil:
-		r.Outcome, r.Error = Failed, clip(err.Error())
+		r.Outcome, r.Error = Failed, database.Clip(err.Error(), maxError)
 	case len(r.Steps) > 0 && !slices.ContainsFunc(r.Steps, func(s Step) bool { return s.Outcome != OutcomeSkipped }):
 		r.Outcome = OutcomeSkipped
 	default:
@@ -144,7 +157,6 @@ func (j *journal) end(r *Run, err error) {
 }
 
 // clip shortens the error or note of a run to what is stored.
-func clip(msg string) string { return msg[:min(len(msg), maxError)] }
 
 // record stores a run of a task, unless the task was deleted meanwhile, and forgets the
 // oldest runs beyond maxRuns.

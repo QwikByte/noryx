@@ -23,6 +23,7 @@ import { isLog } from "./log-reader"
 import { NameDialog } from "./name-dialog"
 import { SearchDialog } from "./search-dialog"
 import { SelectionBar } from "./selection-bar"
+import { SftpButton } from "./sftp-button"
 import { UploadList } from "./upload-list"
 import { type Batch, readDrop, readPicked, useUploads } from "./use-uploads"
 
@@ -115,6 +116,8 @@ export function FileBrowser({ files, path, server }: { files: ServerFiles; path:
   }
 
   return (
+    // Dropping files is a shortcut for the upload button.
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
       aria-labelledby="files-heading"
       className="relative"
@@ -135,7 +138,8 @@ export function FileBrowser({ files, path, server }: { files: ServerFiles; path:
       <div className="surface overflow-hidden rounded-xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
           <PathBreadcrumb files={files} path={path} root={server.name} />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <SftpButton files={files} />
             <SearchDialog files={files} dir={path} folder={folder} />
             {writable && (
               <FileMenus

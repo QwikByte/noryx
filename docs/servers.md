@@ -7,8 +7,10 @@ Everything a single server offers in the panel. New servers can also start from 
 
 Servers run as containers of Docker or [Podman](installation.md#docker-or-podman) based on
 [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server) (Vanilla, Paper, Purpur, Folia, Leaf, Fabric,
-Quilt, Forge, NeoForge) and [itzg/mc-proxy](https://github.com/itzg/docker-mc-proxy) (Velocity, BungeeCord; Waterfall
-only for existing proxies, see [Networks](networks.md#proxies-and-forwarding)).
+Quilt, Forge, NeoForge), [itzg/mc-proxy](https://github.com/itzg/docker-mc-proxy) (Velocity, BungeeCord; Waterfall
+only for existing proxies, see [Networks](networks.md#proxies-and-forwarding)) and
+[itzg/minecraft-bedrock-server](https://github.com/itzg/docker-minecraft-bedrock-server) (Bedrock Dedicated Server, see
+[Bedrock servers](#bedrock-servers)).
 Container labels are the agent's only state, so servers keep running while an agent restarts.
 
 ## Creating and deleting
@@ -110,6 +112,37 @@ files that only hold secrets (`.rcon-cli.env`, `.rcon-cli.yaml`, `forwarding.sec
 networks with their secrets as `<hidden>`, which saving keeps. Downloads of folders and backups leave them out the same
 way, as they do with the files that [file sets](library.md#file-sets) filled secrets into. Plugins and mods run with the
 server, though, and can read them.
+
+### SFTP
+
+Editors with remote files, scripts and clients such as WinSCP, FileZilla, `sshfs`, `rclone` or `lftp` reach the files
+of servers over SFTP, once an administrator gives it an address under **Settings** → **SFTP**, e.g. `0.0.0.0:2022`;
+empty turns it off. Like the panel's address, it applies when the master starts again. The master serves SFTP itself,
+not the agents, and every request goes to the agent of the server's node like those of the file manager, so the same
+rules apply: secrets stay hidden, paths stay in the server's folder and 1 GB stays free on the node.
+
+- **Signing in:** your username, and an [API token](api.md#api-tokens) as the password, e.g.
+  `sftp -P 2022 alice@panel.example.com`. The token needs the permission to browse and download files of a server to
+  see it, and the one to change files to change them; one with all of your permissions has them where you do. SSH keys
+  and the password of the panel don't work, so that the token's lifetime, permissions and revocation apply.
+- **Paths** are `/<node>/<server>/<path in the server's folder>`: `/` lists the nodes with servers whose files the
+  token may browse, and a node these servers. Nodes and servers are named as in the panel, or by their IDs where
+  another one in the same folder has the same name, regardless of case, or the name can't be one in a path, e.g. as it
+  holds a `/`. IDs always work, e.g. in scripts, as names change. The **SFTP** button of the file manager shows the
+  command that opens the folder of the server, and the fingerprint of the master's host key, which your client asks you
+  to compare the first time it connects; the settings show it too.
+- **Writing** replaces a file as a whole, from the start to the end: it appears once the client closes it, like an
+  upload of the file manager. Resuming an upload, writing at an offset, writing into an existing file without
+  truncating it and truncating fail and leave the file as it was. Renaming never replaces a file, files only move within
+  their server, and removing a folder needs it to be empty. Links can't be made or read. Times, permissions and owners
+  of files stay as the agent sets them; clients that set them, e.g. to keep the time of an upload, get no error, so
+  tools that sync should compare sizes, e.g. `rclone sync --size-only`.
+- A folder lists the first 5000 entries, as in the file manager. Only SFTP is served, no shell, so `rsync` doesn't
+  work, and `scp` only where it uses SFTP, as OpenSSH's does since version 9.0. A user has up to 16 connections at once.
+
+Downloads and changes are logged like those of the file manager, with the user, the token and `via: sftp`, and so are
+sign-ins with the client's address. Revoking a token, its expiry and changes of your permissions apply to open
+connections right away.
 
 ## server.properties
 
@@ -231,6 +264,38 @@ counts as a crash, so a server that keeps hanging is stopped after its crashes i
 healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds. Agents of earlier versions
 keep 5 crashes in a row, 10 minutes and no restarts, which saving the settings, creating a server and moving one to their
 node tell.
+
+## Bedrock servers
+
+**Bedrock** under **Bedrock Edition** is Bedrock Dedicated Server, for players of Minecraft on phones, consoles and
+Windows, without a Java server or [Geyser](networks.md#bedrock-players). Its version is one of Bedrock Dedicated
+Server, e.g. `1.26.61.1`, `PREVIEW` for the newest preview, or empty for the latest, which the image downloads from
+Mojang on every start; players' games only join servers of their own version, so the latest suits most. Agents of
+earlier versions don't know Bedrock servers: **Create server** offers them once the node's agent is updated.
+
+Players join at the server's port, 19132 unless chosen, over TCP (Bedrock's NetherNet, the only way from Bedrock
+Dedicated Server 1.26.60 on), and then each plays over a UDP port of their own: the server's port and the ones after it,
+as many as **Players** says, 10 unless changed, up to 100. A server with port 19132 and 10 players uses 19132 to 19141,
+which the node publishes and no other server of the node may use, also as an extra port, and which must lie in the
+node's [port range](#node-settings). The server also sets `max-players` to the players. It tells players the node's
+address for these ports: the node's own on its route to the internet, unless its administrator gives the agent another
+with `--public-address` in `NORYX_AGENT_OPTS` of `/etc/noryx/agent.env`, e.g. the public address of a node behind NAT,
+whose router must forward the TCP port and the UDP ports to it.
+
+The console, file manager, backups, copies, moves, schedules, workflows, crashes, health (`mc-monitor status-bedrock`)
+and what the container uses work as for other servers. Copies and backups of a running Bedrock server hold its saving
+(`save hold`) until it tells that its files are ready. What it doesn't have:
+
+- **Java:** no Java version, Aikar's flags, JVM options or initial heap. The container gets the memory limit of a Java
+  server of the same memory.
+- **Plugins and mods:** it loads none from Modrinth or Hangar, and publishes no extra ports. Behavior and resource packs
+  go into its folders with the file manager.
+- **Networks:** it can't join one; Bedrock players join a network through Geyser on its proxy.
+- **server.properties before the first start:** the server writes it when it starts for the first time, so **Create
+  server** has no **World**, and templates of Bedrock servers have no properties. Its **Properties** tab knows the keys
+  of Bedrock Dedicated Server; the port, the UDP ports of the players, `max-players` and the transport are locked.
+- **Players:** it has no bans, and doesn't tell who is online or its ticks per second; see
+  [Players](players.md#bedrock-servers).
 
 ## Copies
 

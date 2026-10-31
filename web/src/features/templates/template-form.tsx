@@ -57,13 +57,18 @@ export function TemplateForm({
     properties: propertiesText(initial.properties),
   })
   const type = serverType(form.type)
+  // Bedrock servers run without Java and plugins, and write their server.properties when they start first.
+  const java = !type.bedrock
   const draft: TemplateDraft = {
     ...form,
     name: form.name.trim(),
     version: type.proxy ? "LATEST" : form.version,
-    jvmOptions: splitOptions(form.jvmOptions),
-    initMemoryMb: initialHeap(form),
-    properties: type.proxy ? {} : parseProperties(form.properties),
+    java: java ? form.java : "",
+    aikarFlags: java && form.aikarFlags,
+    jvmOptions: java ? splitOptions(form.jvmOptions) : [],
+    initMemoryMb: java ? initialHeap(form) : 0,
+    extraPorts: java ? form.extraPorts : [],
+    properties: type.proxy || type.bedrock ? {} : parseProperties(form.properties),
     plugins: type.addons ? form.plugins : [],
   }
   const input: TemplateInput = {
@@ -139,12 +144,13 @@ export function TemplateForm({
               id="template-version"
               value={form.version === "LATEST" ? "" : form.version}
               onChange={(version) => set({ version: version.trim() || "LATEST" })}
+              bedrock={type.bedrock}
             />
           )}
           <MemoryField id="template-memory" value={form.memoryMb} onChange={(memoryMb) => set({ memoryMb })} />
         </div>
         <TimeZoneField id="template-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
-        <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} />
+        {java && <ExtraPortsField value={form.extraPorts} onChange={(extraPorts) => set({ extraPorts })} />}
       </FormSection>
 
       <FormSection title={t("Starting and stopping")}>
@@ -156,14 +162,14 @@ export function TemplateForm({
         <CrashFields id="template-crashes" value={form} onChange={set} />
       </FormSection>
 
-      <FormSection title={t("Java")}>
-        {!type.proxy && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
-        <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />
+      <FormSection title={java ? t("Java") : t("Resources")}>
+        {!type.proxy && java && <JavaFields java={form.java} aikarFlags={form.aikarFlags} onChange={set} />}
+        {java && <JvmOptionsField value={form.jvmOptions} onChange={(jvmOptions) => set({ jvmOptions })} />}
         <CpuLimitField value={form.cpuLimit} onChange={(cpuLimit) => set({ cpuLimit })} />
-        <ResourceFields id="template-resources" value={form} onChange={set} />
+        <ResourceFields id="template-resources" value={form} onChange={set} java={java} />
       </FormSection>
 
-      {!type.proxy && (
+      {!type.proxy && !type.bedrock && (
         // i18next-instrument-ignore-next-line: the name of the file
         <FormSection title="server.properties">
           <Field>

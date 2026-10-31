@@ -1,8 +1,9 @@
 import { t } from "i18next"
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { formatMegabytes } from "@/lib/format"
+import type { ErrorsAt } from "@/lib/use-draft"
 import type { LimitsForm } from "./limits"
 
 /** Port range and memory limit of a node; memoryMb is the node's memory, if known. */
@@ -11,13 +12,17 @@ export function LimitsFields({
   form,
   onChange,
   memoryMb,
+  errorAt,
 }: {
   id: string
   form: LimitsForm
   onChange: (change: Partial<LimitsForm>) => void
   memoryMb?: number
+  errorAt?: ErrorsAt
 }) {
   const reserve = Number(form.memoryReserveMb) || 0
+  // The master refuses the range at its first port.
+  const portsInvalid = !!errorAt?.("portMin")
   return (
     <>
       <FieldSet>
@@ -25,6 +30,7 @@ export function LimitsFields({
         <div className="flex items-center gap-2">
           <Input
             aria-label={t("First port")}
+            aria-invalid={portsInvalid}
             type="number"
             min={1024}
             max={65535}
@@ -36,6 +42,7 @@ export function LimitsFields({
           <span className="text-muted-foreground">–</span>
           <Input
             aria-label={t("Last port")}
+            aria-invalid={portsInvalid}
             type="number"
             min={1024}
             max={65535}
@@ -46,6 +53,7 @@ export function LimitsFields({
           />
         </div>
         <FieldDescription>{t("New servers get the first free port of the range. Leave both empty to allow any port.")}</FieldDescription>
+        <FieldError errors={errorAt?.("portMin")} />
       </FieldSet>
       <Field orientation="horizontal">
         <Switch id={`${id}-limit`} checked={form.limitMemory} onCheckedChange={(limitMemory) => onChange({ limitMemory })} />
@@ -57,10 +65,11 @@ export function LimitsFields({
         </FieldContent>
       </Field>
       {form.limitMemory && (
-        <Field>
+        <Field data-invalid={!!errorAt?.("memoryReserveMb")}>
           <FieldLabel htmlFor={`${id}-reserve`}>{t("Reserve in MiB")}</FieldLabel>
           <Input
             id={`${id}-reserve`}
+            aria-invalid={!!errorAt?.("memoryReserveMb")}
             type="number"
             min={0}
             className="font-mono sm:w-40"
@@ -76,6 +85,7 @@ export function LimitsFields({
               : ""}
             {t("Each server counts with Java's overhead on top of its memory: about a quarter more, plus 256 MiB.")}
           </FieldDescription>
+          <FieldError errors={errorAt?.("memoryReserveMb")} />
         </Field>
       )}
     </>

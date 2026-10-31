@@ -8,6 +8,7 @@ export default defineConfig({
   locales: ['en', 'de'],
   extract: {
     input: ['src/**/*.{ts,tsx}'],
+    ignore: ['src/**/*.test.{ts,tsx}', 'src/test-setup.ts'],
     output: 'src/locales/{{language}}.json',
     defaultNS: false,
     keySeparator: false,

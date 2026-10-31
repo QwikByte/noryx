@@ -32,6 +32,18 @@ func (t ServerType) Modded() bool {
 	return t.Fabric() || t == ServerType_SERVER_TYPE_FORGE || t == ServerType_SERVER_TYPE_NEOFORGE
 }
 
+// Bedrock reports whether the type is Bedrock Dedicated Server, which runs without Java.
+func (t ServerType) Bedrock() bool { return t == ServerType_SERVER_TYPE_BEDROCK }
+
+// Addons reports whether the type loads plugins or mods, which the master installs from
+// Modrinth and Hangar: Vanilla and Bedrock servers load neither.
+func (t ServerType) Addons() bool { return t.Proxy() || t.Paper() || t.Modded() }
+
+// Backend reports whether a game server of the type can be part of a network, as it verifies
+// the players its proxy forwards: Vanilla servers can't, and Bedrock players reach a network
+// through Geyser on its proxy instead.
+func (t ServerType) Backend() bool { return t.Paper() || t.Modded() }
+
 // Slug returns the short lower-case name, e.g. "running" for SERVER_STATE_RUNNING.
 func (s ServerState) Slug() string { return slug(s.String(), "SERVER_STATE_") }
 

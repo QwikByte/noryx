@@ -111,13 +111,13 @@ func (in *Input) check(exists func(network string) bool) error {
 	in.Name, in.Description = strings.TrimSpace(in.Name), strings.TrimSpace(in.Description)
 	switch {
 	case in.Name == "" || len(in.Name) > 64 || strings.ContainsFunc(in.Name, unicode.IsControl):
-		return httpapi.Errorf(http.StatusBadRequest, "Enter a name with up to 64 characters.")
+		return httpapi.FieldErrorf(http.StatusBadRequest, "name", "Enter a name with up to 64 characters.")
 	case len(in.Description) > maxDescription:
-		return httpapi.Errorf(http.StatusBadRequest, "Keep the description below %d characters.", maxDescription)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "description", "Keep the description below %d characters.", maxDescription)
 	case len(in.Files) > noryxv1.MaxFileSetFiles:
-		return httpapi.Errorf(http.StatusBadRequest, "A file set has up to %d files.", noryxv1.MaxFileSetFiles)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "files", "A file set has up to %d files.", noryxv1.MaxFileSetFiles)
 	case len(in.Targets) > maxTargets:
-		return httpapi.Errorf(http.StatusBadRequest, "A file set has up to %d targets.", maxTargets)
+		return httpapi.FieldErrorf(http.StatusBadRequest, "targets", "A file set has up to %d targets.", maxTargets)
 	}
 	size := 0
 	for i, f := range in.Files {
@@ -138,7 +138,7 @@ func (in *Input) check(exists func(network string) bool) error {
 			problem = p + " is there twice."
 		}
 		if problem != "" {
-			return httpapi.Errorf(http.StatusBadRequest, "%s", problem)
+			return httpapi.FieldErrorf(http.StatusBadRequest, "files", "%s", problem)
 		}
 		in.Files[i].Path = p
 	}
@@ -148,22 +148,22 @@ func (in *Input) check(exists func(network string) bool) error {
 		case KindTag:
 			tags, err := tag.Normalize([]string{t.Value})
 			if err != nil {
-				return err
+				return httpapi.Within("targets", err)
 			}
 			in.Targets[i].Value, in.Targets[i].Role = tags[0], ""
 		case KindNetwork:
 			if t.Role != RoleServers && t.Role != RoleProxy {
-				return httpapi.Errorf(http.StatusBadRequest, "Choose the game servers or the proxy of a network.")
+				return httpapi.FieldErrorf(http.StatusBadRequest, "targets", "Choose the game servers or the proxy of a network.")
 			}
 		default:
-			return httpapi.Errorf(http.StatusBadRequest, "Choose a tag or a network as target.")
+			return httpapi.FieldErrorf(http.StatusBadRequest, "targets", "Choose a tag or a network as target.")
 		}
 	}
 	in.Targets = slices.DeleteFunc(in.Targets, func(t Target) bool { return t.Kind == KindNetwork && !exists(t.Value) })
 	slices.SortFunc(in.Targets, compareTargets)
 	in.Targets = slices.Compact(in.Targets)
 	if err := checkVariables(in.Variables, exists); err != nil {
-		return err
+		return httpapi.Within("variables", err)
 	}
 	slices.SortFunc(in.Variables, func(a, b Variable) int { return strings.Compare(a.Name, b.Name) })
 	if in.Files == nil {

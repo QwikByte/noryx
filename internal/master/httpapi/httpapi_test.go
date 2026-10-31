@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -41,3 +43,80 @@ func TestCanceledRequestsAreNotLogged(t *testing.T) {
 		t.Fatalf("status %d, logged %q", w.Code, logged.String())
 	}
 }
+
+// Errors tell the field of the request they are about, also within objects, next to their message
+// and code.
+func TestErrorsNameTheirField(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		body string
+	}{
+		{Errorf(http.StatusBadRequest, "Choose a server."), `{"error":"Choose a server."}`},
+		{Confirm("move", "Move it?"), `{"error":"Move it?","code":"move"}`},
+		{FieldErrorf(http.StatusConflict, "port", "Port %d is used.", 25565), `{"error":"Port 25565 is used.","field":"port"}`},
+		{Within("newServers", FieldErrorf(http.StatusBadRequest, "memoryMb", "Too much.")), `{"error":"Too much.","field":"newServers.memoryMb"}`},
+		{Within("thresholds", fmt.Errorf("check: %w", Errorf(http.StatusBadRequest, "Too high."))), `{"error":"Too high.","field":"thresholds"}`},
+		{Within("name", status.Error(codes.InvalidArgument, "Invalid.")), `{"error":"Invalid."}`},
+	} {
+		w := httptest.NewRecorder()
+		WriteError(w, httptest.NewRequest(http.MethodPost, "/api/servers", nil), tc.err)
+		if w.Code >= 500 || strings.TrimSpace(w.Body.String()) != tc.body {
+			t.Errorf("%v: status %d, body %s", tc.err, w.Code, w.Body)
+		}
+	}
+}
+
+// publicErr is an error whose text users may read, like the answer of a storage.
+type publicErr string
+
+func (e publicErr) Error() string { return string(e) }
+func (publicErr) Public()         {}
+
+// Users learn the messages of API errors, of agents and public errors after the texts that wrap
+// them, never the "rpc error" of a status nor what isn't meant for them, which is logged.
+func TestWrappedErrors(t *testing.T) {
+	refused := FieldErrorf(http.StatusConflict, "port", "Port 25565 is used.")
+	agent := status.Error(codes.InvalidArgument, "the name is taken")
+	internal := errors.New("database is locked")
+	defer slog.SetDefault(slog.Default())
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		body   string
+		logged bool
+	}{
+		{"API error", refused, 409, `{"error":"Port 25565 is used.","field":"port"}`, false},
+		{"wrapped API error", fmt.Errorf("Survival: %w", refused), 409, `{"error":"Survival: Port 25565 is used.","field":"port"}`, false},
+		{"twice wrapped", fmt.Errorf("Network: %w", fmt.Errorf("Survival: %w", refused)), 409, `{"error":"Network: Survival: Port 25565 is used.","field":"port"}`, false},
+		{"status of an agent", agent, 400, `{"error":"the name is taken"}`, false},
+		{"wrapped status", fmt.Errorf("lobby: %w", agent), 400, `{"error":"lobby: the name is taken"}`, false},
+		{"status joined with nil", errors.Join(agent, nil), 400, `{"error":"the name is taken"}`, false},
+		{"status of another code", status.Error(codes.DataLoss, "the disk failed"), 502, `{"error":"the disk failed"}`, false},
+		{"public error", fmt.Errorf("the node of the copies: %w", publicErr("the storage answered 403 Forbidden: AccessDenied")), 502,
+			`{"error":"the node of the copies: the storage answered 403 Forbidden: AccessDenied"}`, false},
+		{"join with a hidden part", errors.Join(agent, fmt.Errorf("forget it: %w", internal)), 400, `{"error":"the name is taken"}`, true},
+		{"join of shown parts", errors.Join(refused, agent), 409, `{"error":"Port 25565 is used.\nthe name is taken","field":"port"}`, false},
+		{"internal error", fmt.Errorf("save: %w", internal), 500, `{"error":"internal error"}`, true},
+		{"wrapper without the text of its error", wrapper{refused}, 409, `{"error":"Port 25565 is used.","field":"port"}`, false},
+	} {
+		var logged strings.Builder
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+		w := httptest.NewRecorder()
+		WriteError(w, httptest.NewRequest(http.MethodPost, "/api/servers", nil), tc.err)
+		if body := strings.TrimSpace(w.Body.String()); w.Code != tc.status || body != tc.body || (logged.Len() > 0) != tc.logged {
+			t.Errorf("%s: %d %s, logged %q", tc.name, w.Code, body, logged.String())
+		}
+		var message map[string]string
+		_ = json.Unmarshal(w.Body.Bytes(), &message)
+		if got := Message(tc.err); got != message["error"] {
+			t.Errorf("%s: Message = %q, want %q", tc.name, got, message["error"])
+		}
+	}
+}
+
+// wrapper wraps an error without its text.
+type wrapper struct{ err error }
+
+func (w wrapper) Error() string { return "something else" }
+func (w wrapper) Unwrap() error { return w.err }

@@ -1,8 +1,9 @@
 import { ArchiveIcon, ArrowCounterClockwiseIcon, FileArrowUpIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { t } from "i18next"
-import { type FormEvent, useId, useRef, useState } from "react"
+import { type FormEvent, useEffect, useId, useRef, useState } from "react"
 import { Trans } from "react-i18next"
 import { toast } from "sonner"
+import { FormDialogContent, guard, useBusy } from "@/components/form-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -19,7 +20,7 @@ import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLab
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { guard, useOperation } from "@/features/operations/use-operation"
+import { useOperation } from "@/features/operations/use-operation"
 import { formatBytes, formatDateTime } from "@/lib/format"
 import { type Datastore, type Dump, maxUpload, useDatastore } from "./api"
 
@@ -31,20 +32,44 @@ export function BackUpDialog({ datastore: ds }: { datastore: Datastore }) {
   // Databases the datastore lacks can't be dumped.
   const names = ds.databases.map((db) => db.name).filter((name) => !ds.missing.includes(name))
   const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState("")
-  const [databases, setDatabases] = useState<string[]>([])
-  const chosen = databases.filter((name) => names.includes(name))
   const { dump } = useDatastore(ds.id)
-  const operation = useOperation()
 
   function onOpenChange(next: boolean) {
     setOpen(next)
-    if (next) {
-      dump.reset()
-      setLabel("")
-      setDatabases(names)
-    }
+    if (next) dump.reset()
   }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={dump.isPending || ds.state !== "running" || names.length === 0}>
+          <ArchiveIcon />
+          {dump.isPending ? t("Backing up…") : t("Back up now")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg" {...guard(dump.isPending)}>
+        <BackUpForm datastore={ds} names={names} dump={dump} onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Chooses a label and databases, at first all, and backs them up in an operation. */
+function BackUpForm({
+  datastore: ds,
+  names,
+  dump,
+  onClose,
+}: {
+  datastore: Datastore
+  names: string[]
+  dump: ReturnType<typeof useDatastore>["dump"]
+  onClose: () => void
+}) {
+  const [label, setLabel] = useState("")
+  const [databases, setDatabases] = useState(names)
+  const chosen = databases.filter((name) => names.includes(name))
+  const operation = useOperation()
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -57,60 +82,50 @@ export function BackUpDialog({ datastore: ds }: { datastore: Datastore }) {
           onStart: (op) => {
             onStart(op)
             operation.background(title, op.id)
-            setOpen(false)
+            onClose()
           },
         }),
       {
         title,
         done: (d) => ({ message: t("Backed up {{name}} ({{size}})", { name: ds.name, size: formatBytes(d.size) }) }),
-        then: () => setOpen(false),
+        then: onClose,
       },
     )
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" disabled={dump.isPending || ds.state !== "running" || names.length === 0}>
-          <ArchiveIcon />
-          {dump.isPending ? t("Backing up…") : t("Back up now")}
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Back up {{name}}", { name: ds.name })}</DialogTitle>
+        <DialogDescription>
+          {t("The databases are dumped while the datastore keeps running. The backup is kept on {{node}}.", { node: ds.nodeName })}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="dump-label">{t("Label")}</FieldLabel>
+          <Input
+            id="dump-label"
+            maxLength={64}
+            placeholder={t("Before the update")}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </Field>
+        <DatabasesField legend={t("Databases to back up")} names={names} value={chosen} onChange={setDatabases} />
+      </FieldGroup>
+      {dump.error && <FieldError>{dump.error.message}</FieldError>}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline" disabled={dump.isPending}>
+            {t("Cancel")}
+          </Button>
+        </DialogClose>
+        <Button type="submit" disabled={chosen.length === 0 || dump.isPending}>
+          {dump.isPending ? t("Backing up…") : t("Back up")}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg" {...guard(dump.isPending)}>
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Back up {{name}}", { name: ds.name })}</DialogTitle>
-            <DialogDescription>
-              {t("The databases are dumped while the datastore keeps running. The backup is kept on {{node}}.", { node: ds.nodeName })}
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="dump-label">{t("Label")}</FieldLabel>
-              <Input
-                id="dump-label"
-                maxLength={64}
-                placeholder={t("Before the update")}
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </Field>
-            <DatabasesField legend={t("Databases to back up")} names={names} value={chosen} onChange={setDatabases} />
-          </FieldGroup>
-          {dump.error && <FieldError>{dump.error.message}</FieldError>}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" disabled={dump.isPending}>
-                {t("Cancel")}
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={chosen.length === 0 || dump.isPending}>
-              {dump.isPending ? t("Backing up…") : t("Back up")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </DialogFooter>
+    </form>
   )
 }
 
@@ -229,8 +244,25 @@ function RestoreForm({
  * the upload.
  */
 export function UploadDialog({ datastore: ds }: { datastore: Datastore }) {
-  const names = ds.databases.map((db) => db.name)
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <UploadSimpleIcon />
+          {t("Upload")}
+        </Button>
+      </DialogTrigger>
+      <FormDialogContent className="sm:max-w-lg">
+        <UploadForm datastore={ds} onClose={() => setOpen(false)} />
+      </FormDialogContent>
+    </Dialog>
+  )
+}
+
+/** The file to upload, chosen anew each time the dialog opens, and then the restore it offers. */
+function UploadForm({ datastore: ds, onClose }: { datastore: Datastore; onClose: () => void }) {
+  const names = ds.databases.map((db) => db.name)
   const [file, setFile] = useState<File>()
   const [database, setDatabase] = useState("")
   const [label, setLabel] = useState("")
@@ -241,18 +273,9 @@ export function UploadDialog({ datastore: ds }: { datastore: Datastore }) {
   const { upload, restore } = useDatastore(ds.id)
   const sql = !!file?.name.toLowerCase().endsWith(".sql")
   const tooLarge = !!file && file.size > maxUpload
-
-  function onOpenChange(next: boolean) {
-    if (!next) abort.current?.abort()
-    setOpen(next)
-    if (next) {
-      upload.reset()
-      restore.reset()
-      setFile(undefined)
-      setLabel("")
-      setUploaded(undefined)
-    }
-  }
+  useBusy(restore.isPending)
+  // Closing the dialog cancels the upload.
+  useEffect(() => () => abort.current?.abort(), [])
 
   function choose(chosen: File) {
     upload.reset()
@@ -283,118 +306,106 @@ export function UploadDialog({ datastore: ds }: { datastore: Datastore }) {
     )
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <UploadSimpleIcon />
-          {t("Upload")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg" {...guard(restore.isPending)}>
-        {uploaded && file ? (
-          <RestoreForm
-            datastore={ds}
-            dump={uploaded}
-            restore={restore}
-            title={t("Restore {{name}} now?", { name: file.name })}
-            cancel={t("Later")}
-            onClose={() => setOpen(false)}
+  return uploaded && file ? (
+    <RestoreForm
+      datastore={ds}
+      dump={uploaded}
+      restore={restore}
+      title={t("Restore {{name}} now?", { name: file.name })}
+      cancel={t("Later")}
+      onClose={onClose}
+    />
+  ) : (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Upload a backup")}</DialogTitle>
+        <DialogDescription>
+          {t(
+            "A dump made elsewhere, e.g. of a database that moves to Noryx: a ZIP archive with a <database>.sql for each database, or the SQL file of one. It is kept like the backups made here, and restoring it loads it as the database's user.",
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field data-invalid={tooLarge || undefined}>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-start"
+            disabled={upload.isPending}
+            onClick={() => picker.current?.click()}
+          >
+            <FileArrowUpIcon />
+            <span className="truncate">{file ? `${file.name} · ${formatBytes(file.size)}` : t("Choose a .zip or .sql file")}</span>
+          </Button>
+          <input
+            ref={picker}
+            type="file"
+            accept=".zip,.sql,application/zip,application/sql"
+            hidden
+            onChange={(e) => {
+              const chosen = e.target.files?.[0]
+              if (chosen) choose(chosen)
+              e.target.value = ""
+            }}
           />
-        ) : (
-          <form onSubmit={submit} className="grid gap-6">
-            <DialogHeader>
-              <DialogTitle>{t("Upload a backup")}</DialogTitle>
-              <DialogDescription>
-                {t(
-                  "A dump made elsewhere, e.g. of a database that moves to Noryx: a ZIP archive with a <database>.sql for each database, or the SQL file of one. It is kept like the backups made here, and restoring it loads it as the database's user.",
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              <Field data-invalid={tooLarge || undefined}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={upload.isPending}
-                  onClick={() => picker.current?.click()}
-                >
-                  <FileArrowUpIcon />
-                  <span className="truncate">{file ? `${file.name} · ${formatBytes(file.size)}` : t("Choose a .zip or .sql file")}</span>
-                </Button>
-                <input
-                  ref={picker}
-                  type="file"
-                  accept=".zip,.sql,application/zip,application/sql"
-                  hidden
-                  onChange={(e) => {
-                    const chosen = e.target.files?.[0]
-                    if (chosen) choose(chosen)
-                    e.target.value = ""
-                  }}
-                />
-                {tooLarge && <FieldError>{t("A backup can have up to {{size}}.", { size: formatBytes(maxUpload) })}</FieldError>}
-              </Field>
-              {sql && (
-                <Field>
-                  <FieldLabel htmlFor="upload-database">{t("Database")}</FieldLabel>
-                  <Select value={database} onValueChange={setDatabase} disabled={upload.isPending || names.length === 0}>
-                    <SelectTrigger id="upload-database" className="w-full font-mono">
-                      <SelectValue placeholder={t("Choose a database")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {names.map((name) => (
-                        <SelectItem key={name} value={name} className="font-mono">
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {names.length === 0 ? (
-                    <FieldError>{t("Add the database first.")}</FieldError>
-                  ) : (
-                    <FieldDescription>{t("Restoring the backup loads the SQL into this database.")}</FieldDescription>
-                  )}
-                </Field>
-              )}
-              <Field>
-                <FieldLabel htmlFor="upload-label">{t("Label")}</FieldLabel>
-                <Input
-                  id="upload-label"
-                  maxLength={64}
-                  placeholder={file?.name.slice(0, 64) ?? t("From the old server")}
-                  disabled={upload.isPending}
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                />
-              </Field>
-              <FieldDescription>
-                <Trans
-                  i18nKey="Dump each database on its own, without its owner and privileges, e.g. with <mariadb/> or <postgres/>. Statements that need more rights than the database's user has, e.g. to create or use another database, fail the restore, and commands of the client itself, such as <shell/> or <connect/>, are refused."
-                  components={{
-                    mariadb: <code className="font-mono text-xs">mariadb-dump luckperms</code>,
-                    postgres: <code className="font-mono text-xs">pg_dump --no-owner --no-privileges luckperms</code>,
-                    shell: <code className="font-mono text-xs">\!</code>,
-                    connect: <code className="font-mono text-xs">\connect</code>,
-                  }}
-                />
-              </FieldDescription>
-            </FieldGroup>
-            {upload.isPending && <Progress value={progress * 100} aria-label={t("Upload of {{name}}", { name: file?.name })} />}
-            {upload.error && upload.error.name !== "AbortError" && <FieldError>{upload.error.message}</FieldError>}
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">{t("Cancel")}</Button>
-              </DialogClose>
-              <Button type="submit" disabled={!file || tooLarge || (sql && !database) || upload.isPending}>
-                {upload.isPending ? t("Uploading…") : t("Upload")}
-              </Button>
-            </DialogFooter>
-          </form>
+          {tooLarge && <FieldError>{t("A backup can have up to {{size}}.", { size: formatBytes(maxUpload) })}</FieldError>}
+        </Field>
+        {sql && (
+          <Field>
+            <FieldLabel htmlFor="upload-database">{t("Database")}</FieldLabel>
+            <Select value={database} onValueChange={setDatabase} disabled={upload.isPending || names.length === 0}>
+              <SelectTrigger id="upload-database" className="w-full font-mono">
+                <SelectValue placeholder={t("Choose a database")} />
+              </SelectTrigger>
+              <SelectContent>
+                {names.map((name) => (
+                  <SelectItem key={name} value={name} className="font-mono">
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {names.length === 0 ? (
+              <FieldError>{t("Add the database first.")}</FieldError>
+            ) : (
+              <FieldDescription>{t("Restoring the backup loads the SQL into this database.")}</FieldDescription>
+            )}
+          </Field>
         )}
-      </DialogContent>
-    </Dialog>
+        <Field>
+          <FieldLabel htmlFor="upload-label">{t("Label")}</FieldLabel>
+          <Input
+            id="upload-label"
+            maxLength={64}
+            placeholder={file?.name.slice(0, 64) ?? t("From the old server")}
+            disabled={upload.isPending}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </Field>
+        <FieldDescription>
+          <Trans
+            i18nKey="Dump each database on its own, without its owner and privileges, e.g. with <mariadb/> or <postgres/>. Statements that need more rights than the database's user has, e.g. to create or use another database, fail the restore, and commands of the client itself, such as <shell/> or <connect/>, are refused."
+            components={{
+              mariadb: <code className="font-mono text-xs">mariadb-dump luckperms</code>,
+              postgres: <code className="font-mono text-xs">pg_dump --no-owner --no-privileges luckperms</code>,
+              shell: <code className="font-mono text-xs">\!</code>,
+              connect: <code className="font-mono text-xs">\connect</code>,
+            }}
+          />
+        </FieldDescription>
+      </FieldGroup>
+      {upload.isPending && <Progress value={progress * 100} aria-label={t("Upload of {{name}}", { name: file?.name })} />}
+      {upload.error && upload.error.name !== "AbortError" && <FieldError>{upload.error.message}</FieldError>}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={!file || tooLarge || (sql && !database) || upload.isPending}>
+          {upload.isPending ? t("Uploading…") : t("Upload")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 

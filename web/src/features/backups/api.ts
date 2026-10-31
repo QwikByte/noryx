@@ -76,6 +76,28 @@ export const emptyJob: TaskInput<JobSettings> = {
   settings: { selection: defaultSelection, datastores: [], location: "", keep: 0, keepDays: 7, keepWeeks: 4, keepMonths: 0 },
 }
 
+/** Where the backup job of the master keeps the archives of its database and certificate authority, and how many. */
+export interface MasterSettings {
+  /** A storage, or a node in one of its storage locations. */
+  to: CopyTo
+  /** How many of the newest archives it keeps there, from 1 to 1000. */
+  keep: number
+}
+
+/** The backup job of the master, of which there is one at most. Only administrators see it. */
+export const masterJobs = taskApi<MasterSettings>("/master-backups")
+
+/** The least characters of the passphrase that encrypts the archives of the master. */
+export const minPassphrase = 12
+
+export const emptyMasterJob = (): TaskInput<MasterSettings> => ({
+  name: t("Backup of the master"),
+  enabled: true,
+  schedule: { ...defaultSchedule, times: ["03:30"] },
+  targets: [],
+  settings: { to: {}, keep: 7 },
+})
+
 /** Why the master refuses paths of a selection or a restore, if it does. */
 export function pathsError(paths: string[]): string | undefined {
   if (paths.length > 20) return t("Enter at most 20 files or folders.")

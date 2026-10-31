@@ -3,7 +3,7 @@ import { assignedMemoryMb, type NodeServer, runningCount } from "@/features/serv
 import type { NodeUsage } from "@/features/usage/api"
 import type { Cell } from "@/lib/csv"
 import { msg } from "@/lib/i18n"
-import { matches, validateQuery } from "@/lib/search"
+import { matches, searchParams, validateQuery } from "@/lib/search"
 import { type Order, orders, sortBy } from "@/lib/sort"
 import type { Node, NodeStatus } from "./api"
 
@@ -30,7 +30,7 @@ export interface NodeSearch {
 
 /** Reads the list's settings from the address. Each key must be set explicitly, see the login route. */
 export function validateNodeSearch(search: Record<string, unknown>): NodeSearch {
-  const pick = <T extends string>(key: string, allowed: readonly T[]) => allowed.find((v) => v === search[key])
+  const { pick } = searchParams(search)
   return {
     ...validateQuery(search),
     sort: pick("sort", Object.keys(nodeSorts) as NodeSort[]),

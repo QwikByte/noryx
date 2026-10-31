@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -12,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/agent/datadir"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
@@ -92,6 +95,25 @@ func TestCheckSettings(t *testing.T) {
 		{"time zone of the agent", func(s *runtime.Spec) { s.TimeZone = "Local" }, false},
 		{"time zone file outside the database", func(s *runtime.Spec) { s.TimeZone = "../../../etc/localtime" }, false},
 		{"time zone with shell syntax", func(s *runtime.Spec) { s.TimeZone = "Europe/Berlin;id" }, false},
+		{"Bedrock", func(s *runtime.Spec) {
+			s.Type, s.Port, s.MaxPlayers = noryxv1.ServerType_SERVER_TYPE_BEDROCK, 19132, 30
+		}, true},
+		{"Bedrock at a version", func(s *runtime.Spec) { s.Type, s.Version = noryxv1.ServerType_SERVER_TYPE_BEDROCK, "1.26.61.1" }, true},
+		{"Bedrock preview", func(s *runtime.Spec) { s.Type, s.Version = noryxv1.ServerType_SERVER_TYPE_BEDROCK, "PREVIEW" }, true},
+		{"Bedrock at a version of Java", func(s *runtime.Spec) { s.Type, s.Version = noryxv1.ServerType_SERVER_TYPE_BEDROCK, "1.21.4" }, false},
+		{"Bedrock with its binary in the data", func(s *runtime.Spec) { s.Type, s.Version = noryxv1.ServerType_SERVER_TYPE_BEDROCK, "EXISTING" }, false},
+		{"Bedrock with Java", func(s *runtime.Spec) { s.Type, s.Java = noryxv1.ServerType_SERVER_TYPE_BEDROCK, "21" }, false},
+		{"Bedrock with Aikar's flags", func(s *runtime.Spec) { s.Type, s.AikarFlags = noryxv1.ServerType_SERVER_TYPE_BEDROCK, true }, false},
+		{"Bedrock with JVM options", func(s *runtime.Spec) {
+			s.Type, s.JVMOptions = noryxv1.ServerType_SERVER_TYPE_BEDROCK, []string{"-Xss4M"}
+		}, false},
+		{"Bedrock with an initial heap", func(s *runtime.Spec) { s.Type, s.InitMemoryMB = noryxv1.ServerType_SERVER_TYPE_BEDROCK, 1024 }, false},
+		{"Bedrock with an extra port", func(s *runtime.Spec) {
+			s.Type, s.ExtraPorts = noryxv1.ServerType_SERVER_TYPE_BEDROCK, []runtime.ExtraPort{{Port: 8100, Protocol: "tcp"}}
+		}, false},
+		{"Bedrock with too many players", func(s *runtime.Spec) { s.Type, s.MaxPlayers = noryxv1.ServerType_SERVER_TYPE_BEDROCK, 101 }, false},
+		{"Bedrock with ports beyond 65535", func(s *runtime.Spec) { s.Type, s.Port = noryxv1.ServerType_SERVER_TYPE_BEDROCK, 65530 }, false},
+		{"players of a Paper server", func(s *runtime.Spec) { s.MaxPlayers = 20 }, false},
 	}
 	for _, tt := range tests {
 		spec := valid
@@ -173,9 +195,11 @@ func TestNetworkOf(t *testing.T) {
 	}
 }
 
-// slowRuntime creates servers slowly, as Docker does while it pulls an image.
+// slowRuntime creates servers slowly, as Docker does while it pulls an image, and keeps their
+// data in dir.
 type slowRuntime struct {
 	runtime.Runtime
+	dir     string
 	mu      sync.Mutex
 	servers []runtime.Server
 }
@@ -196,6 +220,25 @@ func (r *slowRuntime) Create(_ context.Context, spec runtime.Spec) error {
 	defer r.mu.Unlock()
 	r.servers = append(r.servers, runtime.Server{Spec: spec})
 	return nil
+}
+
+func (r *slowRuntime) Update(_ context.Context, spec runtime.Spec) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	i := slices.IndexFunc(r.servers, func(srv runtime.Server) bool { return srv.ID == spec.ID })
+	if i < 0 {
+		return runtime.ErrNotFound
+	}
+	r.servers[i].Spec = spec
+	return nil
+}
+
+func (r *slowRuntime) Data(_ context.Context, id string) (*datadir.Dir, error) {
+	path := filepath.Join(r.dir, id)
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return nil, err
+	}
+	return datadir.Open(path)
 }
 
 // Of concurrent requests for the same port, e.g. after a double click, only one creates a
@@ -331,5 +374,37 @@ func TestCreateServerNeedsTheEULAForGameServers(t *testing.T) {
 	}
 	if err := create(noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25577); err != nil {
 		t.Fatalf("proxy without the EULA: %v", err)
+	}
+}
+
+// The players of a Bedrock server take the ports after its own, which no other server can take,
+// and it can't take theirs; a server.properties of its own comes with its first start.
+func TestBedrockPorts(t *testing.T) {
+	rt := &slowRuntime{servers: []runtime.Server{{Spec: runtime.Spec{ID: runtime.NewID(), Name: "Survival", Port: 25570}}}}
+	s := NewService(rt, nil, nil)
+	create := func(typ noryxv1.ServerType, port, players uint32) error {
+		_, err := s.CreateServer(t.Context(), &noryxv1.CreateServerRequest{Name: "Server", Type: typ, MemoryMb: 1024, Port: port, AcceptEula: true, MaxPlayers: players})
+		return err
+	}
+	bedrock, paper := noryxv1.ServerType_SERVER_TYPE_BEDROCK, noryxv1.ServerType_SERVER_TYPE_PAPER
+	if err := create(bedrock, 25561, 10); status.Code(err) != codes.AlreadyExists {
+		t.Errorf("players at the port of another server: %v", err)
+	}
+	if err := create(bedrock, 19132, 5); err != nil {
+		t.Fatal(err)
+	}
+	for _, port := range []uint32{19132, 19136} {
+		if err := create(paper, port, 0); status.Code(err) != codes.AlreadyExists {
+			t.Errorf("port %d of a player: %v", port, err)
+		}
+	}
+	if err := create(paper, 19137, 0); err != nil {
+		t.Errorf("port after the players: %v", err)
+	}
+	_, err := s.CreateServer(t.Context(), &noryxv1.CreateServerRequest{
+		Name: "World", Type: bedrock, MemoryMb: 1024, Port: 19200, AcceptEula: true, Properties: map[string]string{"gamemode": "creative"},
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("properties before the first start: %v", err)
 	}
 }

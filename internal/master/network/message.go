@@ -1,6 +1,7 @@
 package network
 
 import (
+	"cmp"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -38,10 +39,23 @@ type textComponent struct {
 	Italic    bool     `json:"italic,omitempty"`
 }
 
-// Commands returns the console commands that show the message to a player or to Everyone.
-// The chat of everyone is say, which shows [Server] before the text; a player gets it as a
-// whisper of the server, like with msg. Texts become JSON with json.Marshal, never by hand.
+// rawText is a text of the commands of Bedrock Dedicated Server, which it reads as JSON.
+type rawText struct {
+	Rawtext []textComponent `json:"rawtext"`
+}
+
+// Commands returns the console commands that show the message to a player or to Everyone on a
+// Java server; see CommandsOn.
 func (m Message) Commands(target string) ([]string, error) {
+	return m.CommandsOn(noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED, target)
+}
+
+// CommandsOn returns the console commands that show the message to a player or to Everyone on
+// a server of the type: those of Minecraft, or those of Bedrock Dedicated Server, which takes
+// texts as raw text. The chat of everyone is say, which shows [Server] before the text; a
+// player gets it as a whisper of the server, like with msg. Texts become JSON with
+// json.Marshal, never by hand.
+func (m Message) CommandsOn(typ noryxv1.ServerType, target string) ([]string, error) {
 	text, subtitle := strings.TrimSpace(m.Text), strings.TrimSpace(m.Subtitle)
 	switch {
 	case target != Everyone && !noryxv1.ValidPlayerName(target):
@@ -51,23 +65,27 @@ func (m Message) Commands(target string) ([]string, error) {
 	case subtitle != "" && m.Kind != "title":
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Only titles have a subtitle.")
 	}
+	kind := cmp.Or(m.Kind, "chat")
+	if kind == "chat" && target == Everyone {
+		return []string{"say " + text}, nil
+	}
 	var commands []string
-	switch m.Kind {
-	case "", "chat":
-		if target == Everyone {
-			return []string{"say " + text}, nil
-		}
+	switch {
+	case typ.Bedrock():
+		commands = bedrockCommands(kind, target, text, subtitle)
+	case kind == "chat":
 		commands = append(commands, "minecraft:tellraw "+target+" "+component(textComponent{
 			Translate: "commands.message.display.incoming", With: []string{"Server", text}, Color: "gray", Italic: true,
 		}))
-	case "title":
+	case kind == "title":
 		if subtitle != "" {
 			commands = append(commands, "minecraft:title "+target+" subtitle "+component(textComponent{Text: subtitle}))
 		}
 		commands = append(commands, "minecraft:title "+target+" title "+component(textComponent{Text: text}))
-	case "actionbar":
+	case kind == "actionbar":
 		commands = append(commands, "minecraft:title "+target+" actionbar "+component(textComponent{Text: text}))
-	default:
+	}
+	if commands == nil {
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Choose the chat, a title or the action bar.")
 	}
 	for _, c := range commands {
@@ -76,6 +94,28 @@ func (m Message) Commands(target string) ([]string, error) {
 		}
 	}
 	return commands, nil
+}
+
+// bedrockCommands returns the commands of Bedrock Dedicated Server that show a message, or nil
+// for an unknown kind. Its whisper has the colours of Minecraft's.
+func bedrockCommands(kind, target, text, subtitle string) []string {
+	raw := func(c ...textComponent) string {
+		data, _ := json.Marshal(rawText{c}) //nolint:errchkjson // strings always marshal
+		return string(data)
+	}
+	switch kind {
+	case "chat":
+		return []string{"tellraw " + target + " " + raw(textComponent{Text: "§7§o"}, textComponent{Translate: "commands.message.display.incoming", With: []string{"Server", text}})}
+	case "title":
+		var commands []string
+		if subtitle != "" {
+			commands = append(commands, "titleraw "+target+" subtitle "+raw(textComponent{Text: subtitle}))
+		}
+		return append(commands, "titleraw "+target+" title "+raw(textComponent{Text: text}))
+	case "actionbar":
+		return []string{"titleraw " + target + " actionbar " + raw(textComponent{Text: text})}
+	}
+	return nil
 }
 
 func validText(s string) bool {

@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -99,6 +101,64 @@ func TestPanelAddr(t *testing.T) {
 	}
 }
 
+// SFTP is off until the settings name an address, at which it listens from the next start; a
+// master that can't listen there starts without it.
+func TestSFTPAddr(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s, err := Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:8080"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := func() (string, error) { return "SHA256:key", nil }
+	if ln := s.ListenSFTP(key); ln != nil {
+		t.Fatal("SFTP listens while off")
+	}
+	set := func(addr string) error {
+		next := s.Get()
+		next.SFTPAddr = addr
+		_, err := s.Update(t.Context(), next)
+		return err
+	}
+	for _, bad := range []string{"localhost:2022", "127.0.0.1", "127.0.0.1:0", "0.0.0.0:8080"} {
+		if err := set(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	free := freeAddr(t)
+	if err := set(" " + free + " "); err != nil || s.Get().SFTPAddr != free {
+		t.Fatalf("set %s: %v, settings = %+v", free, err, s.Get())
+	}
+	ln := s.ListenSFTP(key)
+	if ln == nil {
+		t.Fatalf("SFTP doesn't listen: %+v", s.master)
+	}
+	if addr, key := s.SFTP(); addr != free || key != "SHA256:key" || s.master.SFTPError != "" {
+		t.Fatalf("SFTP at %s with %s, master = %+v", addr, key, s.master)
+	}
+
+	// Another program at the port keeps SFTP off, and so does a host key that can't be loaded.
+	defer ln.Close()
+	for want, key := range map[string]func() (string, error){
+		"address already in use": key,
+		"bad key":                func() (string, error) { return "", errors.New("bad key") },
+	} {
+		s, err = Load(t.Context(), db, Master{PanelDefaultAddr: "127.0.0.1:8080"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.ListenSFTP(key) != nil || !strings.Contains(s.master.SFTPError, want) {
+			t.Fatalf("master = %+v, want %s", s.master, want)
+		}
+		if addr, _ := s.SFTP(); addr != "" {
+			t.Fatalf("SFTP at %s", addr)
+		}
+	}
+}
+
 func freeAddr(t *testing.T) string {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -185,12 +245,34 @@ func TestRefusedUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `{"nodeDefaults": {"portMin": 30000, "portMax": 70000, "memoryReserveMb": 2048}}`
-	r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-	NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+	update := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		NewHandler(s, noTokens{}, nil).update(rec, r.WithContext(access.WithGrants(t.Context(), access.Admin())))
+		return rec
+	}
+	rec := update(`{"nodeDefaults": {"portMin": 30000, "portMax": 70000, "memoryReserveMb": 2048}}`)
 	if l := s.NodeDefaults(); rec.Code != http.StatusBadRequest || l.PortMin != nil || *l.MemoryReserveMB != 1024 {
 		t.Fatalf("status %d, limits of new nodes %+v", rec.Code, l)
+	}
+
+	// Refusals name the field they are about, also within the objects of the settings.
+	for body, field := range map[string]string{
+		`{"nodeDefaults": {"portMin": 30000, "portMax": 70000}}`:              "nodeDefaults.portMin",
+		`{"enrollAddr": "panel.example.com"}`:                                 "enrollAddr",
+		`{"sessionHours": 0}`:                                                 "sessionHours",
+		`{"panelName": "two\nlines"}`:                                         "panelName",
+		`{"userDefaults": {"theme": "pink"}}`:                                 "userDefaults.theme",
+		`{"newServers": {"type": "paper", "memoryMb": 100}}`:                  "newServers.memoryMb",
+		`{"warnings": {"kind": "chat", "maxMinutes": 10, "restart": "a\tb"}}`: "warnings.restart",
+		`{"retention": {"usageDays": 1}}`:                                     "retention.usageDays",
+		`{"thresholds": {"servers": {"cpu": {"value": 101}}}}`:                "thresholds.servers.cpu",
+	} {
+		rec := update(body)
+		var res struct{ Error, Field string }
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code != http.StatusBadRequest || res.Field != field {
+			t.Errorf("%s: status %d: %s", body, rec.Code, rec.Body)
+		}
 	}
 }
 

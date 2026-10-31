@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/tag"
 )
@@ -52,15 +52,22 @@ type Task struct {
 	CreatedAt time.Time  `json:"createdAt"`
 	// SavedBy is the user who saved the task last, whose permissions its runs need if its
 	// settings need more than the one to manage it, see Needing.
-	SavedBy   string `json:"savedBy,omitempty"`
+	SavedBy string `json:"savedBy,omitempty"`
+	// HasSecret tells whether the task keeps a secret of its kind, see Secrets.
+	HasSecret bool `json:"hasSecret"`
+	secret    string
 	kind      string
 	author    int64 // the ID of SavedBy, 0 if the user was deleted or is disabled
 	withdrawn <-chan struct{}
+	journal   *journal // of a run
 }
 
 // Withdrawn is closed during a run once the task is deleted, or paused while it was enabled,
 // so that the run stops waiting, e.g. for players to leave.
 func (t Task) Withdrawn() <-chan struct{} { return t.withdrawn }
+
+// Secret is the secret of the task, see Secrets; empty if it has none.
+func (t Task) Secret() string { return t.secret }
 
 // Author is the user who saves a task or runs it by hand, with the permissions of the request.
 type Author struct {
@@ -100,6 +107,9 @@ type Input struct {
 	Schedule Schedule        `json:"schedule"`
 	Targets  []Target        `json:"targets"`
 	Settings json.RawMessage `json:"settings"`
+	// Secret replaces the secret of a task whose kind keeps one, see Secrets: nil keeps it, and
+	// "" removes it.
+	Secret *string `json:"secret"`
 }
 
 func (s *Service) List(ctx context.Context, kind string) ([]Task, error) {
@@ -138,8 +148,8 @@ func (s *Service) Create(ctx context.Context, kind string, in Input, by Author) 
 	}
 	t.ID, t.CreatedAt = strings.ToLower(rand.Text()), time.Now()
 	return s.save(ctx, t, func(tx *sql.Tx, schedule, settings []byte) (sql.Result, error) {
-		return tx.ExecContext(ctx, `INSERT INTO tasks (id, kind, name, enabled, schedule, settings, created_at, saved_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			t.ID, kind, t.Name, t.Enabled, schedule, settings, t.CreatedAt.Unix(), user(by))
+		return tx.ExecContext(ctx, `INSERT INTO tasks (id, kind, name, enabled, schedule, settings, created_at, saved_by, secret) VALUES (?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, ''))`,
+			t.ID, kind, t.Name, t.Enabled, schedule, settings, t.CreatedAt.Unix(), user(by), in.Secret)
 	})
 }
 
@@ -151,8 +161,8 @@ func (s *Service) Update(ctx context.Context, kind, id string, in Input, by Auth
 	}
 	t.ID = id
 	return s.save(ctx, t, func(tx *sql.Tx, schedule, settings []byte) (sql.Result, error) {
-		return tx.ExecContext(ctx, `UPDATE tasks SET name = ?, enabled = ?, schedule = ?, settings = ?, saved_by = ? WHERE id = ? AND kind = ?`,
-			t.Name, t.Enabled, schedule, settings, user(by), id, kind)
+		return tx.ExecContext(ctx, `UPDATE tasks SET name = ?, enabled = ?, schedule = ?, settings = ?, saved_by = ?, secret = coalesce(?, secret) WHERE id = ? AND kind = ?`,
+			t.Name, t.Enabled, schedule, settings, user(by), in.Secret, id, kind)
 	})
 }
 
@@ -170,7 +180,7 @@ func (s *Service) Delete(ctx context.Context, kind, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNotFound
 	}
 	s.mu.Lock()
@@ -217,6 +227,13 @@ func (s *Service) build(kind string, in Input, by Author) (Task, error) {
 	}
 	if t.Settings, err = k.Check(in.Settings); err == nil {
 		err = by.allowed(needs(k, t.Settings))
+	}
+	if err == nil && in.Secret != nil {
+		if secrets, ok := k.(Secrets); !ok {
+			err = httpapi.Errorf(http.StatusBadRequest, "It keeps no secret.")
+		} else if *in.Secret != "" {
+			err = secrets.CheckSecret(*in.Secret)
+		}
 	}
 	return t, err
 }
@@ -271,16 +288,12 @@ func (s *Service) save(ctx context.Context, t Task, write func(tx *sql.Tx, sched
 	if err != nil {
 		return t, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return t, err
-	}
-	err = func() error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := write(tx, schedule, t.Settings)
 		if err != nil {
 			return err
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		if database.RowsAffected(res) == 0 {
 			return errNotFound
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM task_targets WHERE task_id = ?`, t.ID); err != nil {
@@ -302,10 +315,10 @@ func (s *Service) save(ctx context.Context, t Task, write func(tx *sql.Tx, sched
 				return err
 			}
 		}
-		return tx.Commit()
-	}()
+		return nil
+	})
 	if err != nil {
-		return t, errors.Join(constraint(err, t.Name), tx.Rollback())
+		return t, constraint(err, t.Name)
 	}
 	s.plan(t)
 	return s.Get(ctx, t.kind, t.ID)
@@ -313,8 +326,10 @@ func (s *Service) save(ctx context.Context, t Task, write func(tx *sql.Tx, sched
 
 func constraint(err error, name string) error {
 	switch msg := err.Error(); {
-	case strings.Contains(msg, "UNIQUE"):
+	case strings.Contains(msg, "UNIQUE") && strings.Contains(msg, "tasks.name"):
 		return httpapi.Errorf(http.StatusConflict, "The name %q is taken already.", name)
+	case strings.Contains(msg, "UNIQUE"): // a kind with one task at most
+		return httpapi.Errorf(http.StatusConflict, "There is one already. Change it instead.")
 	case strings.Contains(msg, "FOREIGN KEY"):
 		return httpapi.Errorf(http.StatusBadRequest, "Choose nodes and networks that exist.")
 	}
@@ -327,7 +342,7 @@ func (s *Service) load(ctx context.Context, kind, id string) ([]Task, error) {
 	// that a task that isn't running shows the outcome of its latest run.
 	running := s.runningTasks()
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT t.id, t.kind, t.name, t.enabled, t.schedule, t.settings, t.created_at,
+		SELECT t.id, t.kind, t.name, t.enabled, t.schedule, t.settings, t.created_at, t.secret,
 			coalesce(u.username, ''), iif(u.disabled, 0, coalesce(u.id, 0)), `+runColumns+`
 		FROM tasks t
 		LEFT JOIN users u ON u.id = t.saved_by
@@ -344,10 +359,11 @@ func (s *Service) load(ctx context.Context, kind, id string) ([]Task, error) {
 		var schedule, settings string
 		var createdAt int64
 		var last runRow
-		dest := append([]any{&t.ID, &t.kind, &t.Name, &t.Enabled, &schedule, &settings, &createdAt, &t.SavedBy, &t.author}, last.dest()...)
+		dest := append([]any{&t.ID, &t.kind, &t.Name, &t.Enabled, &schedule, &settings, &createdAt, &t.secret, &t.SavedBy, &t.author}, last.dest()...)
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err
 		}
+		t.HasSecret = t.secret != ""
 		if err := json.Unmarshal([]byte(schedule), &t.Schedule); err != nil {
 			return nil, err
 		}

@@ -23,9 +23,15 @@ const texts = {
   },
 }
 
+/** The secret of a task as the form has it: unchanged if undefined, removed if empty. */
+export interface SecretInput {
+  value?: string
+  set: (secret?: string) => void
+}
+
 /**
  * Edits a task: its name, schedule and servers, and the settings of its kind, which
- * children renders as further sections.
+ * children renders as further sections, with its secret if it keeps one.
  */
 export function TaskForm<S>({
   initial,
@@ -35,6 +41,8 @@ export function TaskForm<S>({
   error,
   onSubmit,
   targetsOptional,
+  servers = true,
+  invalid = false,
   children,
 }: {
   initial: TaskInput<S>
@@ -45,7 +53,11 @@ export function TaskForm<S>({
   onSubmit: (input: TaskInput<S>) => void
   /** Whether a task with the settings may have no servers. */
   targetsOptional?: (settings: S) => boolean
-  children: (settings: S, set: (change: Partial<S>) => void) => ReactNode
+  /** Whether the task runs on servers; the backup job of the master doesn't. */
+  servers?: boolean
+  /** Whether what the sections hold can't be saved yet, e.g. a passphrase that isn't repeated. */
+  invalid?: boolean
+  children: (settings: S, set: (change: Partial<S>) => void, secret: SecretInput) => ReactNode
 }) {
   const [form, setForm] = useState(initial)
   const dirty = JSON.stringify({ ...form, name: form.name.trim() }) !== JSON.stringify(initial)
@@ -73,19 +85,28 @@ export function TaskForm<S>({
         </Field>
       </FormSection>
 
-      {children(form.settings, (change) => set({ settings: { ...form.settings, ...change } }))}
+      {children(
+        form.settings,
+        (change) => set({ settings: { ...form.settings, ...change } }),
+        { value: form.secret, set: (secret) => set({ secret }) },
+      )}
 
       <FormSection title={t("When")}>
         <ScheduleField value={form.schedule} onChange={(schedule) => set({ schedule })} />
       </FormSection>
 
-      <FormSection title={t("Servers")}>
-        <TaskTargetsField value={form.targets} onChange={(targets) => set({ targets })} />
-      </FormSection>
+      {servers && (
+        <FormSection title={t("Servers")}>
+          <TaskTargetsField value={form.targets} onChange={(targets) => set({ targets })} />
+        </FormSection>
+      )}
 
       <div className="-mx-5 flex flex-wrap-reverse items-center justify-end gap-x-6 gap-y-3 rounded-b-2xl bg-muted/50 px-5 py-4 sm:-mx-8 sm:px-8">
         {error && <FieldError className="mr-auto">{error.message}</FieldError>}
-        <Button type="submit" disabled={!dirty || pending || (form.targets.length === 0 && !targetsOptional?.(form.settings))}>
+        <Button
+          type="submit"
+          disabled={!dirty || pending || invalid || (servers && form.targets.length === 0 && !targetsOptional?.(form.settings))}
+        >
           {pending ? t("Saving…") : submitLabel}
         </Button>
       </div>

@@ -19,18 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BackupService_ListBackups_FullMethodName     = "/noryx.v1.BackupService/ListBackups"
-	BackupService_CreateBackup_FullMethodName    = "/noryx.v1.BackupService/CreateBackup"
-	BackupService_RestoreBackup_FullMethodName   = "/noryx.v1.BackupService/RestoreBackup"
-	BackupService_DeleteBackup_FullMethodName    = "/noryx.v1.BackupService/DeleteBackup"
-	BackupService_UpdateBackup_FullMethodName    = "/noryx.v1.BackupService/UpdateBackup"
-	BackupService_ListBackupFiles_FullMethodName = "/noryx.v1.BackupService/ListBackupFiles"
-	BackupService_DownloadBackup_FullMethodName  = "/noryx.v1.BackupService/DownloadBackup"
-	BackupService_ImportBackup_FullMethodName    = "/noryx.v1.BackupService/ImportBackup"
-	BackupService_ImportCopy_FullMethodName      = "/noryx.v1.BackupService/ImportCopy"
-	BackupService_DownloadCopy_FullMethodName    = "/noryx.v1.BackupService/DownloadCopy"
-	BackupService_DeleteCopy_FullMethodName      = "/noryx.v1.BackupService/DeleteCopy"
-	BackupService_UploadBackup_FullMethodName    = "/noryx.v1.BackupService/UploadBackup"
+	BackupService_ListBackups_FullMethodName        = "/noryx.v1.BackupService/ListBackups"
+	BackupService_CreateBackup_FullMethodName       = "/noryx.v1.BackupService/CreateBackup"
+	BackupService_RestoreBackup_FullMethodName      = "/noryx.v1.BackupService/RestoreBackup"
+	BackupService_DeleteBackup_FullMethodName       = "/noryx.v1.BackupService/DeleteBackup"
+	BackupService_UpdateBackup_FullMethodName       = "/noryx.v1.BackupService/UpdateBackup"
+	BackupService_ListBackupFiles_FullMethodName    = "/noryx.v1.BackupService/ListBackupFiles"
+	BackupService_DownloadBackup_FullMethodName     = "/noryx.v1.BackupService/DownloadBackup"
+	BackupService_ImportBackup_FullMethodName       = "/noryx.v1.BackupService/ImportBackup"
+	BackupService_ImportCopy_FullMethodName         = "/noryx.v1.BackupService/ImportCopy"
+	BackupService_DownloadCopy_FullMethodName       = "/noryx.v1.BackupService/DownloadCopy"
+	BackupService_DeleteCopy_FullMethodName         = "/noryx.v1.BackupService/DeleteCopy"
+	BackupService_UploadBackup_FullMethodName       = "/noryx.v1.BackupService/UploadBackup"
+	BackupService_ImportMasterBackup_FullMethodName = "/noryx.v1.BackupService/ImportMasterBackup"
+	BackupService_DeleteMasterBackup_FullMethodName = "/noryx.v1.BackupService/DeleteMasterBackup"
 )
 
 // BackupServiceClient is the client API for BackupService service.
@@ -73,6 +75,14 @@ type BackupServiceClient interface {
 	// restoring it checks it again and trusts nothing it tells. Its paths are the files and
 	// folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
 	UploadBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadBackupRequest, UploadBackupResponse], error)
+	// ImportMasterBackup keeps an archive of the master, with its database and certificate
+	// authority, in the folder master of the backups of a storage location, apart from the
+	// backups of the servers. The agent neither reads nor restores it: the master's
+	// administrator does, with noryx-master restore. The header names it, the data that follows
+	// is the archive. Agents of older versions answer UNIMPLEMENTED.
+	ImportMasterBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ImportMasterBackupRequest, ImportMasterBackupResponse], error)
+	// DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
+	DeleteMasterBackup(ctx context.Context, in *DeleteMasterBackupRequest, opts ...grpc.CallOption) (*DeleteMasterBackupResponse, error)
 }
 
 type backupServiceClient struct {
@@ -230,6 +240,29 @@ func (c *backupServiceClient) UploadBackup(ctx context.Context, opts ...grpc.Cal
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BackupService_UploadBackupClient = grpc.ClientStreamingClient[UploadBackupRequest, UploadBackupResponse]
 
+func (c *backupServiceClient) ImportMasterBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ImportMasterBackupRequest, ImportMasterBackupResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &BackupService_ServiceDesc.Streams[5], BackupService_ImportMasterBackup_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ImportMasterBackupRequest, ImportMasterBackupResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BackupService_ImportMasterBackupClient = grpc.ClientStreamingClient[ImportMasterBackupRequest, ImportMasterBackupResponse]
+
+func (c *backupServiceClient) DeleteMasterBackup(ctx context.Context, in *DeleteMasterBackupRequest, opts ...grpc.CallOption) (*DeleteMasterBackupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMasterBackupResponse)
+	err := c.cc.Invoke(ctx, BackupService_DeleteMasterBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BackupServiceServer is the server API for BackupService service.
 // All implementations must embed UnimplementedBackupServiceServer
 // for forward compatibility.
@@ -270,6 +303,14 @@ type BackupServiceServer interface {
 	// restoring it checks it again and trusts nothing it tells. Its paths are the files and
 	// folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
 	UploadBackup(grpc.ClientStreamingServer[UploadBackupRequest, UploadBackupResponse]) error
+	// ImportMasterBackup keeps an archive of the master, with its database and certificate
+	// authority, in the folder master of the backups of a storage location, apart from the
+	// backups of the servers. The agent neither reads nor restores it: the master's
+	// administrator does, with noryx-master restore. The header names it, the data that follows
+	// is the archive. Agents of older versions answer UNIMPLEMENTED.
+	ImportMasterBackup(grpc.ClientStreamingServer[ImportMasterBackupRequest, ImportMasterBackupResponse]) error
+	// DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
+	DeleteMasterBackup(context.Context, *DeleteMasterBackupRequest) (*DeleteMasterBackupResponse, error)
 	mustEmbedUnimplementedBackupServiceServer()
 }
 
@@ -315,6 +356,12 @@ func (UnimplementedBackupServiceServer) DeleteCopy(context.Context, *DeleteCopyR
 }
 func (UnimplementedBackupServiceServer) UploadBackup(grpc.ClientStreamingServer[UploadBackupRequest, UploadBackupResponse]) error {
 	return status.Error(codes.Unimplemented, "method UploadBackup not implemented")
+}
+func (UnimplementedBackupServiceServer) ImportMasterBackup(grpc.ClientStreamingServer[ImportMasterBackupRequest, ImportMasterBackupResponse]) error {
+	return status.Error(codes.Unimplemented, "method ImportMasterBackup not implemented")
+}
+func (UnimplementedBackupServiceServer) DeleteMasterBackup(context.Context, *DeleteMasterBackupRequest) (*DeleteMasterBackupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMasterBackup not implemented")
 }
 func (UnimplementedBackupServiceServer) mustEmbedUnimplementedBackupServiceServer() {}
 func (UnimplementedBackupServiceServer) testEmbeddedByValue()                       {}
@@ -506,6 +553,31 @@ func _BackupService_UploadBackup_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BackupService_UploadBackupServer = grpc.ClientStreamingServer[UploadBackupRequest, UploadBackupResponse]
 
+func _BackupService_ImportMasterBackup_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(BackupServiceServer).ImportMasterBackup(&grpc.GenericServerStream[ImportMasterBackupRequest, ImportMasterBackupResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BackupService_ImportMasterBackupServer = grpc.ClientStreamingServer[ImportMasterBackupRequest, ImportMasterBackupResponse]
+
+func _BackupService_DeleteMasterBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMasterBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).DeleteMasterBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_DeleteMasterBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).DeleteMasterBackup(ctx, req.(*DeleteMasterBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BackupService_ServiceDesc is the grpc.ServiceDesc for BackupService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -541,6 +613,10 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteCopy",
 			Handler:    _BackupService_DeleteCopy_Handler,
 		},
+		{
+			MethodName: "DeleteMasterBackup",
+			Handler:    _BackupService_DeleteMasterBackup_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -566,6 +642,11 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "UploadBackup",
 			Handler:       _BackupService_UploadBackup_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "ImportMasterBackup",
+			Handler:       _BackupService_ImportMasterBackup_Handler,
 			ClientStreams: true,
 		},
 	},

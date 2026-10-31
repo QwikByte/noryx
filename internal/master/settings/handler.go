@@ -29,8 +29,9 @@ func NewHandler(svc *Service, tokens Tokens, restart func() error) *Handler {
 	return &Handler{svc: svc, tokens: tokens, restart: restart}
 }
 
-// Register adds the routes. Only administrators may change the panel's address and HTTPS,
-// which can expose the panel to other networks, and restart the master. The texts that warn
+// Register adds the routes. Only administrators may change the panel's address and HTTPS
+// and the address of SFTP, which can expose the panel and the files of servers to other
+// networks, and restart the master. The texts that warn
 // the players go to the console of every server they warn, so changing them also needs the
 // permission to send console commands to all servers.
 func (h *Handler) Register(mux access.Mux) {
@@ -93,7 +94,8 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	cur := h.svc.Get()
 	if p, ok := access.AdminsOnly(r, access.From(r.Context())); !ok &&
-		(strings.TrimSpace(req.PanelAddr) != cur.PanelAddr || req.PanelHTTPS != cur.PanelHTTPS || strings.TrimSpace(req.PanelDomain) != cur.PanelDomain) {
+		(strings.TrimSpace(req.PanelAddr) != cur.PanelAddr || req.PanelHTTPS != cur.PanelHTTPS || strings.TrimSpace(req.PanelDomain) != cur.PanelDomain ||
+			strings.TrimSpace(req.SFTPAddr) != cur.SFTPAddr) {
 		httpapi.WriteError(w, r, access.Denied(p))
 		return
 	}

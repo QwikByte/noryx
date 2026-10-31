@@ -14,7 +14,7 @@ import (
 // An agent that doesn't know the advanced settings yet leaves them out of its answer when a
 // server is created or changed, which the panel then shows as a warning.
 func TestWarnsOfOlderAgentsAdvanced(t *testing.T) {
-	h := NewHandler(fakeNodes{conn: olderAgent{}}, fakeNetworks{}, nil, nil, nil, operation.New(time.Second), NewMoves(), nil, nil)
+	h := NewHandler(Deps{Nodes: fakeNodes{conn: olderAgent{}}, Networks: fakeNetworks{}, Operations: operation.New(time.Second), Moves: NewMoves()})
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/nodes/{node}/servers", h.create)
 	mux.HandleFunc("PUT /api/nodes/{node}/servers/{id}", h.update)

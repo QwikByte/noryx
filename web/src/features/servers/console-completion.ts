@@ -1,4 +1,4 @@
-import { isPaper } from "./server-types"
+import { isBedrock, isPaper } from "./server-types"
 
 /** An argument of a command: the words it takes, or the name of a player online. */
 type Arg = readonly string[] | "player"
@@ -94,8 +94,38 @@ const proxies: Record<string, Record<string, Arg[]>> = {
 }
 proxies.waterfall = proxies.bungeecord
 
-/** The commands of a type of server that the console completes. */
+// The console commands of Bedrock Dedicated Server.
+const bedrock: Record<string, Arg[]> = {
+  allowlist: [["add", "list", "off", "on", "reload", "remove"], player],
+  changesetting: [["allow-cheats", "difficulty"]],
+  clear: [player],
+  deop: [player],
+  difficulty: [["peaceful", "easy", "normal", "hard"]],
+  effect: [player],
+  gamemode: [["survival", "creative", "adventure", "spectator"], player],
+  gamerule: [],
+  give: [player],
+  help: [],
+  kick: [player],
+  kill: [player],
+  list: [],
+  op: [player],
+  permission: [["list", "reload"]],
+  reload: [],
+  save: [["hold", "query", "resume"]],
+  say: [],
+  stop: [],
+  tell: [player],
+  tellraw: [player],
+  time: [["add", "query", "set"]],
+  title: [player, ["actionbar", "clear", "reset", "subtitle", "times", "title"]],
+  tp: [player, player],
+  weather: [["clear", "rain", "thunder"]],
+}
+
+/** The commands of a type of server that the console completes; Bedrock servers have their own. */
 export function commandsOf(type: string): Record<string, Arg[]> {
+  if (isBedrock(type)) return bedrock
   return proxies[type] ?? (isPaper(type) ? { ...vanilla, ...paper } : vanilla)
 }
 

@@ -176,6 +176,7 @@ function DatastoreCard({ datastore: ds }: { datastore: Datastore }) {
               <Trans
                 i18nKey="Its health check fails. <link>The log of its container</link> on <node/> tells why."
                 components={{
+                  // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- <Trans> puts the text in
                   link: <button type="button" className="font-medium underline underline-offset-4" onClick={showLog} />,
                   node: <span>{ds.nodeName}</span>,
                 }}

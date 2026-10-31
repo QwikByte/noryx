@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -66,7 +67,7 @@ func (s *Service) SetUpMFA(ctx context.Context, user User, issuer string) (MFASe
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_mfa (user_id, secret) VALUES (?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET secret = excluded.secret WHERE enabled = 0`, user.ID, secret)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errMFAOn
 	}
 	return MFASetup{Secret: secret, URI: totpURI(issuer, user.Username, secret)}, err
@@ -92,9 +93,9 @@ func (s *Service) EnableMFA(ctx context.Context, id int64, password, code, keep 
 		return nil, httpapi.Errorf(http.StatusBadRequest, "The code is incorrect. Check that the time on your device is right.")
 	}
 	var codes []string
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE user_mfa SET enabled = 1, last_step = ? WHERE user_id = ? AND secret = ? AND enabled = 0`, step, id, secret)
-		if err == nil && rowsAffected(res) == 0 {
+		if err == nil && database.RowsAffected(res) == 0 {
 			err = errNoSetup // replaced by a concurrent request
 		}
 		if err == nil {
@@ -120,7 +121,7 @@ func (s *Service) NewRecoveryCodes(ctx context.Context, id int64, password strin
 		return nil, err
 	}
 	var codes []string
-	err := s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err := database.InTx(ctx, s.db, func(tx *sql.Tx) (err error) {
 		codes, err = replaceRecoveryCodes(ctx, tx, id)
 		return err
 	})
@@ -139,7 +140,7 @@ func (s *Service) DisableMFA(ctx context.Context, id int64, password string) err
 // recovery codes.
 func (s *Service) ResetMFA(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM user_mfa WHERE user_id = ?`, id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errMFAOff
 	}
 	return err
@@ -187,7 +188,7 @@ func (s *Service) checkCode(ctx context.Context, id int64, code string) error {
 	if err != nil {
 		return err
 	}
-	if rowsAffected(res) == 1 {
+	if database.RowsAffected(res) == 1 {
 		_, err = s.db.ExecContext(ctx, `UPDATE user_mfa SET failures = 0 WHERE user_id = ?`, id)
 		return err
 	}
@@ -214,17 +215,4 @@ func (s *Service) confirmPassword(ctx context.Context, id int64, password string
 		return httpapi.Errorf(http.StatusBadRequest, "The current password is incorrect.")
 	}
 	return nil
-}
-
-// inTx runs fn in a transaction, which is committed if fn succeeds.
-func (s *Service) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	if err := fn(tx); err != nil {
-		return err
-	}
-	return tx.Commit()
 }

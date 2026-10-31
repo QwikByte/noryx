@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/files"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -52,7 +53,7 @@ func (s *Service) SwapProxy(ctx context.Context, id string, sw Swap) (Network, e
 	stopped := noryxv1.ServerState_SERVER_STATE_STOPPED
 	running := old.GetState() != stopped || proxy.GetState() != stopped
 	if err := s.takeOver(ctx, current, n, old, proxy); err != nil {
-		return current, httpapi.Errorf(http.StatusBadGateway, "The proxy was not changed, as %s could not take over: %s", proxy.GetName(), message(err))
+		return current, httpapi.Errorf(http.StatusBadGateway, "The proxy was not changed, as %s could not take over: %s", proxy.GetName(), httpapi.Message(err))
 	}
 	// The old proxy must not keep sending players to the servers.
 	err = s.release(ctx, current, "old-proxy")
@@ -61,9 +62,9 @@ func (s *Service) SwapProxy(ctx context.Context, id string, sw Swap) (Network, e
 	}
 	if err != nil {
 		return current, httpapi.Errorf(http.StatusBadGateway, "The proxy was not changed: %s Apply the network again to bring the old one back.",
-			strings.TrimSuffix(message(err), ".")+".")
+			strings.TrimSuffix(httpapi.Message(err), ".")+".")
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE networks SET proxy_node_id = ?, proxy_server_id = ?, proxy_type = ? WHERE id = ?`,
 			n.Proxy.NodeID, n.Proxy.ServerID, n.ProxyType, n.ID); err != nil {
 			return err
@@ -162,7 +163,7 @@ func (s *Service) takeOver(ctx context.Context, current, n Network, old, proxy *
 		err := files.Copy(ctx, from, &noryxv1.ReadFileRequest{ServerId: current.Proxy.ServerID, Path: c[0]},
 			into, &noryxv1.WriteFileHeader{ServerId: n.Proxy.ServerID, Path: c[1]})
 		if ignoreMissing(err) != nil { // e.g. a configuration the old proxy never created
-			return fmt.Errorf("%s could not be copied: %s", c[0], message(err))
+			return fmt.Errorf("%s could not be copied: %s", c[0], httpapi.Message(err))
 		}
 	}
 	if !m.Installed {

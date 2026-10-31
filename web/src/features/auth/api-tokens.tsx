@@ -67,6 +67,7 @@ export function ApiTokens({ user }: { user: User }) {
           i18nKey="Scripts use the API with a token instead of your password, in the header <code/>. The <link>description of the API</link> lists every route with the permissions it needs."
           components={{
             code: <code className="font-mono text-xs break-all">Authorization: Bearer noryx_…</code>,
+            // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
             link: <a href="/api/openapi.json" target="_blank" rel="noreferrer" className={linkClass} />,
           }}
         />
@@ -125,8 +126,33 @@ const emptyForm = { name: "", days: "90", all: true, permissions: [] as Permissi
 /** Creates a token with the password, and a code with two-factor authentication, and then shows it once. */
 function CreateTokenDialog({ user }: { user: User }) {
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState(emptyForm)
   const [secret, setSecret] = useState<string>()
+  return (
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" className="self-start">
+            <PlusIcon /> {t("Create token")}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-2xl">
+          <CreateTokenForm
+            user={user}
+            onCreated={(secret) => {
+              setOpen(false)
+              setSecret(secret)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+      <NewTokenDialog secret={secret} onClose={() => setSecret(undefined)} />
+    </>
+  )
+}
+
+/** The token to create, entered anew each time the dialog opens. */
+function CreateTokenForm({ user, onCreated }: { user: User; onCreated: (secret: string) => void }) {
+  const [form, setForm] = useState(emptyForm)
   const create = useCreateToken()
   const { data: catalog } = useQuery(catalogQuery)
   const { data: grants } = useQuery(accessQuery)
@@ -140,12 +166,6 @@ function CreateTokenDialog({ user }: { user: User }) {
     ?.map((area) => ({ ...area, permissions: area.permissions.filter((p) => access.canSomewhere(p.id)) }))
     .filter((area) => area.permissions.length > 0)
 
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    setForm(emptyForm)
-    create.reset()
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault()
     create.mutate(
@@ -157,132 +177,117 @@ function CreateTokenDialog({ user }: { user: User }) {
         code: user.mfa ? form.code : undefined,
       },
       {
-        onSuccess: (token) => {
-          onOpenChange(false)
-          setSecret(token.secret)
-        },
+        onSuccess: (token) => onCreated(token.secret),
       },
     )
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogTrigger asChild>
-          <Button variant="outline" className="self-start">
-            <PlusIcon /> {t("Create token")}
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl">
-          <form onSubmit={submit} className="grid gap-6">
-            <DialogHeader>
-              <DialogTitle>{t("Create an API token")}</DialogTitle>
-              <DialogDescription>
-                {t("Scripts act as you with it, with your permissions or fewer. When yours change, so do the token's.")}
-              </DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-                <Field>
-                  <FieldLabel htmlFor="token-name">{t("Name")}</FieldLabel>
-                  <Input
-                    id="token-name"
-                    required
-                    maxLength={64}
-                    placeholder={t("e.g. Backup script")}
-                    value={form.name}
-                    onChange={(e) => set({ name: e.target.value })}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="token-expiry">{t("Expires after")}</FieldLabel>
-                  <Select value={days} onValueChange={(days) => set({ days })}>
-                    <SelectTrigger id="token-expiry" className="w-full sm:w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allowed.map((e) => (
-                        <SelectItem key={e.days} value={e.days}>
-                          {e.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <RadioGroup
-                value={form.all ? "all" : "some"}
-                onValueChange={(v) => set({ all: v === "all" })}
-                aria-label={t("Permissions")}
-                className="gap-2 sm:grid-cols-2"
-              >
-                <PermissionsChoice value="all" title={t("All your permissions")} description={t("Also those you get later.")} />
-                <PermissionsChoice value="some" title={t("Only some")} description={t("Those you choose, where you have them.")} />
-              </RadioGroup>
-              {!form.all &&
-                (own ? (
-                  <PermissionsField
-                    catalog={own}
-                    value={form.permissions}
-                    onChange={(permissions) => set({ permissions })}
-                    scoped={false}
-                  />
-                ) : (
-                  <Skeleton className="h-64 rounded-xl" />
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Create an API token")}</DialogTitle>
+        <DialogDescription>
+          {t("Scripts act as you with it, with your permissions or fewer. When yours change, so do the token's.")}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+          <Field>
+            <FieldLabel htmlFor="token-name">{t("Name")}</FieldLabel>
+            <Input
+              id="token-name"
+              required
+              maxLength={64}
+              placeholder={t("e.g. Backup script")}
+              value={form.name}
+              onChange={(e) => set({ name: e.target.value })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="token-expiry">{t("Expires after")}</FieldLabel>
+            <Select value={days} onValueChange={(days) => set({ days })}>
+              <SelectTrigger id="token-expiry" className="w-full sm:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allowed.map((e) => (
+                  <SelectItem key={e.days} value={e.days}>
+                    {e.label}
+                  </SelectItem>
                 ))}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <input type="text" name="username" autoComplete="username" value={user.username} readOnly hidden />
-                <Field>
-                  <FieldLabel htmlFor="token-password">{t("Password")}</FieldLabel>
-                  <Input
-                    id="token-password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={form.password}
-                    onChange={(e) => set({ password: e.target.value })}
-                  />
-                </Field>
-                {user.mfa && (
-                  <Field>
-                    <FieldLabel htmlFor="token-code">{t("Code")}</FieldLabel>
-                    <Input
-                      id="token-code"
-                      autoComplete="one-time-code"
-                      inputMode="numeric"
-                      maxLength={6}
-                      placeholder="000000"
-                      className="font-mono tracking-[0.3em]"
-                      value={form.code}
-                      onChange={(e) => set({ code: e.target.value.replace(/\D/g, "") })}
-                    />
-                  </Field>
-                )}
-              </div>
-              {create.error && <FieldError>{create.error.message}</FieldError>}
-            </FieldGroup>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">{t("Cancel")}</Button>
-              </DialogClose>
-              <Button
-                type="submit"
-                disabled={
-                  create.isPending ||
-                  !form.name.trim() ||
-                  !form.password ||
-                  (!form.all && form.permissions.length === 0) ||
-                  (user.mfa && form.code.length !== 6)
-                }
-              >
-                {create.isPending ? t("Creating…") : t("Create token")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <NewTokenDialog secret={secret} onClose={() => setSecret(undefined)} />
-    </>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <RadioGroup
+          value={form.all ? "all" : "some"}
+          onValueChange={(v) => set({ all: v === "all" })}
+          aria-label={t("Permissions")}
+          className="gap-2 sm:grid-cols-2"
+        >
+          <PermissionsChoice value="all" title={t("All your permissions")} description={t("Also those you get later.")} />
+          <PermissionsChoice value="some" title={t("Only some")} description={t("Those you choose, where you have them.")} />
+        </RadioGroup>
+        {!form.all &&
+          (own ? (
+            <PermissionsField
+              catalog={own}
+              value={form.permissions}
+              onChange={(permissions) => set({ permissions })}
+              scoped={false}
+            />
+          ) : (
+            <Skeleton className="h-64 rounded-xl" />
+          ))}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <input type="text" name="username" autoComplete="username" value={user.username} readOnly hidden />
+          <Field>
+            <FieldLabel htmlFor="token-password">{t("Password")}</FieldLabel>
+            <Input
+              id="token-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={form.password}
+              onChange={(e) => set({ password: e.target.value })}
+            />
+          </Field>
+          {user.mfa && (
+            <Field>
+              <FieldLabel htmlFor="token-code">{t("Code")}</FieldLabel>
+              <Input
+                id="token-code"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                className="font-mono tracking-[0.3em]"
+                value={form.code}
+                onChange={(e) => set({ code: e.target.value.replace(/\D/g, "") })}
+              />
+            </Field>
+          )}
+        </div>
+        {create.error && <FieldError>{create.error.message}</FieldError>}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button
+          type="submit"
+          disabled={
+            create.isPending ||
+            !form.name.trim() ||
+            !form.password ||
+            (!form.all && form.permissions.length === 0) ||
+            (user.mfa && form.code.length !== 6)
+          }
+        >
+          {create.isPending ? t("Creating…") : t("Create token")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 

@@ -31,7 +31,7 @@ go run ./cmd/noryx-agent --data-dir .data/agent serve --listen 127.0.0.1:7443
 | Command         | Purpose                                                                        |
 | --------------- | ------------------------------------------------------------------------------ |
 | `make build`    | Builds the panel and both binaries into `bin/`                                 |
-| `make test`     | Runs all Go tests, including the end-to-end test                               |
+| `make test`     | Runs all Go tests, including the end-to-end test, and the panel's unit tests   |
 | `make lint`     | golangci-lint, oxlint, the translation checks and the TypeScript type check    |
 | `make generate` | Regenerates the gRPC code after changing `api/**/*.proto`                      |
 | `make packages` | Builds the packages and archives of a release into `dist/`, without publishing |
@@ -39,6 +39,19 @@ go run ./cmd/noryx-agent --data-dir .data/agent serve --listen 127.0.0.1:7443
 Tests that run containers need root and only run with `NORYX_DOCKER_TEST` set: with
 `NORYX_DOCKER_TEST=1 go test ./internal/agent/runtime/docker`, datastores run in Docker, and with
 `NORYX_DOCKER_TEST=podman` in Podman, along with `TestPodmanLive`, which checks what Podman does differently.
+
+The panel's unit tests use [Vitest](https://vitest.dev). They sit next to the modules they test, as `*.test.ts` or
+`*.test.tsx`, and run in Node without a browser: `npm test` in `web` runs them once, `npx vitest` again on every change.
+
+A smoke test in `web/e2e` signs in to the panel in Chromium with [Playwright](https://playwright.dev) and opens the
+overview and the console of a server. `TestPanelInBrowser` in `internal/e2e` runs it against a master with the panel
+built in and a fake node, only with `NORYX_PANEL_TEST` set. `CHROMIUM_PATH` makes it use another Chromium than
+Playwright's own, e.g. that of the system:
+
+```sh
+(cd web && npm ci && npm run build && npx playwright install chromium)
+NORYX_PANEL_TEST=1 go test -tags ui -run TestPanelInBrowser ./internal/e2e
+```
 
 ## Windows
 

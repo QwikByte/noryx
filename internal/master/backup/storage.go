@@ -19,6 +19,7 @@ import (
 
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/s3"
 )
@@ -182,7 +183,7 @@ func (c *Copies) saveStorage(ctx context.Context, id string, in storageInput) (S
 			UPDATE backup_storages SET name = ?, endpoint = ?, region = ?, bucket = ?, prefix = ?, access_key = ?, secret_key = ?, path_style = ?, encrypt = ?
 			WHERE id = ?`, s.Name, s.Endpoint, s.Region, s.Bucket, s.Prefix, s.AccessKey, s.secretKey, s.PathStyle, s.Encrypt, id)
 		if err == nil {
-			if n, _ := res.RowsAffected(); n == 0 {
+			if database.RowsAffected(res) == 0 {
 				err = errNoStorage
 			}
 		}
@@ -222,21 +223,22 @@ func (c *Copies) deleteStorage(ctx context.Context, id string) error {
 		return err
 	}
 	if len(jobs) > 0 {
-		return httpapi.Errorf(http.StatusConflict, "%s copies backups there. Choose another place for its copies first.", strings.Join(jobs, ", "))
+		return httpapi.Errorf(http.StatusConflict, "%s keeps backups there. Choose another place for them first.", strings.Join(jobs, ", "))
 	}
 	res, err := c.db.ExecContext(ctx, `DELETE FROM backup_storages WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNoStorage
 	}
 	return nil
 }
 
-// copyingTo returns the names of the backup jobs that copy their backups to a storage.
+// copyingTo returns the names of the backup jobs that copy their backups to a storage, and of
+// the backup job of the master if it keeps its archives there.
 func (c *Copies) copyingTo(ctx context.Context, storageID string) ([]string, error) {
-	rows, err := c.db.QueryContext(ctx, `SELECT name, settings FROM tasks WHERE kind = ? ORDER BY name`, TaskKind)
+	rows, err := c.db.QueryContext(ctx, `SELECT name, settings FROM tasks WHERE kind IN (?, ?) ORDER BY name`, TaskKind, MasterTaskKind)
 	if err != nil {
 		return nil, err
 	}
@@ -244,11 +246,14 @@ func (c *Copies) copyingTo(ctx context.Context, storageID string) ([]string, err
 	var names []string
 	for rows.Next() {
 		var name, raw string
-		var s JobSettings
+		var s struct {
+			Copy *CopyTo `json:"copy"` // of a backup job
+			To   CopyTo  `json:"to"`   // of the master's
+		}
 		if err := rows.Scan(&name, &raw); err != nil {
 			return nil, err
 		}
-		if json.Unmarshal([]byte(raw), &s) == nil && s.Copy != nil && s.Copy.Storage == storageID {
+		if json.Unmarshal([]byte(raw), &s) == nil && (s.Copy != nil && s.Copy.Storage == storageID || s.To.Storage == storageID) {
 			names = append(names, name)
 		}
 	}

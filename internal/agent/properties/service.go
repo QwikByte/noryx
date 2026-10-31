@@ -18,6 +18,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
@@ -35,7 +36,7 @@ var Secret = noryxv1.SecretProperties
 // locked returns the properties the manager sets itself, with the reason; changing
 // them would break the server or its console.
 func locked(spec runtime.Spec) map[string]string {
-	l := maps.Clone(noryxv1.ManagedProperties)
+	l := maps.Clone(noryxv1.ManagedPropertiesOf(spec.Type))
 	if spec.BehindProxy {
 		l["online-mode"] = "The proxy of the server's network authenticates players."
 	}
@@ -101,6 +102,16 @@ func Check(spec runtime.Spec, changes map[string]string) string {
 	return validate(changes, locked(spec))
 }
 
+// CheckNew returns a message for the operator if the properties can't be written before the
+// first start of a new server. Bedrock Dedicated Server brings its server.properties with its
+// download, which it doesn't unpack where one exists already.
+func CheckNew(spec runtime.Spec, changes map[string]string) string {
+	if spec.Type.Bedrock() && len(changes) > 0 {
+		return "A Bedrock server writes its server.properties when it starts for the first time. Change its properties then."
+	}
+	return Check(spec, changes)
+}
+
 // Write sets properties in server.properties, which is created if it doesn't exist yet,
 // e.g. for a new server.
 func Write(dir *datadir.Dir, changes map[string]string) error {
@@ -150,11 +161,8 @@ func (s *Service) open(ctx context.Context, id string) (runtime.Spec, *datadir.D
 		return runtime.Spec{}, nil, status.Error(codes.InvalidArgument, "invalid server ID")
 	}
 	srv, err := runtime.Find(ctx, s.rt, id)
-	if errors.Is(err, runtime.ErrNotFound) {
-		return runtime.Spec{}, nil, status.Error(codes.NotFound, "Server not found.")
-	}
 	if err != nil {
-		return runtime.Spec{}, nil, status.Error(codes.Internal, err.Error())
+		return runtime.Spec{}, nil, grpcerr.Status(err)
 	}
 	spec := srv.Spec
 	if spec.Type.Proxy() {

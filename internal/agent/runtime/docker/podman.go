@@ -25,6 +25,7 @@ import (
 	"github.com/moby/moby/client"
 	"golang.org/x/mod/semver"
 
+	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 	"github.com/QwikByte/noryx/internal/logging"
 )
@@ -158,6 +159,11 @@ func (d *Docker) refusal() error {
 var imageChecks = map[string]*container.HealthConfig{
 	serverImage: {Test: []string{"CMD-SHELL", "mc-health"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 2 * time.Minute, Retries: 2},
 	proxyImage:  {Test: []string{"CMD-SHELL", "/usr/bin/health.sh"}, Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 10 * time.Second, Retries: 3},
+	// mc-monitor asks Bedrock Dedicated Server for its status over NetherNet, or else RakNet.
+	bedrockImage: {
+		Test:     []string{"CMD", "mc-monitor", "status-bedrock", "--host", "127.0.0.1", "--port", strconv.Itoa(noryxv1.BedrockContainerPort)},
+		Interval: 30 * time.Second, Timeout: 30 * time.Second, StartPeriod: 2 * time.Minute, Retries: 2,
+	},
 }
 
 // adapt fits the options of a new container to Podman: it gets the health check of its image
@@ -280,7 +286,7 @@ func (d *Docker) podmanEvent(ctx context.Context, msg events.Message, w watched)
 // writes the command to the input of the proxy's process, and the answer comes from the log.
 func (d *Docker) podmanConsole(ctx context.Context, id, command string, answer func(line string) (bool, error)) error {
 	since := time.Now()
-	if err := d.run(ctx, containerName(id), proxyUser, []string{"sh", "-c", "cat >/proc/1/fd/0"}, nil, strings.NewReader(command+"\n"), nil); err != nil {
+	if err := d.run(ctx, containerName(id), imageUser, []string{"sh", "-c", "cat >/proc/1/fd/0"}, nil, strings.NewReader(command+"\n"), nil); err != nil {
 		return err
 	}
 	if answer == nil {

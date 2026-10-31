@@ -101,12 +101,25 @@ func (h *Handler) saveGroup(w http.ResponseWriter, r *http.Request) {
 		group, err = h.svc.createGroup(ctx, in)
 		status = http.StatusCreated
 	} else if err == nil {
-		group, err = h.svc.updateGroup(ctx, id, in)
+		before := group.grants()
+		if group, err = h.svc.updateGroup(ctx, id, in); err == nil && !before.Covers(group.grants()) {
+			err = h.endSetupLinks(ctx, id) // the group gives its members more now
+		}
 	}
 	if err == nil {
 		logging.Note(ctx, slog.String("group", group.Name), slog.Any("permissions", group.Permissions), slog.Bool("all_servers", group.AllServers))
 	}
 	write(w, r, status, group, err)
+}
+
+// endSetupLinks ends the setup links of the members of a group, as whoever created them may not
+// have what the group gives now.
+func (h *Handler) endSetupLinks(ctx context.Context, groupID string) error {
+	members, err := h.svc.members(ctx, groupID)
+	if err == nil && len(members) > 0 {
+		err = h.users.EndSetupLinks(ctx, members...)
+	}
+	return err
 }
 
 func (h *Handler) deleteGroup(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +183,8 @@ func (h *Handler) invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	h.changes.Lock()
+	defer h.changes.Unlock()
 	_, groups, err := h.state(ctx)
 	if err == nil {
 		err = grantable(From(ctx), groups, nil, req.Groups)
@@ -228,6 +243,10 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		err = h.svc.setGroups(ctx, target.ID, req.Groups)
+	}
+	// Whoever created the user's setup link may not have what the new groups give.
+	if err == nil && slices.ContainsFunc(req.Groups, func(id string) bool { return !slices.Contains(target.Groups, id) }) {
+		err = h.users.EndSetupLinks(ctx, target.ID)
 	}
 	if err == nil && req.Disabled != target.Disabled {
 		err = h.users.SetDisabled(ctx, target.ID, req.Disabled)

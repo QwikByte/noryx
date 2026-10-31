@@ -19,7 +19,7 @@ func (rangeNodes) Get(_ context.Context, id string) (node.Node, error) {
 // Extra ports follow the rules of the agent, lie in the node's port range and, where the servers
 // of the node are given, e.g. for a move, are used by none of them.
 func TestCheckExtraPorts(t *testing.T) {
-	h := NewHandler(rangeNodes{}, nil, nil, nil, nil, nil, NewMoves(), nil, nil)
+	h := NewHandler(Deps{Nodes: rangeNodes{}, Moves: NewMoves()})
 	extra := func(port uint32) []*noryxv1.ExtraPort {
 		return []*noryxv1.ExtraPort{{Port: port, Protocol: "tcp", Label: "Map"}}
 	}

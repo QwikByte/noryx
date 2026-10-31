@@ -98,8 +98,9 @@ link and turning on two-factor authentication revoke the user's tokens, as they 
 old password may have created them. A requirement of two-factor authentication applies to the tokens of the users it
 covers until they set it up. Tokens only work on the routes that state their permissions to `access.Mux`; the routes of
 the user's own account (`/api/auth/` and `/api/preferences`) refuse them, so a token can't sign in to the panel, change
-the password or two-factor authentication, end sessions or create and revoke tokens. A wrong token takes an attempt from
-the client's budget of sign-ins, and a client without attempts left can't use tokens either. Pages of other sites can't
+the password or two-factor authentication, end sessions or create and revoke tokens. Besides the API, tokens sign in to
+[SFTP](#sftp), with the same checks. A wrong token takes an attempt from the client's budget of sign-ins, and a client
+without attempts left can't use tokens either. Pages of other sites can't
 use a token in a browser: the master allows no cross-origin requests, so browsers don't send the header, and the
 cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
 a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
@@ -139,14 +140,16 @@ to 28 days, so nothing else becomes part of a command.
 ## Containers
 
 Containers run with `no-new-privileges`, memory and PID limits, and only the capabilities the images need to hand the
-data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies run as the user of their image (uid 1000) from the
-start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
+data to the server's user: `CHOWN`, `SETUID` and `SETGID`. Proxies and Bedrock servers run as the user of their image
+(uid 1000) from the start, which owns their data, without any capabilities. Servers of a node can't reach each other: they share a network
 without communication between containers (`noryx-servers`), and a Velocity proxy shares another one only with its
 backends on the node. The PID limit lets a server's container run 1,024 processes and threads, or up to 8,192 if its
 settings say so, which the agent checks, so that a compromised server can't exhaust the node, e.g. with a fork bomb.
 
 A container publishes the server's port, a proxy's Bedrock port and the extra ports of the server's plugins, nothing
-else. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
+else; a Bedrock server publishes its TCP port and the UDP ports of its players after it, the same in its container,
+which the agent checks like the server's port and which no extra port takes. The node's address that a Bedrock server
+tells its players is one the agent finds itself or its administrator gives it, never one of the master. The agent checks extra ports itself: at most 5, each TCP or UDP from 1024 on, used by no other server or datastore
 of the node, and never the server's or its Bedrock port, nor a port the container uses itself: 25565 and 25577, where
 servers and proxies listen inside it, and the console port 25575, which the image sets again on every start, so that
 neither the console nor the game port of a server behind a proxy becomes reachable through them. Each is published at
@@ -183,7 +186,10 @@ load (also from URLs), are refused. A server that got such an option before an u
 removed: the agent logs a warning when it starts, and the panel shows it on the server's page and the overview.
 Settings can't set other variables of the images, such as `CUSTOM_SERVER`, `PLUGINS` or `JVM_XX_OPTS`, which download or
 run code and would get around these checks: besides the variables of checked settings, a container only gets its time
-zone as `TZ`, once the agent found it among the IANA time zones it knows.
+zone as `TZ`, once the agent found it among the IANA time zones it knows. A Bedrock server's version is `LATEST`,
+`PREVIEW` or four numbers, never `EXISTING`, which would run a program from its data, nor `DIRECT_DOWNLOAD_URL`, and
+it takes no settings of Java. Its console reads commands from its standard input like that of a proxy, which only the
+agent writes to; the commands of players take only checked names.
 
 ## File manager
 
@@ -216,6 +222,36 @@ itself, and never special ones such as setuid. The file manager extracts nothing
 file sets, the temporary files of the agent or the files Noryx writes itself, such as `server.properties`, `ops.json`
 and `forwarding.secret`, and refuses the whole archive if it would.
 Extracting and copying need the permission to change files, searching the one to read them.
+
+## SFTP
+
+The master serves SFTP itself, so agents get no new way in and keep obeying only the master: each request of a client
+becomes one of the file manager's calls of the agent of the server's node (listing, reading, writing, creating folders,
+moving and deleting), which checks it as it checks those of the file manager. So secrets stay hidden as there, paths
+stay in the server's folder, writing keeps 1 GB free, and the log names the user, the token and the server of every
+download and change. SFTP is off until the settings name an address, which only administrators may change, as it opens
+a port, and it serves nothing but SFTP: no shell, no commands and no forwarding.
+
+Users sign in with their username and an API token as the password; SSH keys, other methods and the passwords of the
+panel are refused. So a token is as strong as the file manager with the token's permissions: it sees only the servers
+whose files it may browse, and changes only those whose files it may change, not while they move to another node. The
+master checks the token and loads its permissions again for every request, so revoking it, its expiry, disabling its
+user, a requirement of two-factor authentication and changes of the user's groups apply to open connections at once,
+and a token that no longer works ends its connection. A wrong token or username takes an attempt from the client's
+budget of sign-ins, which it shares with the panel and API tokens, and a client without attempts left can't sign in; a
+connection has a minute and 3 attempts to sign in. The log notes sign-ins and failed attempts with the client's
+address, which SFTP gets from the connection, never from a proxy, and never the token.
+
+So that clients can't fill the master's memory, a user has up to 16 connections at once, with up to 64 open files each.
+The master streams files between client and agent: it keeps at most 8 MB of the parts that a connection sends before
+those in front of them, and about a megabyte of each file it reads for parts asked for out of order. A file only
+replaces the one on the server once the client closes it, so a client that goes away before, leaves a gap or writes at
+an offset leaves the file as it was.
+
+The master identifies with an Ed25519 host key, which it creates in its data directory (`sftp/host_key`, mode `0600`)
+the first time SFTP is on; a key it can't load keeps SFTP off. The settings, the file manager and the master's entry of
+its start in the log show its fingerprint, which clients ask to compare when they first connect. `noryx-master backup`
+doesn't hold it, so a master restored elsewhere creates a new one, which clients warn about.
 
 ## Plugins and downloads
 
@@ -409,9 +445,9 @@ disks, not from the provider: choose a storage that you trust with the data of t
 the configured endpoint, over HTTPS with a certificate the system trusts, follows no redirects, signs every request with
 AWS Signature Version 4 including the hash of its body, and accepts the endpoint, region, bucket and folder only in
 strict forms. The secret key of a storage is stored in the master's database like the forwarding secret, is part of
-`noryx-master backup`, and is never returned by the API or logged; endpoint, bucket and access key show to those who may
-see backup jobs. A compromised storage can only hand out archives of its own, which are restored like those of a
-compromised node.
+the [backups of the master](#backups-of-the-master), and is never returned by the API or logged; endpoint, bucket and
+access key show to those who may see backup jobs. A compromised storage can only hand out archives of its own, which are
+restored like those of a compromised node.
 
 Another node keeps copies apart from the backups of its own servers, out of reach of containers and the file manager,
 and never restores them itself: the master relays them, as agents never connect to each other. Its administrator can
@@ -432,6 +468,39 @@ permission to see its backups, on the node it is on now; those of servers that a
 on all servers. Restoring needs the permission to restore backups of the server restored into, which must be of the
 same kind, and deleting a copy the permission to delete backups.
 
+## Backups of the master
+
+An archive of the master, of `noryx-master backup` or of its backup job, holds its database with every secret the
+master keeps, such as the secret keys of storages, the secrets of file sets, the passwords of databases, the forwarding
+secrets of networks and the secrets of two-factor authentication, the private key of its certificate authority and the
+host key of SFTP, if it has one.
+Whoever has the CA's key can issue certificates that the agents trust, and so control every node and its servers;
+anyone who gets an archive gets that. So only administrators can see, change and run the backup job of the master, as
+no permission that groups can get covers it, and API tokens can't; each run checks that the administrator who saved it
+last still is one, so that the archives no longer go where a former administrator chose.
+
+The job encrypts its archives with [age](https://age-encryption.org) and a passphrase (scrypt, ChaCha20-Poly1305), so
+they leave the master encrypted only when a passphrase is set; the panel warns while none is. The passphrase is stored
+in the master's database like the secret keys of storages, so it is in the archives too, is never returned by the API,
+which only tells whether one is set, and is never logged; the log notes that it was set or removed. The master writes an
+archive in a temporary folder of its data directory, readable by itself only, streams it to the storage or node and
+deletes the folder. A storage gets the archives like [copies of backups](#copies-of-backups), as objects in the folder
+`master` of its folder. A node keeps them through its agent, in `<backups of the location>/master` of a storage
+location its administrator allowed, as files only the agent can read (mode `0600`), out of reach of containers and the
+file manager; the agent never reads or restores them, accepts only names that can't leave that folder, at most 16 GB
+while the space kept free stays free, and never replaces an archive. The node's administrator can read them there, so an
+archive without a passphrase gives them control over all other nodes. The job only deletes archives that it made and
+recorded, in the place it keeps them in.
+
+A compromised storage or node can delete or keep archives, but can't read or change encrypted ones: age authenticates
+every part of them, and `noryx-master restore` refuses an archive that was changed or cut off. An unencrypted archive
+could be swapped there for one with other users or another CA; restore archives without a passphrase only from places
+you trust. `noryx-master restore` runs on the master's host as the owner of its data directory, refuses while the
+master runs, which holds a lock on the data directory, and checks all of an archive in a folder of the data directory
+before it replaces anything: that it holds only the database and the files of the CA, without links or paths outside,
+that the database opens and is intact, and that the CA has its key. It names the fingerprint of the CA it restored,
+which agents only trust if they enrolled with it, and keeps what it replaced, with the CA's key, until it is deleted.
+
 ## Permissions
 
 Every API route states the permission it needs when it is registered, so none can be added without; the terminal checks
@@ -441,7 +510,10 @@ log of a datastore and terminal commands such as `server logs`, end every 5 minu
 the permissions again; the console and the log connect again on their own and continue. Users can only grant
 permissions they have themselves, within their own scope, and only manage users who have no more permissions than they
 do, so no one can raise their own permissions. The groups that the settings preselect for invitations are only shown
-checked, of those the inviter may give: the invitation checks the groups it gets like any other.
+checked, of those the inviter may give: the invitation checks the groups it gets like any other. Changes of users and
+groups, invitations included, run one after the other, so no check passes against groups that another change alters
+meanwhile. A setup link ends when its user gets more permissions, with another group or a group that now gives more, as
+whoever created the link, e.g. by inviting the user, may not have them and would otherwise hold the new permissions too.
 The last enabled administrator can't be disabled, deleted or removed from the Administrators. The master logs every
 change with the user who made it, also denied attempts. An operation in progress can only be cancelled by the user who
 started it, in the panel or with the same API token, or by one who has the permissions it needed on what it is about,

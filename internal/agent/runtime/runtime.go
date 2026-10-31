@@ -110,6 +110,9 @@ type Spec struct {
 	ProcessLimit uint32 `json:"processLimit,omitempty"`
 	// InitMemoryMB is the initial heap, below MemoryMB; 0 means as large as MemoryMB.
 	InitMemoryMB uint32 `json:"initMemoryMb,omitempty"`
+	// MaxPlayers is how many players a Bedrock server lets join at once, each over a UDP port
+	// of their own after Port; 0 means the default.
+	MaxPlayers uint32 `json:"maxPlayers,omitempty"`
 }
 
 // ExtraPort is a port of a plugin, published at the same port of the container, where the
@@ -120,10 +123,10 @@ type ExtraPort struct {
 	Label    string `json:"label,omitempty"`
 }
 
-// Uses reports whether a server uses a port of the node: its own, the UDP port at which
-// Bedrock players join a proxy, or one of its extra ports.
+// Uses reports whether a server uses a port of the node: its own, those of the players of a
+// Bedrock server, the UDP port at which Bedrock players join a proxy, or one of its extra ports.
 func (s Spec) Uses(port uint32) bool {
-	return s.Port == port || s.BedrockPort != 0 && s.BedrockPort == port ||
+	return port >= s.Port && port <= noryxv1.LastPort(s.Type, s.Port, s.MaxPlayers) || s.BedrockPort != 0 && s.BedrockPort == port ||
 		slices.ContainsFunc(s.ExtraPorts, func(p ExtraPort) bool { return p.Port == port })
 }
 
@@ -293,6 +296,9 @@ func PauseSaving(ctx context.Context, rt Runtime, srv Server) (resume func(), er
 		return func() {}, nil
 	}
 	progress.Step(ctx, "save", 0)
+	if srv.Type.Bedrock() {
+		return holdSaving(ctx, rt, srv.ID)
+	}
 	resume = func() {
 		if _, err := rt.SendCommand(context.WithoutCancel(ctx), srv.ID, "save-on"); err != nil {
 			slog.Warn("Can't turn saving on again", logging.Servers, logging.KeyServer, srv.ID, "err", err)
@@ -305,6 +311,47 @@ func PauseSaving(ctx context.Context, rt Runtime, srv Server) (resume func(), er
 		return nil, fmt.Errorf("%w: %w", ErrNotReady, err)
 	}
 	if _, err := rt.SendCommand(ctx, srv.ID, "save-all flush"); err != nil {
+		resume()
+		return nil, err
+	}
+	return resume, nil
+}
+
+// Bedrock Dedicated Server holds saving for a copy of its worlds once asked to, and tells when
+// its files are ready; it is asked every saveQueryInterval, up to saveQueries times.
+var (
+	saveQueryInterval = time.Second
+	saveQueries       = 30
+)
+
+// holdSaving pauses saving of a running Bedrock server like PauseSaving: it holds saving and
+// waits until the server tells that its files are ready to be copied.
+func holdSaving(ctx context.Context, rt Runtime, id string) (resume func(), err error) {
+	resume = func() {
+		if _, err := rt.SendCommand(context.WithoutCancel(ctx), id, "save resume"); err != nil {
+			slog.Warn("Can't resume saving", logging.Servers, logging.KeyServer, id, "err", err)
+		}
+	}
+	if _, err := rt.SendCommand(ctx, id, "save hold"); err != nil {
+		if ctx.Err() != nil {
+			resume()
+		}
+		return nil, fmt.Errorf("%w: %w", ErrNotReady, err)
+	}
+	for range saveQueries {
+		_, err = rt.SendCommand(ctx, id, "save query")
+		if !errors.Is(err, ErrNotReady) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		case <-time.After(saveQueryInterval):
+			continue
+		}
+		break
+	}
+	if err != nil {
 		resume()
 		return nil, err
 	}

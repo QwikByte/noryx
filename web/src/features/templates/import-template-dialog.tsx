@@ -26,22 +26,29 @@ interface TemplateFile {
 /** Imports a template from a file exported by Noryx, e.g. on another master, under a name of choice. */
 export function ImportTemplateDialog() {
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <UploadSimpleIcon />
+          {t("Import")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <ImportTemplateForm onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The file to import, chosen anew each time the dialog opens. */
+function ImportTemplateForm({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<{ name: string; content: TemplateFile }>()
   const [name, setName] = useState("")
   const [error, setError] = useState<string>()
   const picker = useRef<HTMLInputElement>(null)
   const save = useImportTemplate()
   const navigate = useNavigate()
-
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) {
-      setFile(undefined)
-      setName("")
-      setError(undefined)
-      save.reset()
-    }
-  }
 
   async function choose(chosen: File) {
     setError(undefined)
@@ -65,7 +72,7 @@ export function ImportTemplateDialog() {
       {
         onSuccess: (template) => {
           toast.success(t("Imported {{name}}", { name: template.name }))
-          onOpenChange(false)
+          onClose()
           void navigate({ to: "/templates/$templateId", params: { templateId: template.id } })
         },
       },
@@ -73,57 +80,47 @@ export function ImportTemplateDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <UploadSimpleIcon />
-          {t("Import")}
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Import template")}</DialogTitle>
+        <DialogDescription>
+          {t("Choose a template exported from Noryx, e.g. on another master. It is checked like a template saved here, and its plugins are looked up again.")}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <Button type="button" variant="outline" className="w-full justify-start" onClick={() => picker.current?.click()}>
+            <FileArrowUpIcon />
+            <span className="truncate">{file ? file.name : t("Choose file")}</span>
+          </Button>
+          <input
+            ref={picker}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => {
+              const chosen = e.target.files?.[0]
+              if (chosen) void choose(chosen)
+              e.target.value = ""
+            }}
+          />
+        </Field>
+        {file && (
+          <Field>
+            <FieldLabel htmlFor="import-name">{t("Name")}</FieldLabel>
+            <Input id="import-name" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        )}
+        {(error ?? save.error) && <FieldError>{error ?? save.error?.message}</FieldError>}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={!file || save.isPending}>
+          {save.isPending ? t("Importing…") : t("Import template")}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Import template")}</DialogTitle>
-            <DialogDescription>
-              {t("Choose a template exported from Noryx, e.g. on another master. It is checked like a template saved here, and its plugins are looked up again.")}
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => picker.current?.click()}>
-                <FileArrowUpIcon />
-                <span className="truncate">{file ? file.name : t("Choose file")}</span>
-              </Button>
-              <input
-                ref={picker}
-                type="file"
-                accept=".json,application/json"
-                hidden
-                onChange={(e) => {
-                  const chosen = e.target.files?.[0]
-                  if (chosen) void choose(chosen)
-                  e.target.value = ""
-                }}
-              />
-            </Field>
-            {file && (
-              <Field>
-                <FieldLabel htmlFor="import-name">{t("Name")}</FieldLabel>
-                <Input id="import-name" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
-              </Field>
-            )}
-            {(error ?? save.error) && <FieldError>{error ?? save.error?.message}</FieldError>}
-          </FieldGroup>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" disabled={!file || save.isPending}>
-              {save.isPending ? t("Importing…") : t("Import template")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </DialogFooter>
+    </form>
   )
 }

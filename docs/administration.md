@@ -18,7 +18,10 @@ address; it shows its fingerprint to compare with the browser's warning. Or it g
 domain, which has to point to the machine: Let's Encrypt checks it at port 443 of the panel or at port 80, where the
 master then sends browsers to HTTPS. Until Let's Encrypt issued one, and for other names such as an IP address, the
 panel serves the self-signed certificate, and the page shows why. With a certificate of the command line (`--tls-cert`),
-these settings don't apply. **Restart master**, for administrators, stops the master and lets systemd start it again
+these settings don't apply. The address of [SFTP](servers.md#sftp), e.g. `0.0.0.0:2022`, also applies when the master
+starts again, and only administrators change it, as it opens a port; empty, the default, turns SFTP off. If the master
+can't listen there, it starts without SFTP and the page shows why; while SFTP runs, the page shows the fingerprint of
+its host key. **Restart master**, for administrators, stops the master and lets systemd start it again
 (also reading `master.env` again), unless servers are moving to another node; Minecraft servers keep running. The other
 settings apply right away: the enrollment address join tokens contain (it replaces `--public-enroll-addr`; empty uses
 the flag again), how long join tokens are valid (5 minutes to a day, 1 hour by default), how long sign-ins to the panel
@@ -153,7 +156,9 @@ first one or after losing access.
 ### Invitations
 
 New users get a setup link (valid for three days unless the settings say otherwise, usable once) to choose their
-password; the same link resets a forgotten password. **Invite user** preselects the groups that
+password; the same link resets a forgotten password. The link ends when the user gets more permissions before using it,
+with another group or a group that now gives more, as whoever created it may not have them: create a new link then.
+**Invite user** preselects the groups that
 **Settings → General** names, of those the inviter may
 give; groups deleted since are left out, and the inviter can still change them, within their own permissions as always. The token is in the link's fragment, which browsers don't send to servers, and the panel removes it
 from the address bar once it was read. Users change their own password on their account page (in the menu of their name

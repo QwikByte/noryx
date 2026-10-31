@@ -28,8 +28,8 @@ generates one and writes it to `/etc/noryx/admin-password`, which only root can 
 characters and isn't shown while you type it. These options only apply to a new installation; later, both addresses can
 be changed in the panel's settings.
 
-Open port 9443 for the nodes. For plugins and mods, the master needs HTTPS access to `api.modrinth.com` and
-`cdn.modrinth.com`.
+Open port 9443 for the nodes, and the port of [SFTP](servers.md#sftp) for its users if you turn it on in the settings.
+For plugins and mods, the master needs HTTPS access to `api.modrinth.com` and `cdn.modrinth.com`.
 
 ### HTTPS
 
@@ -80,10 +80,17 @@ Podman runs the same containers as Docker, from the same images, with the same u
 Docker-compatible API and makes up for where Podman behaves differently, e.g. how it tells crashes and health. Plain
 processes without containers aren't offered: the agent would have to download and check Java and the servers itself,
 supervise and restart them, give each one a user of its own and build the isolation of containers again. Only Podman as
-root is supported: the agent runs as root anyway, and rootless Podman forwards published ports through a process of its
-own, past the firewall of the private network that lets only a proxy's node reach a port; its containers have no
-addresses on the node, at which the agent reaches their consoles, and it maps their users to others, which the data
-directories would have to follow.
+root is supported, as rootless Podman would lose what the agent relies on:
+
+- It forwards published ports through a process of its own on the node, which the firewall of the private network sees
+  as a connection to the node itself, which it refuses, so backends that only their proxy's node reaches would be cut
+  off. Its default forwarder of bridge networks also hides the addresses of players, which bans and logs need.
+- Its containers have no addresses on the node, at which the agent reaches their consoles, and the tables that keep
+  servers apart would have to live in its own network namespace.
+- It maps the users of containers to others on the node, so the agent couldn't read or hand over the data of servers
+  without entering their user namespace, and the limits of memory, CPU and processes only apply if systemd delegates
+  them to its user.
+- The private network still needs root for WireGuard and its firewall.
 
 To set up Podman by hand on a node whose agent is installed:
 
@@ -178,8 +185,9 @@ options of every program it installs name `--prereleases`.
 
 Commands run as the master's user `noryx`: `sudo -u noryx noryx-master logs` shows the log, `… user add <name>` creates
 an administrator, e.g. after losing access, `… node add <name> <agent-address> --public-enroll-addr <host:port>` adds a
-node and prints its join token for scripts, and `… backup <file>` saves the master's database and CA (see [Backing up
-the master](automation.md#backing-up-the-master)).
+node and prints its join token for scripts, `… backup <file>` saves the master's database and CA, and `… restore <file>`
+restores them from an archive of it or of the backup job of the master while the master is stopped (see [Backing up the
+master](automation.md#backing-up-the-master)).
 
 ### On a node
 

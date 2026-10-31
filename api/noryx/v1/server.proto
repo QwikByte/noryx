@@ -66,6 +66,11 @@ enum ServerType {
   SERVER_TYPE_LEAF = 11;
   // Quilt loads its own mods and those of Fabric.
   SERVER_TYPE_QUILT = 12;
+  // Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
+  // without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
+  // then play over UDP ports of their own; see max_players. Agents of older versions refuse it
+  // as unknown.
+  SERVER_TYPE_BEDROCK = 13;
 }
 
 // RestartPolicy decides when the node starts a server on its own.
@@ -153,6 +158,8 @@ message Server {
   uint32 process_limit = 28;
   // Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
   uint32 init_memory_mb = 29;
+  // How many players a Bedrock server lets join at once; 0 for other servers.
+  uint32 max_players = 30;
 }
 
 // ExtraPort is a port of a plugin of a server, e.g. of a web map or a voice chat, which the node
@@ -202,6 +209,7 @@ message CreateServerRequest {
   uint32 unhealthy_restart_minutes = 21;
   uint32 process_limit = 22;
   uint32 init_memory_mb = 23;
+  uint32 max_players = 24;
 }
 
 message CreateServerResponse {
@@ -265,6 +273,10 @@ message UpdateServerRequest {
   // Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
   // 0, as older masters send it, for the same as memory_mb.
   uint32 init_memory_mb = 20;
+  // How many players a Bedrock server lets join at once, from 1 to 100; 0 for 10. Each plays
+  // over a UDP port of their own, which the node publishes: the server's port and the ones
+  // after it. Other servers take none, as their server.properties says.
+  uint32 max_players = 21;
 }
 
 message UpdateServerResponse {

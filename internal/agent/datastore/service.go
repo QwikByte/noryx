@@ -27,6 +27,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/backup"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/overlay"
 	"github.com/QwikByte/noryx/internal/agent/progress"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
@@ -535,28 +536,14 @@ func (s *Service) lock(ctx context.Context, id string) (runtime.Datastore, func(
 	return ds, release, nil
 }
 
-func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Datastore not found.")
-	case errors.Is(err, runtime.ErrNoTable):
-		return status.Error(codes.NotFound, "Table not found.")
-	case errors.Is(err, runtime.ErrNoColumn):
-		return status.Error(codes.InvalidArgument, "The table has no such column.")
-	case errors.Is(err, runtime.ErrDatastoreNotRunning):
-		return status.Error(codes.FailedPrecondition, "The datastore isn't ready. Start it, or look at its log for why it isn't.")
-	case errors.Is(err, fs.ErrNotExist):
-		return status.Error(codes.NotFound, "Dump not found.")
-	case errors.Is(err, storage.ErrUnknown):
-		return status.Errorf(codes.InvalidArgument, "%s. Add it on the node with: noryx-agent storage add", err)
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	}
-	return status.Error(codes.Internal, err.Error())
+// known are the errors of datastores that the service answers with a code and a text. The
+// runtime tells of a missing datastore as of a missing server.
+var known = []grpcerr.Known{
+	{Err: runtime.ErrNotFound, Code: codes.NotFound, Text: "Datastore not found."},
+	{Err: runtime.ErrNoTable, Code: codes.NotFound, Text: "Table not found."},
+	{Err: runtime.ErrNoColumn, Code: codes.InvalidArgument, Text: "The table has no such column."},
+	{Err: runtime.ErrDatastoreNotRunning, Code: codes.FailedPrecondition, Text: "The datastore isn't ready. Start it, or look at its log for why it isn't."},
+	{Err: fs.ErrNotExist, Code: codes.NotFound, Text: "Dump not found."},
 }
+
+func toStatus(err error) error { return grpcerr.Status(err, known...) }

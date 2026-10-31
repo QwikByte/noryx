@@ -5,7 +5,7 @@ import { useState } from "react"
 import { TimeZonePicker } from "@/components/time-zone-picker"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -15,8 +15,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { gameVersionsQuery } from "@/features/plugins/api"
 import { formatMegabytes, formatSeconds } from "@/lib/format"
 import { msg } from "@/lib/i18n"
+import type { FieldErrors } from "@/lib/use-draft"
+import { cn } from "@/lib/utils"
 import type { RestartPolicy } from "./api"
-import { containerMemoryMb, maxMemoryMb, memoryOptionsMb, minMemoryMb } from "./server-types"
+import { containerMemoryMb, defaultBedrockPlayers, maxBedrockPlayers, maxMemoryMb, memoryOptionsMb, minMemoryMb } from "./server-types"
 
 // Fields shared by the settings of a server and the templates for new servers.
 
@@ -35,25 +37,84 @@ const restartPolicies: [RestartPolicy, string, string][] = [
   ["never", msg("Only manually"), msg("Starts only when you start it.")],
 ]
 
-/** The Minecraft version of a game server, with the releases as suggestions; empty is the latest. */
-export function VersionField({ id, value, onChange }: { id: string; value: string; onChange: (version: string) => void }) {
-  const { data: releases = [] } = useQuery(gameVersionsQuery)
+/**
+ * The Minecraft version of a game server, with the releases of Java Edition as suggestions, or the version of Bedrock
+ * Dedicated Server with its four numbers; empty is the latest.
+ */
+export function VersionField({
+  id,
+  value,
+  onChange,
+  bedrock,
+  errors,
+}: {
+  id: string
+  value: string
+  onChange: (version: string) => void
+  bedrock?: boolean
+  errors?: FieldErrors
+}) {
+  const { data: releases = [] } = useQuery({ ...gameVersionsQuery, enabled: !bedrock })
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{t("Minecraft version")}</FieldLabel>
       <Input
         id={id}
+        aria-invalid={!!errors}
         list={`${id}-releases`}
         autoComplete="off"
         placeholder={t("Latest")}
+        className={cn(bedrock && "font-mono")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       <datalist id={`${id}-releases`}>
-        {releases.map((release) => (
+        {(bedrock ? ["PREVIEW"] : releases).map((release) => (
           <option key={release} value={release} />
         ))}
       </datalist>
+      {bedrock && <FieldDescription>{t("A version of Bedrock Dedicated Server like 1.26.61.1, or PREVIEW for the newest preview.")}</FieldDescription>}
+      <FieldError errors={errors} />
+    </Field>
+  )
+}
+
+/** How many players a Bedrock server lets join at once, each over a UDP port of their own from the server's port on. */
+export function PlayersField({
+  id,
+  value,
+  port,
+  onChange,
+  errors,
+}: {
+  id: string
+  value: number
+  port: number
+  onChange: (players: number) => void
+  errors?: FieldErrors
+}) {
+  const players = value || defaultBedrockPlayers
+  return (
+    <Field data-invalid={!!errors}>
+      <FieldLabel htmlFor={id}>{t("Players")}</FieldLabel>
+      <Input
+        id={id}
+        aria-invalid={!!errors}
+        type="number"
+        min={1}
+        max={maxBedrockPlayers}
+        required
+        className="w-full font-mono sm:w-40"
+        value={players}
+        onChange={(e) => onChange(e.target.valueAsNumber || 0)}
+      />
+      <FieldDescription>
+        {t(
+          "How many players may join at once. They join at the port over TCP and then play over UDP ports of their own, from the port on: {{first}} to {{last}}. The node publishes them, so they must be free and in its port range.",
+          { first: port, last: port + players - 1 },
+        )}
+      </FieldDescription>
+      <FieldError errors={errors} />
     </Field>
   )
 }
@@ -68,12 +129,14 @@ export function MemoryField({
   value,
   onChange,
   freeMb,
+  errors,
 }: {
   id: string
   label?: string
   value: number
   onChange: (mb: number) => void
   freeMb?: number
+  errors?: FieldErrors
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
@@ -81,7 +144,7 @@ export function MemoryField({
   const entered = Number(search)
   const other = Number.isInteger(entered) && entered >= minMemoryMb && entered <= maxMemoryMb ? [entered] : []
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Popover
         open={open}
@@ -91,7 +154,8 @@ export function MemoryField({
         }}
       >
         <PopoverTrigger asChild>
-          <Button id={id} type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
+          {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger sets aria-expanded and aria-controls */}
+          <Button id={id} type="button" variant="outline" role="combobox" aria-invalid={!!errors} className="w-full justify-between font-normal">
             {formatMegabytes(value)}
             <CaretUpDownIcon className="text-muted-foreground" />
           </Button>
@@ -128,6 +192,7 @@ export function MemoryField({
           {t("{{free}} left on the node for the server and Java's overhead", { free: formatMegabytes(Math.max(0, freeMb)) })}
         </FieldDescription>
       )}
+      <FieldError errors={errors} />
     </Field>
   )
 }
@@ -156,12 +221,22 @@ export function RestartPolicyField({ value, onChange }: { value: RestartPolicy; 
 }
 
 /** The Java version of a game server; empty is the newest. */
-export function JavaField({ id = "settings-java", value, onChange }: { id?: string; value: string; onChange: (java: string) => void }) {
+export function JavaField({
+  id = "settings-java",
+  value,
+  onChange,
+  errors,
+}: {
+  id?: string
+  value: string
+  onChange: (java: string) => void
+  errors?: FieldErrors
+}) {
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{t("Java version")}</FieldLabel>
       <Select value={value || "newest"} onValueChange={(v) => onChange(v === "newest" ? "" : v)}>
-        <SelectTrigger id={id} className="w-full sm:w-64">
+        <SelectTrigger id={id} aria-invalid={!!errors} className="w-full sm:w-64">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -175,6 +250,7 @@ export function JavaField({ id = "settings-java", value, onChange }: { id?: stri
       <FieldDescription>
         {t("Minecraft 1.20.5 and newer needs Java 21 or newer, 1.18 to 1.20.4 Java 17, and versions up to 1.16 run best on Java 8 or 11.")}
       </FieldDescription>
+      <FieldError errors={errors} />
     </Field>
   )
 }
@@ -231,16 +307,18 @@ export function StopTimeoutField({
   id = "settings-stop-timeout",
   value,
   onChange,
+  errors,
 }: {
   id?: string
   value: number
   onChange: (seconds: number) => void
+  errors?: FieldErrors
 }) {
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{t("Stop timeout")}</FieldLabel>
       <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-        <SelectTrigger id={id} className="w-full sm:w-64">
+        <SelectTrigger id={id} aria-invalid={!!errors} className="w-full sm:w-64">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -257,6 +335,7 @@ export function StopTimeoutField({
       <FieldDescription>
         {t("How long the server may take to save its worlds when it stops or restarts before it is killed. Large modded worlds may need longer.")}
       </FieldDescription>
+      <FieldError errors={errors} />
     </Field>
   )
 }
@@ -265,16 +344,19 @@ export function TimeZoneField({
   id = "settings-time-zone",
   value,
   onChange,
+  errors,
 }: {
   id?: string
   value: string
   onChange: (zone: string) => void
+  errors?: FieldErrors
 }) {
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{t("Time zone")}</FieldLabel>
-      <TimeZonePicker id={id} value={value} onChange={onChange} className="w-full sm:w-72" />
+      <TimeZonePicker id={id} value={value} onChange={onChange} invalid={!!errors} className="w-full sm:w-72" />
       <FieldDescription>{t("The time of the server's log and of plugins that work with times, e.g. for daily rewards.")}</FieldDescription>
+      <FieldError errors={errors} />
     </Field>
   )
 }

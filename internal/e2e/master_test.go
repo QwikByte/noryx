@@ -102,8 +102,8 @@ func TestMasterSettings(t *testing.T) {
 	}
 }
 
-// Only administrators change the panel's address and HTTPS, which can open the panel to other
-// networks, and restart the master.
+// Only administrators change the addresses of the panel and SFTP and the panel's HTTPS, which can
+// open the panel and the files of servers to other networks, and restart the master.
 func TestPanelAddrAndRestart(t *testing.T) {
 	m := startMaster(t)
 	svc := m.services(t)
@@ -132,6 +132,7 @@ func TestPanelAddrAndRestart(t *testing.T) {
 	editor.do("PUT", "/api/settings", map[string]any{"panelAddr": free}, http.StatusForbidden, nil)
 	editor.do("PUT", "/api/settings", map[string]any{"panelHttps": "self-signed"}, http.StatusForbidden, nil)
 	editor.do("PUT", "/api/settings", map[string]any{"panelDomain": "panel.example.com"}, http.StatusForbidden, nil)
+	editor.do("PUT", "/api/settings", map[string]any{"sftpAddr": "0.0.0.0:2022"}, http.StatusForbidden, nil)
 	editor.do("POST", "/api/master/restart", nil, http.StatusForbidden, nil)
 	root.do("PUT", "/api/settings", map[string]any{"panelAddr": free, "panelHttps": "self-signed", "panelDomain": "panel.example.com"}, http.StatusOK, nil)
 	editor.do("PUT", "/api/settings", map[string]any{"sessionHours": 12, "panelAddr": free, "panelHttps": "self-signed", "panelDomain": " panel.example.com"}, http.StatusOK, nil)

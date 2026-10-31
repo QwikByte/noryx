@@ -6,6 +6,7 @@ import { type FormEvent, type ReactElement, useCallback, useState } from "react"
 import { Trans } from "react-i18next"
 import { toast } from "sonner"
 import { Fold } from "@/components/fold"
+import { FormDialogContent, useBusy } from "@/components/form-dialog"
 import { Segmented } from "@/components/segmented"
 import { UploadProgress } from "@/components/upload-progress"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -38,9 +38,10 @@ import {
 } from "@/components/ui/select"
 import { nodeQuery, nodesQuery } from "@/features/nodes/api"
 import { OperationStatus } from "@/features/operations/operation-status"
-import { guard, useOperation } from "@/features/operations/use-operation"
+import { useOperation } from "@/features/operations/use-operation"
 import { keptChannels, keptVersions, type Template, templatesQuery } from "@/features/templates/api"
 import { formatBytes, formatSeconds, formatTimeZone } from "@/lib/format"
+import { errorsAt, formError, useDraft } from "@/lib/use-draft"
 import { useUpload } from "@/lib/use-upload"
 import {
   freeMemoryMb,
@@ -54,8 +55,8 @@ import {
 } from "./api"
 import { ExtraPortsField } from "./extra-ports"
 import { lastNode, rememberNode } from "./last-node"
-import { defaults, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
-import { JavaField, MemoryField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
+import { defaultBedrockPlayers, defaults, isBedrock, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
+import { JavaField, MemoryField, PlayersField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
 import { EndOfLifeNotice, SoftwareOptions } from "./software"
 import { TagList } from "./tags"
 import { type World, worldChanges, worldOf } from "./world"
@@ -78,6 +79,9 @@ type Form = Omit<NewServer, "port" | "storage"> & {
 }
 
 const none = "none"
+
+// The fields that show what the master refused about them.
+const fields = ["name", "type", "version", "memoryMb", "port", "maxPlayers", "extraPorts", "java", "stopTimeout", "timeZone"]
 
 /** A new server as its template has it, or else as the settings of new servers, once they are known. */
 function blank(template?: Template, settings?: NewServerSettings): Form {
@@ -132,69 +136,99 @@ export function CreateServerDialog({
 }) {
   const [ownOpen, setOpen] = useState(false)
   const open = shown ?? ownOpen
-  const [changed, setForm] = useState<Form>()
+
+  function onOpenChange(next: boolean) {
+    setOpen(next)
+    onShownChange?.(next)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {shown === undefined && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button>
+              <PlusIcon />
+              {t("Create server")}
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
+      <FormDialogContent className="sm:max-w-lg">
+        <CreateServerForm nodeId={fixedNode} template={fixedTemplate} onClose={() => onOpenChange(false)} />
+      </FormDialogContent>
+    </Dialog>
+  )
+}
+
+/** The new server, created anew each time the dialog opens. */
+function CreateServerForm({
+  nodeId: fixedNode,
+  template: fixedTemplate,
+  onClose,
+}: {
+  nodeId?: string
+  template?: Template
+  onClose: () => void
+}) {
   const create = useCreateServer()
   const importServer = useImportServer()
   const upload = useUpload()
-  const [importError, setImportError] = useState<string>()
+  const [importError, setImportError] = useState<Error>()
   const operation = useOperation()
   const navigate = useNavigate()
-  const { data: settings } = useQuery({ ...newServersQuery, enabled: open })
-  const { data: templates = [] } = useQuery({ ...templatesQuery, enabled: open && !fixedTemplate })
+  const { data: settings } = useQuery(newServersQuery)
+  const { data: templates = [] } = useQuery({ ...templatesQuery, enabled: !fixedTemplate })
   // Until something is chosen, the form follows the settings of new servers and their template as they load.
-  const form = changed ?? blank(fixedTemplate ?? templates.find((candidate) => candidate.id === settings?.template), settings)
+  const { value: form, set, reset } = useDraft(blank(fixedTemplate ?? templates.find((candidate) => candidate.id === settings?.template), settings))
   const { can } = useAccess()
   const { data: me } = useQuery(meQuery)
-  const { data: allNodes = [], isPending: nodesPending } = useQuery({ ...nodesQuery, enabled: open && !fixedNode })
+  const { data: allNodes = [], isPending: nodesPending } = useQuery({ ...nodesQuery, enabled: !fixedNode })
   const nodes = allNodes.filter((n) => can("servers.create", n.id))
   // The node the user created a server on last, while it is online, or else the first online one.
   const online = nodes.filter((n) => n.status === "online")
   const nodeId = fixedNode ?? form.nodeId ?? (online.find((n) => me && n.id === lastNode(me.id)) ?? online[0])?.id
   const template = fixedTemplate ?? templates.find((candidate) => candidate.id === form.templateId)
-  const { data: node } = useQuery({ ...nodeQuery(nodeId ?? ""), enabled: open && !!nodeId })
-  const { data: servers } = useQuery({ ...serversQuery(nodeId ?? ""), enabled: open && !!nodeId })
+  const { data: node } = useQuery({ ...nodeQuery(nodeId ?? ""), enabled: !!nodeId })
+  const { data: servers } = useQuery({ ...serversQuery(nodeId ?? ""), enabled: !!nodeId })
   const locations = node?.info?.storage ?? []
   const proxy = serverType(form.type).proxy
+  // Bedrock servers run without Java and write their server.properties when they start first.
+  const bedrock = isBedrock(form.type)
+  const players = form.maxPlayers || defaultBedrockPlayers
   const fromModpack = form.type === modpack
   const fromArchive = form.source === "archive"
   // The picker only shows once a modpack was chosen as the software.
-  const chooseModpack = useCallback((choice?: ModpackChoice) => setForm((f) => f && { ...f, modpack: choice }), [])
+  const chooseModpack = useCallback((modpack?: ModpackChoice) => set({ modpack }), [set])
   const port =
     form.port ??
-    suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined)
+    suggestPort(usedPorts(servers), defaults(form.type).port, node?.portMin ?? undefined, node?.portMax ?? undefined, bedrock ? players : 1)
   const storage = form.storage ?? locations.find((l) => l.name === node?.defaultStorage)?.name ?? "default"
   // Tags of a new server need the permission to change the settings of the node's servers.
   const tags = template?.tags ?? []
   const tagsAllowed = !!nodeId && can("servers.settings", nodeId)
+  useBusy(create.isPending || upload.uploading)
+  // A refused request shows at the field it is about, and else below the fields.
+  const error = fromArchive ? importError : create.error
+  const errorAt = errorsAt(error)
+  const refused = formError(error, fields)
 
   const title = t("Create {{name}}", { name: form.name })
-
-  function onOpenChange(next: boolean) {
-    if (upload.uploading) return
-    setImportError(undefined)
-    setOpen(next)
-    onShownChange?.(next)
-    if (!next) {
-      create.reset()
-      operation.reset()
-      setForm(undefined)
-    }
-  }
 
   // Switching between game server and proxy updates the memory unless it was changed.
   function changeType(type: string) {
     const before = defaults(form.type, settings).memoryMb
-    setForm({ ...form, type, memoryMb: form.memoryMb === before ? defaults(type, settings).memoryMb : form.memoryMb })
+    set({ type, memoryMb: form.memoryMb === before ? defaults(type, settings).memoryMb : form.memoryMb })
   }
 
   // An archive brings its own data, so neither a template nor a modpack applies.
   function chooseSource(source: Form["source"]) {
-    setForm({ ...form, source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? (settings?.type ?? "paper") : form.type })
+    set({ source, archive: undefined, templateId: undefined, modpack: undefined, type: form.type === modpack ? (settings?.type ?? "paper") : form.type })
   }
 
   function chooseTemplate(id: string) {
     const chosen = templates.find((candidate) => candidate.id === id)
-    setForm({ ...blank(chosen, settings), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
+    reset({ ...blank(chosen, settings), name: form.name, acceptEula: form.acceptEula, nodeId: form.nodeId, port: form.port, storage: form.storage })
   }
 
   function submit(event: FormEvent) {
@@ -202,8 +236,9 @@ export function CreateServerDialog({
     if (!nodeId) return
     if (me) rememberNode(me.id, nodeId)
     const { name, type, memoryMb, acceptEula, stopTimeout, timeZone } = form
-    const [version, java] = proxy ? ["", ""] : [form.version.trim(), form.java]
+    const [version, java] = proxy ? ["", ""] : [form.version.trim(), bedrock ? "" : form.java]
     const server: NewServer = { name, type, memoryMb, acceptEula, port, storage, version, java, stopTimeout, timeZone }
+    if (bedrock) server.maxPlayers = players
     if (fromArchive) {
       if (form.archive) void createFromArchive(nodeId, server, form.archive)
       return
@@ -229,7 +264,7 @@ export function CreateServerDialog({
       })
       if (tagsAllowed) server.tags = tags
     }
-    if (!proxy) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }
+    if (!proxy && !bedrock) server.properties = { ...server.properties, ...worldChanges(form.world, template?.properties) }
     const open = (id: string) => navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: id } })
     operation.run((onStart) => create.mutateAsync({ nodeId, server, plugins: template?.plugins.map((p) => p.id), onStart }), {
       title,
@@ -242,7 +277,7 @@ export function CreateServerDialog({
         action: { label: t("Open"), onClick: () => void open(created.id) },
       }),
       then: (created) => {
-        onOpenChange(false)
+        onClose()
         if (!fixedNode) void open(created.id)
       },
     })
@@ -257,296 +292,294 @@ export function CreateServerDialog({
       ;(created.warning ? toast.warning : toast.success)(t("Created {{name}} from {{archive}}", { name: created.name, archive: archive.name }), {
         description: [leftOut, created.warning].filter(Boolean).join(" ") || undefined,
       })
-      setOpen(false)
-      onShownChange?.(false)
-      setForm(undefined)
+      onClose()
       void navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: created.id } })
     } catch (e) {
-      setImportError((e as Error).message)
+      setImportError(e as Error)
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {shown === undefined && (
-        <DialogTrigger asChild>
-          {trigger ?? (
-            <Button>
-              <PlusIcon />
-              {t("Create server")}
-            </Button>
-          )}
-        </DialogTrigger>
-      )}
-      <DialogContent className="sm:max-w-lg" {...guard(create.isPending || upload.uploading)}>
-        {operation.live ? (
-          <OperationStatus
-            op={operation.live}
-            title={title}
-            onBackground={() => {
-              operation.background(title)
-              onOpenChange(false)
-            }}
-            onBack={() => {
-              operation.reset()
-              create.reset()
-            }}
-          />
-        ) : (
-          <form onSubmit={submit} className="grid gap-6">
-            <DialogHeader>
-              <DialogTitle>
-                {fixedTemplate ? t("Create server from {{template}}", { template: fixedTemplate.name }) : t("Create server")}
-              </DialogTitle>
-              <DialogDescription>
-                {t("The first server on a node downloads the server image, which can take a few minutes.")}
-              </DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              {!fixedTemplate && (
-                <FieldSet>
-                  <FieldLegend variant="label">{t("Start with")}</FieldLegend>
-                  <Segmented
-                    label={t("Start with")}
-                    className="w-fit"
-                    value={form.source}
-                    onChange={chooseSource}
-                    options={[
-                      { value: "empty", label: t("A new server") },
-                      { value: "archive", label: t("An archive of a server") },
-                    ]}
-                  />
-                </FieldSet>
-              )}
-              {!fixedTemplate && !fromArchive && templates.length > 0 && (
-                <Field>
-                  <FieldLabel htmlFor="server-template">{t("Template")}</FieldLabel>
-                  <Select value={form.templateId ?? none} onValueChange={(id) => id && chooseTemplate(id)}>
-                    <SelectTrigger id="server-template" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={none}>{t("No template")}</SelectItem>
-                      {templates.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name}
-                          <span className="text-muted-foreground">{serverType(option.type).label}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-              {template && templateSummary(template) && (
-                <FieldDescription>{t("From the template: {{summary}}", { summary: templateSummary(template) })}</FieldDescription>
-              )}
-              {tags.length > 0 && (
-                <Field>
-                  <FieldLabel>{t("Tags")}</FieldLabel>
-                  <TagList tags={tags} className={tagsAllowed ? undefined : "opacity-50"} />
-                  <FieldDescription>
-                    {tagsAllowed
-                      ? t("File sets of the tags still have to be applied to the server.")
-                      : t("The server gets no tags, as you may not change the settings of servers on this node.")}
-                  </FieldDescription>
-                </Field>
-              )}
-              {!fixedNode && (
-                <Field>
-                  <FieldLabel htmlFor="server-node">{t("Node")}</FieldLabel>
-                  {/* Radix reports "" while the options of a new value load; that is no choice. */}
-                  <Select
-                    value={nodeId ?? ""}
-                    onValueChange={(id) => id && setForm({ ...form, nodeId: id, port: undefined, storage: undefined })}
-                  >
-                    <SelectTrigger id="server-node" className="w-full">
-                      <SelectValue placeholder={nodesPending ? t("Loading nodes…") : t("No node is online")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {nodes.map((n) => (
-                        <SelectItem key={n.id} value={n.id} disabled={n.status !== "online"}>
-                          {n.name}
-                          <span className="text-muted-foreground">
-                            {n.status === "online"
-                              ? (n.address ?? t("Online"))
-                              : n.status === "pending"
-                                ? t("Waiting for agent")
-                                : t("Offline")}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-              <Field>
-                <FieldLabel htmlFor="server-name">{t("Name")}</FieldLabel>
-                <Input
-                  id="server-name"
-                  placeholder={t("Lobby")}
-                  required
-                  maxLength={32}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="server-type">{t("Software")}</FieldLabel>
-                  <Select value={form.type} onValueChange={changeType} disabled={!!template}>
-                    <SelectTrigger id="server-type" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SoftwareOptions chosen={form.type} />
-                      {nodeId && can("plugins.manage", nodeId) && !fromArchive && (
-                        <SelectGroup>
-                          <SelectSeparator />
-                          <SelectLabel>{t("Modpacks")}</SelectLabel>
-                          <SelectItem value={modpack}>{t("Modrinth modpack")}</SelectItem>
-                        </SelectGroup>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                {!proxy && !fromModpack && (
-                  <VersionField id="server-version" value={form.version} onChange={(version) => setForm({ ...form, version })} />
-                )}
-              </div>
-              <EndOfLifeNotice type={form.type} />
-              {fromArchive && (
-                <Field>
-                  <FieldLabel htmlFor="server-archive">{t("Archive")}</FieldLabel>
-                  <Input
-                    id="server-archive"
-                    type="file"
-                    accept=".zip,.tar.gz,.tgz,application/zip,application/gzip"
-                    required
-                    disabled={upload.uploading}
-                    onChange={(e) => setForm({ ...form, archive: e.target.files?.[0] })}
-                  />
-                  <FieldDescription>
-                    {t(
-                      "A ZIP or .tar.gz archive of the contents of a server's folder, e.g. from a host, with server.properties at its top; up to 16 GB. The server gets its worlds, plugins and settings, but not its secrets, such as the console password, nor its trust in a proxy.",
-                    )}
-                  </FieldDescription>
-                </Field>
-              )}
-              {fromModpack && <ModpackPicker onChange={chooseModpack} />}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <MemoryField
-                  id="server-memory"
-                  value={form.memoryMb}
-                  onChange={(memoryMb) => setForm({ ...form, memoryMb })}
-                  freeMb={freeMemoryMb(node, servers)}
-                />
-                <Field>
-                  <FieldLabel htmlFor="server-port">{t("Port")}</FieldLabel>
-                  <Input
-                    id="server-port"
-                    type="number"
-                    min={1024}
-                    max={65535}
-                    required
-                    className="font-mono"
-                    value={port}
-                    onChange={(e) => setForm({ ...form, port: e.target.valueAsNumber || 0 })}
-                  />
-                </Field>
-              </div>
-              {!!template?.extraPorts.length && (
-                <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => setForm({ ...form, extraPorts })} />
-              )}
-              {locations.length > 1 && (
-                <Field>
-                  <FieldLabel htmlFor="server-storage">{t("Storage")}</FieldLabel>
-                  <Select value={storage} onValueChange={(storage) => setForm({ ...form, storage })}>
-                    <SelectTrigger id="server-storage" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((l) => (
-                        <SelectItem key={l.name} value={l.name}>
-                          {l.name}
-                          <span className="text-muted-foreground">{t("{{size}} free", { size: formatBytes(l.freeBytes) })}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-              {!proxy && !fromArchive && <WorldFields value={form.world} onChange={(world) => setForm({ ...form, world })} />}
-              <Fold
-                title={proxy ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
-                summary={[!proxy && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
-              >
-                {!proxy && <JavaField id="server-java" value={form.java} onChange={(java) => setForm({ ...form, java })} />}
-                <StopTimeoutField
-                  id="server-stop-timeout"
-                  value={form.stopTimeout}
-                  onChange={(stopTimeout) => setForm({ ...form, stopTimeout })}
-                />
-                <TimeZoneField id="server-time-zone" value={form.timeZone} onChange={(timeZone) => setForm({ ...form, timeZone })} />
-              </Fold>
-              {!proxy && (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="server-eula"
-                    checked={form.acceptEula}
-                    onCheckedChange={(v) => setForm({ ...form, acceptEula: v === true })}
-                  />
-                  <FieldLabel htmlFor="server-eula" className="font-normal">
-                    <span>
-                      <Trans
-                        i18nKey="I accept the <link>Minecraft EULA</link>"
-                        components={{
-                          link: (
-                            <a
-                              href="https://aka.ms/MinecraftEULA"
-                              target="_blank"
-                              rel="noreferrer"
-                              className="underline underline-offset-4"
-                            />
-                          ),
-                        }}
-                      />
-                    </span>
-                  </FieldLabel>
-                </Field>
-              )}
-              {proxy && <FieldDescription>{t("Proxies always run the latest release of their software.")}</FieldDescription>}
-              {create.error && <FieldError>{create.error.message}</FieldError>}
-              {upload.progress !== undefined && <UploadProgress progress={upload.progress} done={t("Creating the server and unpacking the archive…")} />}
-              {importError && <FieldError>{importError}</FieldError>}
-            </FieldGroup>
-            <DialogFooter>
-              {upload.uploading ? (
-                <Button type="button" variant="outline" onClick={upload.cancel}>
-                  {t("Cancel upload")}
-                </Button>
-              ) : (
-                <DialogClose asChild>
-                  <Button variant="outline" disabled={create.isPending}>
-                    {t("Cancel")}
-                  </Button>
-                </DialogClose>
-              )}
-              <Button
-                type="submit"
-                disabled={create.isPending || upload.uploading || !nodeId || (fromModpack && !form.modpack) || (fromArchive && !form.archive)}
-              >
-                {upload.uploading
-                  ? t("Uploading…")
-                  : create.isPending
-                    ? template?.plugins.length
-                      ? t("Creating and installing…")
-                      : t("Creating…")
-                    : t("Create server")}
-              </Button>
-            </DialogFooter>
-          </form>
+  return operation.live ? (
+    <OperationStatus
+      op={operation.live}
+      title={title}
+      onBackground={() => {
+        operation.background(title)
+        onClose()
+      }}
+      onBack={() => {
+        operation.reset()
+        create.reset()
+      }}
+    />
+  ) : (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>
+          {fixedTemplate ? t("Create server from {{template}}", { template: fixedTemplate.name }) : t("Create server")}
+        </DialogTitle>
+        <DialogDescription>
+          {t("The first server on a node downloads the server image, which can take a few minutes.")}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        {!fixedTemplate && (
+          <FieldSet>
+            <FieldLegend variant="label">{t("Start with")}</FieldLegend>
+            <Segmented
+              label={t("Start with")}
+              className="w-fit"
+              value={form.source}
+              onChange={chooseSource}
+              options={[
+                { value: "empty", label: t("A new server") },
+                { value: "archive", label: t("An archive of a server") },
+              ]}
+            />
+          </FieldSet>
         )}
-      </DialogContent>
-    </Dialog>
+        {!fixedTemplate && !fromArchive && templates.length > 0 && (
+          <Field>
+            <FieldLabel htmlFor="server-template">{t("Template")}</FieldLabel>
+            <Select value={form.templateId ?? none} onValueChange={(id) => id && chooseTemplate(id)}>
+              <SelectTrigger id="server-template" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={none}>{t("No template")}</SelectItem>
+                {templates.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                    <span className="text-muted-foreground">{serverType(option.type).label}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        {template && templateSummary(template) && (
+          <FieldDescription>{t("From the template: {{summary}}", { summary: templateSummary(template) })}</FieldDescription>
+        )}
+        {tags.length > 0 && (
+          <Field>
+            <FieldLabel>{t("Tags")}</FieldLabel>
+            <TagList tags={tags} className={tagsAllowed ? undefined : "opacity-50"} />
+            <FieldDescription>
+              {tagsAllowed
+                ? t("File sets of the tags still have to be applied to the server.")
+                : t("The server gets no tags, as you may not change the settings of servers on this node.")}
+            </FieldDescription>
+          </Field>
+        )}
+        {!fixedNode && (
+          <Field>
+            <FieldLabel htmlFor="server-node">{t("Node")}</FieldLabel>
+            {/* Radix reports "" while the options of a new value load; that is no choice. */}
+            <Select
+              value={nodeId ?? ""}
+              onValueChange={(id) => id && set({ nodeId: id, port: undefined, storage: undefined })}
+            >
+              <SelectTrigger id="server-node" className="w-full">
+                <SelectValue placeholder={nodesPending ? t("Loading nodes…") : t("No node is online")} />
+              </SelectTrigger>
+              <SelectContent>
+                {nodes.map((n) => (
+                  <SelectItem key={n.id} value={n.id} disabled={n.status !== "online"}>
+                    {n.name}
+                    <span className="text-muted-foreground">
+                      {n.status === "online"
+                        ? (n.address ?? t("Online"))
+                        : n.status === "pending"
+                          ? t("Waiting for agent")
+                          : t("Offline")}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        <Field data-invalid={!!errorAt("name")}>
+          <FieldLabel htmlFor="server-name">{t("Name")}</FieldLabel>
+          <Input
+            id="server-name"
+            placeholder={t("Lobby")}
+            required
+            maxLength={32}
+            aria-invalid={!!errorAt("name")}
+            value={form.name}
+            onChange={(e) => set({ name: e.target.value })}
+          />
+          <FieldError errors={errorAt("name")} />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field data-invalid={!!errorAt("type")}>
+            <FieldLabel htmlFor="server-type">{t("Software")}</FieldLabel>
+            <Select value={form.type} onValueChange={changeType} disabled={!!template}>
+              <SelectTrigger id="server-type" aria-invalid={!!errorAt("type")} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SoftwareOptions chosen={form.type} available={node?.info?.serverTypes} />
+                {nodeId && can("plugins.manage", nodeId) && !fromArchive && (
+                  <SelectGroup>
+                    <SelectSeparator />
+                    <SelectLabel>{t("Modpacks")}</SelectLabel>
+                    <SelectItem value={modpack}>{t("Modrinth modpack")}</SelectItem>
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+            <FieldError errors={errorAt("type")} />
+          </Field>
+          {!proxy && !fromModpack && (
+            <VersionField id="server-version" value={form.version} onChange={(version) => set({ version })} bedrock={bedrock} errors={errorAt("version")} />
+          )}
+        </div>
+        <EndOfLifeNotice type={form.type} />
+        {fromArchive && (
+          <Field>
+            <FieldLabel htmlFor="server-archive">{t("Archive")}</FieldLabel>
+            <Input
+              id="server-archive"
+              type="file"
+              accept=".zip,.tar.gz,.tgz,application/zip,application/gzip"
+              required
+              disabled={upload.uploading}
+              onChange={(e) => set({ archive: e.target.files?.[0] })}
+            />
+            <FieldDescription>
+              {t(
+                "A ZIP or .tar.gz archive of the contents of a server's folder, e.g. from a host, with server.properties at its top; up to 16 GB. The server gets its worlds, plugins and settings, but not its secrets, such as the console password, nor its trust in a proxy.",
+              )}
+            </FieldDescription>
+          </Field>
+        )}
+        {fromModpack && <ModpackPicker onChange={chooseModpack} />}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MemoryField
+            id="server-memory"
+            value={form.memoryMb}
+            onChange={(memoryMb) => set({ memoryMb })}
+            freeMb={freeMemoryMb(node, servers)}
+            errors={errorAt("memoryMb")}
+          />
+          <Field data-invalid={!!errorAt("port")}>
+            <FieldLabel htmlFor="server-port">{t("Port")}</FieldLabel>
+            <Input
+              id="server-port"
+              type="number"
+              min={1024}
+              max={65535}
+              required
+              aria-invalid={!!errorAt("port")}
+              className="font-mono"
+              value={port}
+              onChange={(e) => set({ port: e.target.valueAsNumber || 0 })}
+            />
+            <FieldError errors={errorAt("port")} />
+          </Field>
+        </div>
+        {bedrock && (
+          <PlayersField id="server-players" value={players} port={port} onChange={(maxPlayers) => set({ maxPlayers })} errors={errorAt("maxPlayers")} />
+        )}
+        {!!template?.extraPorts.length && !bedrock && (
+          <ExtraPortsField value={form.extraPorts ?? []} onChange={(extraPorts) => set({ extraPorts })} errors={errorAt("extraPorts")} />
+        )}
+        {locations.length > 1 && (
+          <Field>
+            <FieldLabel htmlFor="server-storage">{t("Storage")}</FieldLabel>
+            <Select value={storage} onValueChange={(storage) => set({ storage })}>
+              <SelectTrigger id="server-storage" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {locations.map((l) => (
+                  <SelectItem key={l.name} value={l.name}>
+                    {l.name}
+                    <span className="text-muted-foreground">{t("{{size}} free", { size: formatBytes(l.freeBytes) })}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        {!proxy && !bedrock && !fromArchive && <WorldFields value={form.world} onChange={(world) => set({ world })} />}
+        {bedrock && !fromArchive && (
+          <FieldDescription>
+            {t("The server writes its server.properties when it starts for the first time, with its world, game mode and difficulty, which you can change then.")}
+          </FieldDescription>
+        )}
+        <Fold
+          title={proxy || bedrock ? t("Stop timeout and time zone") : t("Java, stop timeout and time zone")}
+          summary={[!proxy && !bedrock && javaLabel(form.java), formatSeconds(form.stopTimeout), formatTimeZone(form.timeZone)].filter(Boolean).join(" · ")}
+          invalid={["java", "stopTimeout", "timeZone"].some(errorAt)}
+        >
+          {!proxy && !bedrock && <JavaField id="server-java" value={form.java} onChange={(java) => set({ java })} errors={errorAt("java")} />}
+          <StopTimeoutField
+            id="server-stop-timeout"
+            value={form.stopTimeout}
+            onChange={(stopTimeout) => set({ stopTimeout })}
+            errors={errorAt("stopTimeout")}
+          />
+          <TimeZoneField id="server-time-zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} errors={errorAt("timeZone")} />
+        </Fold>
+        {!proxy && (
+          <Field orientation="horizontal">
+            <Checkbox
+              id="server-eula"
+              checked={form.acceptEula}
+              onCheckedChange={(v) => set({ acceptEula: v === true })}
+            />
+            <FieldLabel htmlFor="server-eula" className="font-normal">
+              <span>
+                <Trans
+                  i18nKey="I accept the <link>Minecraft EULA</link>"
+                  components={{
+                    link: (
+                      // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
+                      <a
+                        href="https://aka.ms/MinecraftEULA"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-4"
+                      />
+                    ),
+                  }}
+                />
+              </span>
+            </FieldLabel>
+          </Field>
+        )}
+        {proxy && <FieldDescription>{t("Proxies always run the latest release of their software.")}</FieldDescription>}
+        {refused && <FieldError>{refused}</FieldError>}
+        {upload.progress !== undefined && <UploadProgress progress={upload.progress} done={t("Creating the server and unpacking the archive…")} />}
+      </FieldGroup>
+      <DialogFooter>
+        {upload.uploading ? (
+          <Button type="button" variant="outline" onClick={upload.cancel}>
+            {t("Cancel upload")}
+          </Button>
+        ) : (
+          <DialogClose asChild>
+            <Button variant="outline" disabled={create.isPending}>
+              {t("Cancel")}
+            </Button>
+          </DialogClose>
+        )}
+        <Button
+          type="submit"
+          disabled={create.isPending || upload.uploading || !nodeId || (fromModpack && !form.modpack) || (fromArchive && !form.archive)}
+        >
+          {upload.uploading
+            ? t("Uploading…")
+            : create.isPending
+              ? template?.plugins.length
+                ? t("Creating and installing…")
+                : t("Creating…")
+              : t("Create server")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }

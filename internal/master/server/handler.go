@@ -64,6 +64,7 @@ type Networks interface {
 // Tags label servers, e.g. lobby, and notes describe them, so that the panel finds and groups
 // them.
 type Tags interface {
+	References
 	All(ctx context.Context) (map[tag.Server][]string, error)
 	Change(ctx context.Context, servers []tag.Server, add, remove []string) error
 	Notes(ctx context.Context) (map[tag.Server]string, error)
@@ -75,17 +76,20 @@ type Tags interface {
 // FileSets put shared files on the servers of tags. Servers that lose a tag lose the files
 // with secrets of its sets.
 type FileSets interface {
+	References
 	Left(ctx context.Context, servers []tag.Server)
 }
 
 // Plugins installs plugins and mods, e.g. those of a template on a new server, in the versions
 // kept for them and the channels chosen for them by project ID.
 type Plugins interface {
+	References
 	InstallOn(ctx context.Context, projects []string, kept, channels map[string]string, nodeID, serverID string) error
 }
 
 // Modpacks installs Modrinth modpacks on new servers, and gives copies the pack of the original.
 type Modpacks interface {
+	References
 	Resolve(ctx context.Context, project, version string) (*modpack.Pack, error)
 	Install(ctx context.Context, nodeID, serverID string, p *modpack.Pack) error
 	Copy(ctx context.Context, nodeID, from, to string) error
@@ -119,8 +123,32 @@ type Handler struct {
 	reserved reservations
 }
 
-func NewHandler(nodes Nodes, networks Networks, tags Tags, plugins Plugins, modpacks Modpacks, ops *operation.Operations, moves *Moves, sets FileSets, conf Config, refs ...References) *Handler {
-	return &Handler{nodes: nodes, networks: networks, tags: tags, plugins: plugins, modpacks: modpacks, ops: ops, moves: moves, sets: sets, conf: conf, refs: refs}
+// Deps are what the handler of servers works with.
+type Deps struct {
+	Nodes      Nodes
+	Networks   Networks
+	Tags       Tags
+	Plugins    Plugins
+	Modpacks   Modpacks
+	Operations *operation.Operations
+	Moves      *Moves
+	FileSets   FileSets
+	Config     Config
+	// What else refers to servers, e.g. the targets of backup jobs and the scopes of groups. Like Tags, Plugins,
+	// Modpacks and FileSets, they forget deleted servers and follow moved ones.
+	Tasks, Access, Usage, Preferences, Sightings, Copies, Workflows, Notify References
+}
+
+func NewHandler(d Deps) *Handler {
+	h := &Handler{nodes: d.Nodes, networks: d.Networks, tags: d.Tags, plugins: d.Plugins, modpacks: d.Modpacks, ops: d.Operations,
+		moves: d.Moves, sets: d.FileSets, conf: d.Config}
+	for _, ref := range []References{d.Tags, d.Plugins, d.Modpacks, d.FileSets, d.Tasks, d.Access, d.Usage, d.Preferences, d.Sightings,
+		d.Copies, d.Workflows, d.Notify} {
+		if ref != nil {
+			h.refs = append(h.refs, ref)
+		}
+	}
+	return h
 }
 
 // What creating a server and copying one need, also to cancel them. The copy contains all
@@ -201,20 +229,40 @@ type settings struct {
 	TimeZone string `json:"timeZone"`
 	// ExtraPorts are ports of plugins, e.g. of a web map, which the node publishes.
 	ExtraPorts []ExtraPort `json:"extraPorts"`
+	// MaxPlayers is how many players a Bedrock server lets join at once, each over a UDP port of
+	// their own after its port; 0 for other servers.
+	MaxPlayers uint32 `json:"maxPlayers"`
 	advanced
 }
 
-// check validates the settings that the agent can't, and converts the restart policy
-// and CPU limit; an empty restart policy means the default.
+// check validates the settings that the agent can't, and some by the rules the agent checks too,
+// so that the panel shows what is wrong at its field. It converts the restart policy and CPU
+// limit; an empty restart policy means the default.
 func (s settings) check() (noryxv1.RestartPolicy, uint32, error) {
 	policy := noryxv1.ParseRestartPolicy(s.RestartPolicy)
 	switch {
 	case s.CPULimit < 0 || s.CPULimit > 1024:
-		return policy, 0, httpapi.Errorf(http.StatusBadRequest, "Enter a CPU limit in cores, or 0 for no limit.")
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "cpuLimit", "Enter a CPU limit in cores, or 0 for no limit.")
 	case policy == noryxv1.RestartPolicy_RESTART_POLICY_UNSPECIFIED && s.RestartPolicy != "":
-		return policy, 0, httpapi.Errorf(http.StatusBadRequest, "Choose when the server starts on its own.")
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "restartPolicy", "Choose when the server starts on its own.")
+	case !noryxv1.ValidJava(s.Java):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "java", "Choose Java 8, 11, 17, 21 or 25, or the newest.")
+	case !noryxv1.ValidStopTimeout(s.StopTimeout):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "stopTimeout", "Give the server %.0f seconds to %.0f minutes to stop.",
+			noryxv1.MinStopTimeout.Seconds(), noryxv1.MaxStopTimeout.Minutes())
+	case !noryxv1.ValidTimeZone(s.TimeZone):
+		return policy, 0, httpapi.FieldErrorf(http.StatusBadRequest, "timeZone", "Choose a time zone such as Europe/Berlin, or none for UTC.")
 	}
 	return policy, uint32(math.Round(s.CPULimit * 1000)), nil
+}
+
+// checkServer checks the name, version, memory and port of a server of a type by the rules its
+// agent checks too, so that the panel shows what is wrong at its field.
+func checkServer(typ noryxv1.ServerType, name, version string, memoryMB, port uint32) error {
+	if field, problem := noryxv1.ServerProblem(typ, name, version, memoryMB, port); problem != "" {
+		return httpapi.FieldErrorf(http.StatusBadRequest, field, "%s", problem)
+	}
+	return nil
 }
 
 func toView(s *noryxv1.Server) view {
@@ -226,8 +274,8 @@ func toView(s *noryxv1.Server) view {
 			Java: s.GetJava(), LoaderVersion: s.GetLoaderVersion(), RestartPolicy: s.GetRestartPolicy().Slug(), AikarFlags: s.GetAikarFlags(),
 			JVMOptions: append([]string{}, s.GetJvmOptions()...), CPULimit: float64(s.GetCpuMillis()) / 1000,
 			StopTimeout: stopSeconds(s.GetStopTimeoutSeconds()), TimeZone: s.GetTimeZone(),
-			ExtraPorts: extraPortsOf(s),
-			advanced:   advancedOf(s),
+			ExtraPorts: extraPortsOf(s), MaxPlayers: s.GetMaxPlayers(),
+			advanced: advancedOf(s),
 		},
 	}
 }
@@ -343,145 +391,192 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 // plugins a template provides; plugins that can't be installed leave the server without them.
 // A modpack decides the type and the versions, and a server without all of it is deleted.
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name       string `json:"name"`
-		Type       string `json:"type"`
-		Version    string `json:"version"`
-		MemoryMB   uint32 `json:"memoryMb"`
-		Port       uint32 `json:"port"`
-		AcceptEULA bool   `json:"acceptEula"`
-		Storage    string `json:"storage"`
-		settings
-		Properties map[string]string `json:"properties"`
-		// Plugins are the IDs of projects of Modrinth or Hangar to install on the new server,
-		// Versions the IDs of the versions to keep of some and Channels the channels to take
-		// some in, by project ID, e.g. of a template.
-		Plugins  []string          `json:"plugins"`
-		Versions map[string]string `json:"versions"`
-		Channels map[string]string `json:"channels"`
-		// Tags are given to the new server, e.g. those of its template.
-		Tags []string `json:"tags"`
-		// Modpack is a version of a Modrinth modpack to install on the new server.
-		Modpack *struct {
-			Project string `json:"project"`
-			Version string `json:"version"`
-		} `json:"modpack"`
-	}
+	var req createRequest
 	if err := httpapi.ReadJSON(w, r, &req); err != nil {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	nodeID := r.PathValue("node")
-	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
-	defer cancel()
-	grants := access.From(r.Context())
-	policy, cpuMillis, err := req.check()
-	var tags []string
-	if err == nil {
-		tags, err = newTags(grants, nodeID, req.Tags)
-	}
-	if err == nil && (len(req.Plugins) > 0 || req.Modpack != nil) && !grants.On(access.Plugins, nodeID, "") {
-		err = access.Denied(access.Plugins)
-	}
-	if err == nil {
-		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, 0)
-	}
-	release := noRelease
-	if err == nil {
-		release, err = h.checkLimits(ctx, nodeID, "", req.Port, req.MemoryMB)
-	}
+	n, err := h.checkCreate(r, req)
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
 	}
-	if req.Modpack != nil && req.HealthStart == 0 {
-		req.HealthStart = modpack.HealthStart
+	h.ops.Run(w, r, n.operation(), func(ctx context.Context) (any, error) {
+		defer n.release()
+		return h.createServer(ctx, n)
+	})
+}
+
+// createRequest is what the panel sends to create a server.
+type createRequest struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Version    string `json:"version"`
+	MemoryMB   uint32 `json:"memoryMb"`
+	Port       uint32 `json:"port"`
+	AcceptEULA bool   `json:"acceptEula"`
+	Storage    string `json:"storage"`
+	settings
+	Properties map[string]string `json:"properties"`
+	// Plugins are the IDs of projects of Modrinth or Hangar to install on the new server,
+	// Versions the IDs of the versions to keep of some and Channels the channels to take
+	// some in, by project ID, e.g. of a template.
+	Plugins  []string          `json:"plugins"`
+	Versions map[string]string `json:"versions"`
+	Channels map[string]string `json:"channels"`
+	// Tags are given to the new server, e.g. those of its template.
+	Tags []string `json:"tags"`
+	// Modpack is a version of a Modrinth modpack to install on the new server.
+	Modpack *struct {
+		Project string `json:"project"`
+		Version string `json:"version"`
+	} `json:"modpack"`
+}
+
+// newServer is a checked request to create a server on a node.
+type newServer struct {
+	createRequest
+	nodeID    string
+	policy    noryxv1.RestartPolicy
+	cpuMillis uint32
+	tags      []string
+	// release frees the port and memory that the limits of the node hold for the server.
+	release func()
+}
+
+// checkCreate checks a request to create a server on the node of r: its settings and tags, the
+// permission to install plugins and modpacks, its ports and the limits of the node, which hold its
+// port and memory until it is created.
+func (h *Handler) checkCreate(r *http.Request, req createRequest) (newServer, error) {
+	n := newServer{createRequest: req, nodeID: r.PathValue("node"), release: noRelease}
+	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
+	defer cancel()
+	grants := access.From(r.Context())
+	typ := noryxv1.ParseServerType(req.Type)
+	err := checkServer(typ, req.Name, req.Version, req.MemoryMB, req.Port)
+	if err == nil {
+		n.policy, n.cpuMillis, err = req.check()
 	}
+	if err == nil {
+		n.tags, err = newTags(grants, n.nodeID, req.Tags)
+	}
+	if err == nil && (len(req.Plugins) > 0 || req.Modpack != nil) && !grants.On(access.Plugins, n.nodeID, "") {
+		err = access.Denied(access.Plugins)
+	}
+	if err == nil && len(req.Plugins) > 0 && !typ.Addons() {
+		err = httpapi.FieldErrorf(http.StatusBadRequest, "plugins", "Vanilla and Bedrock servers can't load plugins or mods.")
+	}
+	if err == nil && req.Modpack == nil {
+		err = h.checkType(ctx, n.nodeID, typ)
+	}
+	if err == nil {
+		err = h.checkExtraPorts(ctx, n.nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, 0)
+	}
+	if err == nil {
+		n.release, err = h.checkLimits(ctx, n.nodeID, "", req.Port, noryxv1.LastPort(typ, req.Port, req.MaxPlayers), req.MemoryMB)
+	}
+	if n.Modpack != nil && n.HealthStart == 0 {
+		n.HealthStart = modpack.HealthStart
+	}
+	return n, err
+}
+
+// operation describes creating the server as an operation with its steps.
+func (n newServer) operation() operation.Spec {
 	steps := []string{"image", "container"}
-	if req.Modpack != nil {
+	if n.Modpack != nil {
 		steps = []string{"modpack", "image", "container", "mods"}
 	}
-	if len(req.Plugins) > 0 {
+	if len(n.Plugins) > 0 {
 		steps = append(steps, "plugins")
 	}
-	spec := operation.Spec{
-		Kind: "server.create", Subject: req.Name, NodeID: nodeID, Steps: steps, Status: http.StatusCreated,
-		Timeout: createTimeout, Category: logging.Servers, Visible: viewable(nodeID, ""), Cancel: createNeed,
+	return operation.Spec{
+		Kind: "server.create", Subject: n.Name, NodeID: n.nodeID, Steps: steps, Status: http.StatusCreated,
+		Timeout: createTimeout, Category: logging.Servers, Visible: viewable(n.nodeID, ""), Cancel: createNeed,
 	}
-	h.ops.Run(w, r, spec, func(ctx context.Context) (any, error) {
-		defer release()
-		create := &noryxv1.CreateServerRequest{
-			Name: req.Name, Type: noryxv1.ParseServerType(req.Type), Version: req.Version, MemoryMb: req.MemoryMB,
-			Port: req.Port, AcceptEula: req.AcceptEULA, Storage: req.Storage, Java: req.Java, RestartPolicy: policy,
-			AikarFlags: req.AikarFlags, JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, Properties: req.Properties,
-			LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout, TimeZone: req.TimeZone,
-			ExtraPorts:         ProtoPorts(req.ExtraPorts),
-			HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
-			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
-		}
-		var pack *modpack.Pack
-		if req.Modpack != nil {
-			operation.Step(ctx, "modpack")
-			var err error
-			if pack, err = h.modpacks.Resolve(ctx, req.Modpack.Project, req.Modpack.Version); err != nil {
-				return nil, err
-			}
-			create.Type, create.Version, create.LoaderVersion = pack.Type, pack.GameVersion, pack.LoaderVersion
-			operation.Step(ctx, "image")
-		}
-		var res *noryxv1.CreateServerResponse
-		err := h.agent(ctx, nodeID, func(ctx context.Context, c noryxv1.ServerServiceClient) (err error) {
-			res, err = c.CreateServer(ctx, create)
-			return err
-		})
-		if err != nil {
+}
+
+// request is what the agent gets to create the server.
+func (n newServer) request() *noryxv1.CreateServerRequest {
+	return &noryxv1.CreateServerRequest{
+		Name: n.Name, Type: noryxv1.ParseServerType(n.Type), Version: n.Version, MemoryMb: n.MemoryMB,
+		Port: n.Port, AcceptEula: n.AcceptEULA, Storage: n.Storage, Java: n.Java, RestartPolicy: n.policy,
+		AikarFlags: n.AikarFlags, JvmOptions: n.JVMOptions, CpuMillis: n.cpuMillis, Properties: n.Properties,
+		LoaderVersion: n.LoaderVersion, StopTimeoutSeconds: n.StopTimeout, TimeZone: n.TimeZone,
+		ExtraPorts:         ProtoPorts(n.ExtraPorts),
+		HealthStartMinutes: n.HealthStart, CrashLimit: n.CrashLimit, StableAfterMinutes: n.StableAfter,
+		UnhealthyRestartMinutes: n.UnhealthyRestart, ProcessLimit: n.ProcessLimit, InitMemoryMb: n.InitMemoryMB, MaxPlayers: n.MaxPlayers,
+	}
+}
+
+// createServer creates a checked server: resolves its modpack, has the agent create it, installs the modpack and
+// gives it its tags and plugins.
+func (h *Handler) createServer(ctx context.Context, n newServer) (any, error) {
+	create := n.request()
+	var pack *modpack.Pack
+	if n.Modpack != nil {
+		operation.Step(ctx, "modpack")
+		var err error
+		if pack, err = h.modpacks.Resolve(ctx, n.Modpack.Project, n.Modpack.Version); err != nil {
 			return nil, err
 		}
-		id := res.GetServer().GetId()
-		operation.Target(ctx, nodeID, id)
-		logging.Note(ctx, slog.String(logging.KeyServer, id), slog.String(logging.KeyServerName, res.GetServer().GetName()))
-		if pack != nil {
-			operation.Step(ctx, "mods")
-			err = h.modpacks.Install(ctx, nodeID, id, pack)
-		}
-		// A server without all of its modpack is deleted, as is one whose creation was
-		// cancelled. Once it is complete, it stays: installing its plugins can't be cancelled.
-		if err == nil {
-			err = operation.Keep(ctx)
-		}
-		if err != nil {
-			deleted := h.agent(context.WithoutCancel(ctx), nodeID, func(ctx context.Context, c noryxv1.ServerServiceClient) error {
-				_, err := c.DeleteServer(ctx, &noryxv1.DeleteServerRequest{Id: id})
-				return err
-			})
-			if deleted == nil {
-				h.forget(ctx, nodeID, id) // e.g. its modpack
-			}
+		create.Type, create.Version, create.LoaderVersion = pack.Type, pack.GameVersion, pack.LoaderVersion
+		operation.Step(ctx, "image")
+	}
+	var res *noryxv1.CreateServerResponse
+	err := h.agent(ctx, n.nodeID, func(ctx context.Context, c noryxv1.ServerServiceClient) (err error) {
+		res, err = c.CreateServer(ctx, create)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	id := res.GetServer().GetId()
+	operation.Target(ctx, n.nodeID, id)
+	logging.Note(ctx, slog.String(logging.KeyServer, id), slog.String(logging.KeyServerName, res.GetServer().GetName()))
+	if pack != nil {
+		operation.Step(ctx, "mods")
+		err = h.modpacks.Install(ctx, n.nodeID, id, pack)
+	}
+	// A server without all of its modpack is deleted, as is one whose creation was
+	// cancelled. Once it is complete, it stays: installing its plugins can't be cancelled.
+	if err == nil {
+		err = operation.Keep(ctx)
+	}
+	if err != nil {
+		deleted := h.agent(context.WithoutCancel(ctx), n.nodeID, func(ctx context.Context, c noryxv1.ServerServiceClient) error {
+			_, err := c.DeleteServer(ctx, &noryxv1.DeleteServerRequest{Id: id})
+			return err
+		})
+		if deleted != nil {
+			// Only then: a join of err alone would hide the agent's message behind its status.
 			return nil, errors.Join(err, deleted)
 		}
-		created := struct {
-			view
-			// PluginError tells why the plugins couldn't be installed.
-			PluginError string `json:"pluginError,omitempty"`
-			// Warning tells what the server didn't get, e.g. from an older agent.
-			Warning string `json:"warning,omitempty"`
-		}{view: toView(res.GetServer()), Warning: olderAgentWarning(req.StopTimeout, req.TimeZone, res.GetServer())}
-		created.Warning = strings.TrimSpace(created.Warning + " " + olderAgentAdvanced(req.advanced, res.GetServer()))
-		created.Warning = strings.TrimSpace(created.Warning + " " + extraPortsWarning(len(req.ExtraPorts), res.GetServer()))
-		if len(tags) > 0 {
-			logging.Note(ctx, slog.Any("tags", tags))
-			if err := h.tags.Change(ctx, []tag.Server{{NodeID: nodeID, ServerID: id}}, tags, nil); err != nil {
-				created.Warning = strings.TrimSpace("The server didn't get its tags: " + httpapi.Message(err) + " " + created.Warning)
-			}
+		h.forget(ctx, n.nodeID, id) // e.g. its modpack
+		return nil, err
+	}
+	created := struct {
+		view
+		// PluginError tells why the plugins couldn't be installed.
+		PluginError string `json:"pluginError,omitempty"`
+		// Warning tells what the server didn't get, e.g. from an older agent.
+		Warning string `json:"warning,omitempty"`
+	}{view: toView(res.GetServer()), Warning: olderAgentWarning(n.StopTimeout, n.TimeZone, res.GetServer())}
+	created.Warning = strings.TrimSpace(created.Warning + " " + olderAgentAdvanced(n.advanced, res.GetServer()))
+	created.Warning = strings.TrimSpace(created.Warning + " " + extraPortsWarning(len(n.ExtraPorts), res.GetServer()))
+	if len(n.tags) > 0 {
+		logging.Note(ctx, slog.Any("tags", n.tags))
+		if err := h.tags.Change(ctx, []tag.Server{{NodeID: n.nodeID, ServerID: id}}, n.tags, nil); err != nil {
+			created.Warning = strings.TrimSpace("The server didn't get its tags: " + httpapi.Message(err) + " " + created.Warning)
 		}
-		if len(req.Plugins) > 0 {
-			operation.Step(ctx, "plugins")
-			if err := h.plugins.InstallOn(ctx, req.Plugins, req.Versions, req.Channels, nodeID, id); err != nil {
-				created.PluginError = httpapi.Message(err)
-			}
+	}
+	if len(n.Plugins) > 0 {
+		operation.Step(ctx, "plugins")
+		if err := h.plugins.InstallOn(ctx, n.Plugins, n.Versions, n.Channels, n.nodeID, id); err != nil {
+			created.PluginError = httpapi.Message(err)
 		}
-		return created, nil
-	})
+	}
+	return created, nil
 }
 
 // newTags checks the tags of a new server, which need the permission to change the settings of
@@ -490,9 +585,9 @@ func newTags(grants access.Grants, nodeID string, tags []string) ([]string, erro
 	tags, err := tag.Normalize(tags)
 	switch {
 	case err != nil:
-		return nil, err
+		return nil, httpapi.Within("tags", err)
 	case len(tags) > tag.MaxPerServer:
-		return nil, httpapi.Errorf(http.StatusBadRequest, "A server can have up to %d tags.", tag.MaxPerServer)
+		return nil, httpapi.FieldErrorf(http.StatusBadRequest, "tags", "A server can have up to %d tags.", tag.MaxPerServer)
 	case len(tags) > 0 && !grants.On(access.ServersSettings, nodeID, ""):
 		return nil, access.Denied(access.ServersSettings)
 	}
@@ -544,7 +639,7 @@ func (h *Handler) duplicate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	source := list.GetServers()[i]
-	release, err := h.checkLimits(ctx, nodeID, "", req.Port, source.GetMemoryMb())
+	release, err := h.checkLimits(ctx, nodeID, "", req.Port, noryxv1.LastPort(source.GetType(), req.Port, source.GetMaxPlayers()), source.GetMemoryMb())
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -629,11 +724,14 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		current, err = h.find(ctx, nodeID, id)
 	}
 	if err == nil {
+		err = checkServer(current.GetType(), req.Name, req.Version, req.MemoryMB, req.Port)
+	}
+	if err == nil {
 		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, current.GetBedrockPort())
 	}
 	release := noRelease
 	if err == nil {
-		release, err = h.checkLimits(ctx, nodeID, id, req.Port, req.MemoryMB)
+		release, err = h.checkLimits(ctx, nodeID, id, req.Port, noryxv1.LastPort(current.GetType(), req.Port, req.MaxPlayers), req.MemoryMB)
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
@@ -654,6 +752,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 				ExtraPorts:         ProtoPorts(req.ExtraPorts),
 				HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
 				UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB,
+				MaxPlayers: req.MaxPlayers,
 			})
 			return err
 		})

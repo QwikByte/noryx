@@ -3,13 +3,13 @@ import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type ReactNode, useId, useState } from "react"
 import { Callout } from "@/components/callout"
+import { FormDialogContent, useBusy } from "@/components/form-dialog"
 import { Pill } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -26,7 +26,7 @@ import { allServersQuery, type NodeServer } from "@/features/servers/api"
 import { OperationStatus } from "@/features/operations/operation-status"
 import { mergeResults } from "@/features/operations/retry"
 import { RetryButton } from "@/features/operations/retry-button"
-import { guard, useOperation } from "@/features/operations/use-operation"
+import { useOperation } from "@/features/operations/use-operation"
 import {
   type Channel,
   channelLabel,
@@ -53,15 +53,32 @@ import { VersionMenu } from "./version-menu"
  */
 export function InstallDialog({ hit }: { hit: SearchHit }) {
   const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <DownloadSimpleIcon />
+          {t("Install")}
+        </Button>
+      </DialogTrigger>
+      <FormDialogContent className="sm:max-w-xl">
+        <InstallForm hit={hit} onClose={() => setOpen(false)} />
+      </FormDialogContent>
+    </Dialog>
+  )
+}
+
+/** The servers to install a project on, chosen anew each time the dialog opens. */
+function InstallForm({ hit, onClose }: { hit: SearchHit; onClose: () => void }) {
   const [selected, setSelected] = useState<string[]>([])
   const [pinned, setPinned] = useState<ProjectVersion>()
   const [channel, setChannel] = useState<Channel>("release")
   // The batch that runs, of how many, e.g. 1 of 2 for 150 servers.
   const [[part, parts], setPart] = useState([0, 0])
   const { can } = useAccess()
-  const { data: servers = [] } = useQuery({ ...allServersQuery, enabled: open })
-  const { data: networks = [] } = useQuery({ ...networksQuery, enabled: open && can("networks.view") })
-  const { data: everywhere } = useQuery({ ...installedQuery, enabled: open })
+  const { data: servers = [] } = useQuery(allServersQuery)
+  const { data: networks = [] } = useQuery({ ...networksQuery, enabled: can("networks.view") })
+  const { data: everywhere } = useQuery(installedQuery)
   const install = useInstallPlugins()
   const operation = useOperation()
   const suitable = servers.filter((s) => supports(hit.loaders, s.type) && can("plugins.manage", s.nodeId, s.id))
@@ -95,6 +112,7 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
   // The results of a retry take the place of those of the servers it tried again.
   const [earlier, setEarlier] = useState<InstallResult[]>()
   const results = install.data && mergeResults(earlier, install.data)
+  useBusy(install.isPending)
 
   function start(servers = chosen.map(refOf)) {
     operation.run(
@@ -132,178 +150,154 @@ export function InstallDialog({ hit }: { hit: SearchHit }) {
     )
   }
 
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) {
-      install.reset()
-      operation.reset()
-      setSelected([])
-      setPinned(undefined)
-      setChannel("release")
-      setEarlier(undefined)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <DownloadSimpleIcon />
-          {t("Install")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xl" {...guard(install.isPending)}>
-        {operation.live && !install.data ? (
-          <OperationStatus
-            op={operation.live}
-            title={parts > 1 ? t("{{title}}, part {{part}} of {{parts}}", { title, part, parts }) : title}
-            onBackground={() => {
-              operation.background(title)
-              onOpenChange(false)
-            }}
-            onBack={() => {
-              operation.reset()
-              install.reset()
-              setEarlier(undefined)
+  return operation.live && !install.data ? (
+    <OperationStatus
+      op={operation.live}
+      title={parts > 1 ? t("{{title}}, part {{part}} of {{parts}}", { title, part, parts }) : title}
+      onBackground={() => {
+        operation.background(title)
+        onClose()
+      }}
+      onBack={() => {
+        operation.reset()
+        install.reset()
+        setEarlier(undefined)
+      }}
+    />
+  ) : (
+    <>
+      <DialogHeader className="flex-row items-center gap-3">
+        <PluginIcon src={hit.icon} />
+        <div className="min-w-0 space-y-1 text-left">
+          <DialogTitle>{t("Install {{name}}", { name: hit.title })}</DialogTitle>
+          <DialogDescription>{t("The newest version of the channel that suits each server is installed, with what it requires.")}</DialogDescription>
+        </div>
+      </DialogHeader>
+      {results ? (
+        <Results results={results} servers={servers} versions={versions} channels={chosenChannels} />
+      ) : suitable.length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">{t("None of your servers can run {{name}}.", { name: hit.title })}</p>
+      ) : (
+        <div className="-mx-1 grid max-h-[28rem] gap-4 overflow-y-auto px-1">
+          {groups.length > 0 && (
+            <Group title={t("Networks")}>
+              {groups.map((g) => {
+                const keys = g.servers.map((s) => key(refOf(s)))
+                const count = keys.filter((k) => picked.has(k)).length
+                return (
+                  <Row
+                    key={g.id}
+                    checked={count === 0 ? false : count === keys.length || "indeterminate"}
+                    onChange={(on) => choose(keys, on)}
+                    title={g.label}
+                    detail={
+                      g.servers.length === 1
+                        ? g.servers[0].name
+                        : t("{{count}} servers", { count: g.servers.length, defaultValue_one: "{{count}} server" })
+                    }
+                  />
+                )
+              })}
+            </Group>
+          )}
+          <Group title={groups.length > 0 ? t("Servers") : undefined}>
+            <ServerPicker
+              servers={suitable}
+              selected={chosen.map(refOf)}
+              onChange={(refs) => {
+                setSelected(refs.map(key))
+                setPinned(undefined)
+              }}
+              badge={(s) => {
+                const file = has.get(key(refOf(s)))
+                return (
+                  file && (
+                    <Pill tone={file.disabled ? "neutral" : "success"}>
+                      <CheckIcon weight="bold" />
+                      <span className="max-w-24 truncate font-mono">{file.version}</span>
+                      <span className="sr-only">{file.disabled ? t("Installed, but turned off") : t("Installed")}</span>
+                    </Pill>
+                  )
+                )
+              }}
+            />
+          </Group>
+        </div>
+      )}
+      {!install.data && chosen.length > 0 && (
+        <div className="grid gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">{t("Channel")}</span>
+            <Select value={channel} onValueChange={(c) => setChannel(c as Channel)}>
+              <SelectTrigger size="sm" aria-label={t("Channel")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {channels.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {channelLabel(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {channel !== "release" && (
+            <p className="text-xs text-muted-foreground">
+              {t("The servers keep the channel, so updates of {{name}} take these versions too.", { name: hit.title })}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">{t("Version")}</span>
+            {same ? (
+              <VersionMenu
+                project={hit.id}
+                title={hit.title}
+                type={chosen[0].type}
+                version={chosen[0].version}
+                current={pinned?.id}
+                channel={channel}
+                onNewest={() => setPinned(undefined)}
+                onPick={setPinned}
+              >
+                <Button size="sm" variant="outline">
+                  {pinned ? <span className="font-mono">{pinned.number}</span> : newestLabel(channel)}
+                  <CaretDownIcon />
+                </Button>
+              </VersionMenu>
+            ) : (
+              <span className="text-right text-xs text-muted-foreground">
+                {t("The newest suitable version of the channel, as the servers run different software or Minecraft versions.")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {!install.data && <RestartOption restart={restart} />}
+      {install.error && <FieldError>{install.error.message}</FieldError>}
+      <DialogFooter>
+        {results && (
+          <RetryButton
+            results={results}
+            onRetry={(failed) => {
+              setEarlier(results)
+              start(failed)
             }}
           />
-        ) : (
-          <>
-            <DialogHeader className="flex-row items-center gap-3">
-              <PluginIcon src={hit.icon} />
-              <div className="min-w-0 space-y-1 text-left">
-                <DialogTitle>{t("Install {{name}}", { name: hit.title })}</DialogTitle>
-                <DialogDescription>{t("The newest version of the channel that suits each server is installed, with what it requires.")}</DialogDescription>
-              </div>
-            </DialogHeader>
-            {results ? (
-              <Results results={results} servers={servers} versions={versions} channels={chosenChannels} />
-            ) : suitable.length === 0 ? (
-              <p className="py-4 text-sm text-muted-foreground">{t("None of your servers can run {{name}}.", { name: hit.title })}</p>
-            ) : (
-              <div className="-mx-1 grid max-h-[28rem] gap-4 overflow-y-auto px-1">
-                {groups.length > 0 && (
-                  <Group title={t("Networks")}>
-                    {groups.map((g) => {
-                      const keys = g.servers.map((s) => key(refOf(s)))
-                      const count = keys.filter((k) => picked.has(k)).length
-                      return (
-                        <Row
-                          key={g.id}
-                          checked={count === 0 ? false : count === keys.length || "indeterminate"}
-                          onChange={(on) => choose(keys, on)}
-                          title={g.label}
-                          detail={
-                            g.servers.length === 1
-                              ? g.servers[0].name
-                              : t("{{count}} servers", { count: g.servers.length, defaultValue_one: "{{count}} server" })
-                          }
-                        />
-                      )
-                    })}
-                  </Group>
-                )}
-                <Group title={groups.length > 0 ? t("Servers") : undefined}>
-                  <ServerPicker
-                    servers={suitable}
-                    selected={chosen.map(refOf)}
-                    onChange={(refs) => {
-                      setSelected(refs.map(key))
-                      setPinned(undefined)
-                    }}
-                    badge={(s) => {
-                      const file = has.get(key(refOf(s)))
-                      return (
-                        file && (
-                          <Pill tone={file.disabled ? "neutral" : "success"}>
-                            <CheckIcon weight="bold" />
-                            <span className="max-w-24 truncate font-mono">{file.version}</span>
-                            <span className="sr-only">{file.disabled ? t("Installed, but turned off") : t("Installed")}</span>
-                          </Pill>
-                        )
-                      )
-                    }}
-                  />
-                </Group>
-              </div>
-            )}
-            {!install.data && chosen.length > 0 && (
-              <div className="grid gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{t("Channel")}</span>
-                  <Select value={channel} onValueChange={(c) => setChannel(c as Channel)}>
-                    <SelectTrigger size="sm" aria-label={t("Channel")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {channels.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {channelLabel(c)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {channel !== "release" && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("The servers keep the channel, so updates of {{name}} take these versions too.", { name: hit.title })}
-                  </p>
-                )}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{t("Version")}</span>
-                  {same ? (
-                    <VersionMenu
-                      project={hit.id}
-                      title={hit.title}
-                      type={chosen[0].type}
-                      version={chosen[0].version}
-                      current={pinned?.id}
-                      channel={channel}
-                      onNewest={() => setPinned(undefined)}
-                      onPick={setPinned}
-                    >
-                      <Button size="sm" variant="outline">
-                        {pinned ? <span className="font-mono">{pinned.number}</span> : newestLabel(channel)}
-                        <CaretDownIcon />
-                      </Button>
-                    </VersionMenu>
-                  ) : (
-                    <span className="text-right text-xs text-muted-foreground">
-                      {t("The newest suitable version of the channel, as the servers run different software or Minecraft versions.")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-            {!install.data && <RestartOption restart={restart} />}
-            {install.error && <FieldError>{install.error.message}</FieldError>}
-            <DialogFooter>
-              {results && (
-                <RetryButton
-                  results={results}
-                  onRetry={(failed) => {
-                    setEarlier(results)
-                    start(failed)
-                  }}
-                />
-              )}
-              <DialogClose asChild>
-                <Button variant="outline" disabled={install.isPending}>
-                  {install.data ? t("Done") : t("Cancel")}
-                </Button>
-              </DialogClose>
-              {!install.data && (
-                <Button disabled={chosen.length === 0 || install.isPending} onClick={() => start()}>
-                  {install.isPending
-                    ? t("Installing…")
-                    : t("Install on {{count}} servers", { count: chosen.length, defaultValue_one: "Install on {{count}} server" })}
-                </Button>
-              )}
-            </DialogFooter>
-          </>
         )}
-      </DialogContent>
-    </Dialog>
+        <DialogClose asChild>
+          <Button variant="outline" disabled={install.isPending}>
+            {install.data ? t("Done") : t("Cancel")}
+          </Button>
+        </DialogClose>
+        {!install.data && (
+          <Button disabled={chosen.length === 0 || install.isPending} onClick={() => start()}>
+            {install.isPending
+              ? t("Installing…")
+              : t("Install on {{count}} servers", { count: chosen.length, defaultValue_one: "Install on {{count}} server" })}
+          </Button>
+        )}
+      </DialogFooter>
+    </>
   )
 }
 

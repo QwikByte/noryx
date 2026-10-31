@@ -47,11 +47,11 @@ func (a limitsAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc
 
 func TestCheckLimitsCountsContainers(t *testing.T) {
 	check := func(h *Handler, serverID string, memoryMB uint32) (func(), error) {
-		return h.checkLimits(t.Context(), "n1", serverID, 25565, memoryMB)
+		return h.checkLimits(t.Context(), "n1", serverID, 25565, 25565, memoryMB)
 	}
 	// Two servers with 1 GB fit the 2355 MB left for servers, but their containers don't:
 	// they may use 1536 MB each.
-	full := NewHandler(limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}, {Id: "s2", MemoryMb: 1024}}}, nil, nil, nil, nil, nil, NewMoves(), nil, nil)
+	full := NewHandler(Deps{Nodes: limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}, {Id: "s2", MemoryMb: 1024}}}, Moves: NewMoves()})
 	if _, err := check(full, "", 256); err == nil || !strings.Contains(err.Error(), "up to 0 MB") {
 		t.Errorf("a new server on a full node: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCheckLimitsCountsContainers(t *testing.T) {
 	}
 
 	// With one server, 819 MB are left, enough for a container of 450 MB of heap: 818 MB.
-	h := NewHandler(limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}}}, nil, nil, nil, nil, nil, NewMoves(), nil, nil)
+	h := NewHandler(Deps{Nodes: limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}}}, Moves: NewMoves()})
 	if _, err := check(h, "", 1024); err == nil || !strings.Contains(err.Error(), "up to 450 MB") {
 		t.Fatalf("a second server with 1 GB: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestCheckLimitsCountsContainers(t *testing.T) {
 	}
 
 	// A datastore takes its memory limit: 819 MB minus 512 MB leave a container for 40 MB of heap.
-	h = NewHandler(limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}}, datastores: []*noryxv1.Datastore{{Id: "d1", MemoryMb: 512}}}, nil, nil, nil, nil, nil, NewMoves(), nil, nil)
+	h = NewHandler(Deps{Nodes: limitsNodes{servers: []*noryxv1.Server{{Id: "s1", MemoryMb: 1024}}, datastores: []*noryxv1.Datastore{{Id: "d1", MemoryMb: 512}}}, Moves: NewMoves()})
 	if _, err := check(h, "", 450); err == nil || !strings.Contains(err.Error(), "up to 40 MB") {
 		t.Fatalf("next to a datastore: %v", err)
 	}

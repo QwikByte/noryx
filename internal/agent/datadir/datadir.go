@@ -33,6 +33,12 @@ var errSpecial = errors.New("neither a regular file nor a folder")
 // ErrLink refuses paths that lead through a symbolic link; see Direct.
 var ErrLink = errors.New("the path leads through a link")
 
+// Escapes reports whether err is the refusal of os.Root to leave the directory, e.g. through
+// a symbolic link, which os doesn't export.
+func Escapes(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "path escapes from parent")
+}
+
 // Name turns a slash-separated path relative to a data directory into a name in it, "."
 // for the directory itself. os.Root rejects escaping paths too, but ".." has no use here,
 // so such paths are refused upfront, like backslashes.

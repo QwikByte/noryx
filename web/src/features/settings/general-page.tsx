@@ -18,9 +18,10 @@ import { toast } from "sonner"
 import { Callout, ErrorCallout } from "@/components/callout"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormSection } from "@/components/form-section"
+import { NumberInput } from "@/components/number-input"
 import { StatCard, StatStrip } from "@/components/stat-card"
 import { Button } from "@/components/ui/button"
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -38,6 +39,7 @@ import { UpdateFields } from "@/features/updates/update-fields"
 import { ThresholdFields, ThresholdsHelp } from "@/features/usage/thresholds"
 import { formatDate, formatDateTime, formatDuration } from "@/lib/format"
 import { msg } from "@/lib/i18n"
+import { type ErrorsAt, errorsAt, type FieldErrors, useDraft } from "@/lib/use-draft"
 import {
   currentPanel,
   type Master,
@@ -195,12 +197,13 @@ function PanelCertificateFacts({ master }: { master: Master }) {
 }
 
 function formOf(s: MasterSettings) {
-  const { panelAddr, panelHttps, panelDomain, enrollAddr, sessionHours, joinTokenMinutes, logDays, logSizeMb, checkUpdates, requireMfa } = s
+  const { panelAddr, panelHttps, panelDomain, enrollAddr, sftpAddr, sessionHours, joinTokenMinutes, logDays, logSizeMb, checkUpdates, requireMfa } = s
   return {
     panelAddr,
     panelHttps,
     panelDomain,
     enrollAddr,
+    sftpAddr,
     sessionHours,
     joinTokenMinutes,
     logDays,
@@ -228,12 +231,11 @@ function formOf(s: MasterSettings) {
 function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
   const access = useAccess()
   const editable = access.can("settings.edit")
-  const initial = formOf(settings)
-  const [form, setForm] = useState(initial)
+  const { value: form, dirty, set } = useDraft(formOf(settings))
   const update = useUpdateSettings()
-  const dirty = JSON.stringify(form) !== JSON.stringify(initial)
   const blocker = useBlocker({ shouldBlockFn: () => dirty && !update.isPending, enableBeforeUnload: () => dirty, withResolver: true })
-  const set = (change: Partial<typeof form>) => setForm({ ...form, ...change })
+  // A refused change shows at the field it is about, besides in the notification.
+  const errorAt = errorsAt(update.error)
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -249,10 +251,11 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
       {/* Without the permission to change them, the settings are only shown. */}
       <fieldset disabled={!editable} className="contents">
         <FormSection title={t("Panel")}>
-          <Field>
+          <Field data-invalid={!!errorAt("panelAddr")}>
             <FieldLabel htmlFor="settings-panel-addr">{t("Listen address")}</FieldLabel>
             <Input
               id="settings-panel-addr"
+              aria-invalid={!!errorAt("panelAddr")}
               className="font-mono"
               placeholder={master.panelDefaultAddr}
               maxLength={47}
@@ -270,20 +273,47 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
                 }}
               />
             </FieldDescription>
+            <FieldError errors={errorAt("panelAddr")} />
           </Field>
-          <PanelHTTPSFields form={form} master={master} disabled={!access.admin} onChange={set} />
+          <PanelHTTPSFields form={form} master={master} disabled={!access.admin} onChange={set} errorAt={errorAt} />
           <PanelRestartNotice settings={settings} master={master} />
         </FormSection>
 
+        <FormSection title={t("SFTP")}>
+          <Field data-invalid={!!errorAt("sftpAddr")}>
+            <FieldLabel htmlFor="settings-sftp-addr">{t("SFTP address")}</FieldLabel>
+            <Input
+              id="settings-sftp-addr"
+              aria-invalid={!!errorAt("sftpAddr")}
+              className="font-mono"
+              placeholder={t("Off")}
+              maxLength={47}
+              disabled={!access.admin}
+              value={form.sftpAddr}
+              onChange={(e) => set({ sftpAddr: e.target.value })}
+            />
+            <FieldDescription>
+              <Trans
+                i18nKey="IP address and port, e.g. <example/>, at which the master serves the files of servers over SFTP to editors, scripts and clients such as WinSCP. Users sign in with their username and an API token, and reach the servers whose files the token may browse. Leave it empty to turn SFTP off. Only administrators can change it, as it opens a port."
+                components={{ example: <span className="font-mono">0.0.0.0:2022</span> }}
+              />
+            </FieldDescription>
+            <FieldError errors={errorAt("sftpAddr")} />
+          </Field>
+          <SftpHostKey master={master} />
+          <SftpRestartNotice settings={settings} master={master} />
+        </FormSection>
+
         <FormSection title={t("Name and notice")}>
-          <NameFields value={form} onChange={set} />
+          <NameFields value={form} onChange={set} errorAt={errorAt} />
         </FormSection>
 
         <FormSection title={t("Enrollment")}>
-          <Field>
+          <Field data-invalid={!!errorAt("enrollAddr")}>
             <FieldLabel htmlFor="settings-enroll-addr">{t("Enrollment address")}</FieldLabel>
             <Input
               id="settings-enroll-addr"
+              aria-invalid={!!errorAt("enrollAddr")}
               className="font-mono"
               placeholder={master.enrollAddr}
               maxLength={261}
@@ -296,8 +326,9 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
                 components={{ default: <span className="font-mono">{master.enrollAddr}</span> }}
               />
             </FieldDescription>
+            <FieldError errors={errorAt("enrollAddr")} />
           </Field>
-          <Field>
+          <Field data-invalid={!!errorAt("joinTokenMinutes")}>
             <FieldLabel htmlFor="settings-join-token">{t("Join tokens are valid for")}</FieldLabel>
             <NumberInput
               id="settings-join-token"
@@ -306,13 +337,15 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               unit={t("minutes")}
               value={form.joinTokenMinutes}
               onChange={(joinTokenMinutes) => set({ joinTokenMinutes })}
+              invalid={!!errorAt("joinTokenMinutes")}
             />
             <FieldDescription>{t("From 5 minutes to a day. Each token works only once.")}</FieldDescription>
+            <FieldError errors={errorAt("joinTokenMinutes")} />
           </Field>
         </FormSection>
 
         <FormSection title={t("Sign-in")}>
-          <Field>
+          <Field data-invalid={!!errorAt("sessionHours")}>
             <FieldLabel htmlFor="settings-session">{t("Sessions last")}</FieldLabel>
             <NumberInput
               id="settings-session"
@@ -321,20 +354,22 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               unit={t("hours")}
               value={form.sessionHours}
               onChange={(sessionHours) => set({ sessionHours })}
+              invalid={!!errorAt("sessionHours")}
             />
             <FieldDescription>{t("Up to a week. Applies from the next sign-in; shorter sessions are safer.")}</FieldDescription>
+            <FieldError errors={errorAt("sessionHours")} />
           </Field>
-          <SignInFields value={form} onChange={set} />
-          <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} />
+          <SignInFields value={form} onChange={set} errorAt={errorAt} />
+          <MfaRequirementFields value={form.requireMfa} onChange={(requireMfa) => set({ requireMfa })} errors={errorAt("requireMfa")} />
         </FormSection>
 
         <FormSection title={t("Defaults for users")}>
-          <UserDefaultsFields value={form.userDefaults} onChange={(userDefaults) => set({ userDefaults })} />
-          <InviteGroupsField value={form.inviteGroups} onChange={(inviteGroups) => set({ inviteGroups })} />
+          <UserDefaultsFields value={form.userDefaults} onChange={(userDefaults) => set({ userDefaults })} errorAt={errorsAt(update.error, "userDefaults")} />
+          <InviteGroupsField value={form.inviteGroups} onChange={(inviteGroups) => set({ inviteGroups })} errors={errorAt("inviteGroups")} />
         </FormSection>
 
         <FormSection title={t("Log")}>
-          <Field>
+          <Field data-invalid={!!errorAt("logDays")}>
             <FieldLabel htmlFor="settings-log-days">{t("Keep entries for")}</FieldLabel>
             <NumberInput
               id="settings-log-days"
@@ -343,10 +378,12 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               unit={t("days")}
               value={form.logDays}
               onChange={(logDays) => set({ logDays })}
+              invalid={!!errorAt("logDays")}
             />
             <FieldDescription>{t("Up to a year. Export entries to keep them longer.")}</FieldDescription>
+            <FieldError errors={errorAt("logDays")} />
           </Field>
-          <Field>
+          <Field data-invalid={!!errorAt("logSizeMb")}>
             <FieldLabel htmlFor="settings-log-size">{t("Maximum size")}</FieldLabel>
             <NumberInput
               id="settings-log-size"
@@ -355,17 +392,19 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               unit="MiB"
               value={form.logSizeMb}
               onChange={(logSizeMb) => set({ logSizeMb })}
+              invalid={!!errorAt("logSizeMb")}
             />
             <FieldDescription>
               {t(
                 "From 100 MiB to 100 GiB, so that the log can't fill the disk. Beyond this size or a million entries, the oldest entries are deleted before their time, and a warning is logged.",
               )}
             </FieldDescription>
+            <FieldError errors={errorAt("logSizeMb")} />
           </Field>
         </FormSection>
 
         <FormSection title={t("Retention")}>
-          <RetentionFields value={form.retention} onChange={(retention) => set({ retention })} />
+          <RetentionFields value={form.retention} onChange={(retention) => set({ retention })} errorAt={errorsAt(update.error, "retention")} />
         </FormSection>
 
         <FormSection title={t("Usage warnings")}>
@@ -378,6 +417,7 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               kind="servers"
               value={form.thresholds.servers}
               onChange={(servers) => set({ thresholds: { ...form.thresholds, servers } })}
+              errorAt={errorsAt(update.error, "thresholds.servers")}
             />
           </FieldSet>
           <FieldSet>
@@ -387,6 +427,7 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               kind="nodes"
               value={form.thresholds.nodes}
               onChange={(nodes) => set({ thresholds: { ...form.thresholds, nodes } })}
+              errorAt={errorsAt(update.error, "thresholds.nodes")}
             />
           </FieldSet>
         </FormSection>
@@ -401,7 +442,7 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
               </FieldDescription>
             </FieldContent>
           </Field>
-          <UpdateFields value={form} onChange={set} />
+          <UpdateFields value={form} onChange={set} errorAt={errorAt} />
           {access.admin && <UpdateCheck />}
         </FormSection>
 
@@ -410,22 +451,25 @@ function SettingsForm({ view: { settings, master } }: { view: SettingsView }) {
             id="settings-node-defaults"
             form={form.nodeDefaults}
             onChange={(change) => set({ nodeDefaults: { ...form.nodeDefaults, ...change } })}
+            errorAt={errorsAt(update.error, "nodeDefaults")}
           />
         </FormSection>
 
         <FormSection title={t("New servers")}>
-          <NewServerFields value={form.newServers} onChange={(newServers) => set({ newServers })} />
+          <NewServerFields value={form.newServers} onChange={(newServers) => set({ newServers })} errorAt={errorsAt(update.error, "newServers")} />
         </FormSection>
 
         <FormSection title={t("Warnings to players")}>
-          <WarningFields value={form.warnings} onChange={(warnings) => set({ warnings })} />
+          <WarningFields value={form.warnings} onChange={(warnings) => set({ warnings })} errorAt={errorsAt(update.error, "warnings")} />
         </FormSection>
       </fieldset>
       <div
         className="-mx-5 flex flex-wrap-reverse items-center justify-end gap-x-6 gap-y-3 rounded-b-2xl bg-muted/50 px-5 py-4 sm:-mx-8 sm:px-8"
         hidden={!editable}
       >
-        <p className="text-sm text-muted-foreground">{t("Changes apply right away, except those to the panel, which apply once the master restarts.")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("Changes apply right away, except those to the panel and SFTP, which apply once the master restarts.")}
+        </p>
         <Button type="submit" disabled={!dirty || update.isPending}>
           {update.isPending ? t("Saving…") : t("Save settings")}
         </Button>
@@ -449,11 +493,13 @@ function PanelHTTPSFields({
   master,
   disabled,
   onChange,
+  errorAt,
 }: {
   form: { panelHttps: PanelHTTPS; panelDomain: string }
   master: Master
   disabled: boolean
   onChange: (change: { panelHttps?: PanelHTTPS; panelDomain?: string }) => void
+  errorAt: ErrorsAt
 }) {
   if (master.panelHttps === "files")
     return (
@@ -490,10 +536,11 @@ function PanelHTTPSFields({
         </RadioGroup>
       </Field>
       {form.panelHttps && (
-        <Field>
+        <Field data-invalid={!!errorAt("panelDomain")}>
           <FieldLabel htmlFor="settings-panel-domain">{t("Domain")}</FieldLabel>
           <Input
             id="settings-panel-domain"
+            aria-invalid={!!errorAt("panelDomain")}
             className="font-mono"
             // i18next-instrument-ignore-next-line: an example of what to enter
             placeholder="panel.example.com"
@@ -509,6 +556,7 @@ function PanelHTTPSFields({
                 i18nKey="The domain name that points to this machine. With Let's Encrypt, you accept its <terms>Subscriber Agreement</terms>. Other names and IP addresses get the self-signed certificate."
                 components={{
                   terms: (
+                    // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- <Trans> puts the text in
                     <a
                       href="https://letsencrypt.org/repository/"
                       target="_blank"
@@ -522,6 +570,7 @@ function PanelHTTPSFields({
               t("Optional. The certificate includes it besides the IP addresses and names of this machine.")
             )}
           </FieldDescription>
+          <FieldError errors={errorAt("panelDomain")} />
         </Field>
       )}
     </>
@@ -550,7 +599,7 @@ const mfaChoices = {
 } satisfies Record<string, { label: string; description: string; icon: typeof LockIcon }>
 
 /** Chooses who has to use two-factor authentication: nobody, all users, or the members of groups. */
-function MfaRequirementFields({ value, onChange }: { value: MfaRequirement; onChange: (value: MfaRequirement) => void }) {
+function MfaRequirementFields({ value, onChange, errors }: { value: MfaRequirement; onChange: (value: MfaRequirement) => void; errors?: FieldErrors }) {
   // Choosing groups shows them before any is chosen, which would otherwise mean nobody.
   const [choice, setChoice] = useState<keyof typeof mfaChoices>(value.all ? "all" : value.groups.length ? "groups" : "none")
   const canSeeGroups = useAccess().can("users.view")
@@ -563,7 +612,7 @@ function MfaRequirementFields({ value, onChange }: { value: MfaRequirement; onCh
   }
 
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel id="settings-require-mfa">{t("Two-factor authentication")}</FieldLabel>
       <RadioGroup
         value={choice}
@@ -609,6 +658,7 @@ function MfaRequirementFields({ value, onChange }: { value: MfaRequirement; onCh
           {t("If the requirement applies to you, the panel asks you to set up two-factor authentication as soon as you save.")}
         </Callout>
       )}
+      <FieldError errors={errors} />
     </Field>
   )
 }
@@ -649,34 +699,58 @@ function PanelRestartNotice({ settings, master }: { settings: MasterSettings; ma
   )
 }
 
-function NumberInput({
-  id,
-  min,
-  max,
-  unit,
-  value,
-  onChange,
-}: {
-  id: string
-  min: number
-  max: number
-  unit: string
-  value: number
-  onChange: (value: number) => void
-}) {
+/** The fingerprint of the host key of SFTP, which clients ask to compare the first time they connect. */
+function SftpHostKey({ master }: { master: Master }) {
+  if (!master.sftpAddr) return null
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        id={id}
-        type="number"
-        required
-        min={min}
-        max={max}
-        className="font-mono sm:w-32"
-        value={value}
-        onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-      />
-      <span className="text-sm text-muted-foreground">{unit}</span>
-    </div>
+    <Field>
+      <FieldTitle>{t("Host key fingerprint")}</FieldTitle>
+      <p className="font-mono text-sm break-all">{master.sftpHostKey}</p>
+      <FieldDescription>
+        <Trans
+          i18nKey="SFTP listens at <address/> with this key. Clients ask whether to trust it the first time they connect: compare the fingerprint they show with this one."
+          components={{ address: <span className="font-mono">{master.sftpAddr}</span> }}
+        />
+      </FieldDescription>
+    </Field>
+  )
+}
+
+/** Tells that a changed address of SFTP applies once the master starts again, and why SFTP is off if it couldn't listen. */
+function SftpRestartNotice({ settings, master }: { settings: MasterSettings; master: Master }) {
+  const canRestart = useCanRestart(master)
+  if (settings.sftpAddr === (master.sftpAddr ?? "")) return null
+  return (
+    <Callout tone={master.sftpError ? "warning" : "info"} icon={ArrowClockwiseIcon} role="status" title={t("Applies after a restart")}>
+      <p>
+        {settings.sftpAddr ? (
+          <Trans
+            i18nKey="SFTP listens at <address/> once the master starts again, e.g. with <command/> or the next update."
+            components={{
+              address: <span className="font-mono">{settings.sftpAddr}</span>,
+              command: <span className="font-mono">systemctl restart noryx-master</span>,
+            }}
+          />
+        ) : (
+          <Trans
+            i18nKey="SFTP stays on until the master starts again, e.g. with <command/> or the next update."
+            components={{ command: <span className="font-mono">systemctl restart noryx-master</span> }}
+          />
+        )}
+      </p>
+      {master.sftpError && (
+        <p className="mt-1">
+          <Trans
+            i18nKey="When the master started last, SFTP didn't start: <error/>"
+            components={{ error: <span className="font-mono">{master.sftpError}</span> }}
+          />
+        </p>
+      )}
+      {canRestart && (
+        <div className="mt-3">
+          <RestartButton master={master} next={nextPanel(settings, master)} label={t("Restart now")} />
+        </div>
+      )}
+    </Callout>
   )
 }

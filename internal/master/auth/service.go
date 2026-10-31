@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -17,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/web"
 )
@@ -27,6 +29,8 @@ var (
 
 	errNotFound     = httpapi.Errorf(http.StatusNotFound, "User not found.")
 	errInvalidSetup = httpapi.Errorf(http.StatusNotFound, "This setup link is invalid, expired or used already. Ask for a new one.")
+	// errShortPassword names no length: see checkPassword.
+	errShortPassword = httpapi.Errorf(http.StatusBadRequest, "Choose a longer password, as the settings of the master ask for.")
 
 	usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,32}$`)
 )
@@ -113,10 +117,12 @@ func (s *Service) insert(ctx context.Context, username, hash string) (User, erro
 }
 
 // checkPassword checks that a new password has as many characters as the settings say.
-// Passwords set before keep working, also if they are shorter.
+// Passwords set before keep working, also if they are shorter. The refusal doesn't repeat the
+// minimum, which the panel shows next to the field and the public settings tell: nothing about
+// passwords goes into errors, which may be logged.
 func (s *Service) checkPassword(password string) error {
-	if n := s.limits.MinPasswordLength(); utf8.RuneCountInString(password) < n {
-		return httpapi.Errorf(http.StatusBadRequest, "Choose a password with at least %d characters.", n)
+	if utf8.RuneCountInString(password) < s.limits.MinPasswordLength() {
+		return errShortPassword
 	}
 	return nil
 }
@@ -153,9 +159,9 @@ func (s *Service) Accounts(ctx context.Context) ([]Account, error) {
 // SetDisabled disables or enables a user. Disabling ends the user's sessions and revokes the
 // user's API tokens.
 func (s *Service) SetDisabled(ctx context.Context, id int64, disabled bool) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE users SET disabled = ? WHERE id = ?`, disabled, id)
-		if err == nil && rowsAffected(res) == 0 {
+		if err == nil && database.RowsAffected(res) == 0 {
 			return errNotFound
 		}
 		if err == nil && disabled {
@@ -171,7 +177,7 @@ func (s *Service) SetDisabled(ctx context.Context, id int64, disabled bool) erro
 // Delete deletes a user with its sessions and API tokens.
 func (s *Service) Delete(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNotFound
 	}
 	return err
@@ -189,6 +195,16 @@ func (s *Service) NewSetupLink(ctx context.Context, id int64) (SetupLink, error)
 		err = errNotFound
 	}
 	return link, err
+}
+
+// EndSetupLinks ends the setup links of users, e.g. as they get more permissions than whoever
+// created the links needed to have.
+func (s *Service) EndSetupLinks(ctx context.Context, ids ...int64) error {
+	list, err := json.Marshal(ids)
+	if err == nil {
+		_, err = s.db.ExecContext(ctx, `DELETE FROM setup_tokens WHERE user_id IN (SELECT value FROM json_each(?))`, list)
+	}
+	return err
 }
 
 // SetupUser returns the user a valid setup link belongs to.
@@ -216,9 +232,9 @@ func (s *Service) Setup(ctx context.Context, token, password string, ttl time.Du
 		return u, "", err
 	}
 	hash := hashPassword(password) // before the transaction, which keeps other writers waiting
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE token_hash = ?`, hashToken(token))
-		if err == nil && rowsAffected(res) == 0 {
+		if err == nil && database.RowsAffected(res) == 0 {
 			err = errInvalidSetup // used by a concurrent request
 		}
 		if err == nil {
@@ -254,7 +270,7 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, current, next, k
 	// A setup link would set the password again, and other sessions may belong to whoever
 	// knew the old one.
 	hash := hashPassword(next)
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, id)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `DELETE FROM setup_tokens WHERE user_id = ?`, id)
@@ -344,9 +360,4 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 func hashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
-}
-
-func rowsAffected(res sql.Result) int64 {
-	n, _ := res.RowsAffected()
-	return n
 }

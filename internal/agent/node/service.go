@@ -4,7 +4,9 @@ package node
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -49,6 +51,11 @@ func (s *Service) GetInfo(ctx context.Context, _ *noryxv1.GetInfoRequest) (*nory
 	}
 	for _, l := range locations {
 		res.Storage = append(res.Storage, &noryxv1.StorageLocation{Name: l.Name, Path: l.Path, FreeBytes: l.FreeBytes, TotalBytes: l.TotalBytes})
+	}
+	for _, value := range slices.Sorted(maps.Keys(noryxv1.ServerType_name)) {
+		if value != int32(noryxv1.ServerType_SERVER_TYPE_UNSPECIFIED) {
+			res.ServerTypes = append(res.ServerTypes, noryxv1.ServerType(value))
+		}
 	}
 	return res, nil
 }

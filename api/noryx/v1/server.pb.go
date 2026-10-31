@@ -41,6 +41,11 @@ const (
 	ServerType_SERVER_TYPE_LEAF  ServerType = 11
 	// Quilt loads its own mods and those of Fabric.
 	ServerType_SERVER_TYPE_QUILT ServerType = 12
+	// Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
+	// without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
+	// then play over UDP ports of their own; see max_players. Agents of older versions refuse it
+	// as unknown.
+	ServerType_SERVER_TYPE_BEDROCK ServerType = 13
 )
 
 // Enum value maps for ServerType.
@@ -59,6 +64,7 @@ var (
 		10: "SERVER_TYPE_FOLIA",
 		11: "SERVER_TYPE_LEAF",
 		12: "SERVER_TYPE_QUILT",
+		13: "SERVER_TYPE_BEDROCK",
 	}
 	ServerType_value = map[string]int32{
 		"SERVER_TYPE_UNSPECIFIED": 0,
@@ -74,6 +80,7 @@ var (
 		"SERVER_TYPE_FOLIA":       10,
 		"SERVER_TYPE_LEAF":        11,
 		"SERVER_TYPE_QUILT":       12,
+		"SERVER_TYPE_BEDROCK":     13,
 	}
 )
 
@@ -337,7 +344,9 @@ type Server struct {
 	// agents report it.
 	ProcessLimit uint32 `protobuf:"varint,28,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
 	// Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
-	InitMemoryMb  uint32 `protobuf:"varint,29,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	InitMemoryMb uint32 `protobuf:"varint,29,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	// How many players a Bedrock server lets join at once; 0 for other servers.
+	MaxPlayers    uint32 `protobuf:"varint,30,opt,name=max_players,json=maxPlayers,proto3" json:"max_players,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -575,6 +584,13 @@ func (x *Server) GetInitMemoryMb() uint32 {
 	return 0
 }
 
+func (x *Server) GetMaxPlayers() uint32 {
+	if x != nil {
+		return x.MaxPlayers
+	}
+	return 0
+}
+
 // ExtraPort is a port of a plugin of a server, e.g. of a web map or a voice chat, which the node
 // publishes on all its addresses at the same port of the container, where the plugin listens.
 type ExtraPort struct {
@@ -751,6 +767,7 @@ type CreateServerRequest struct {
 	UnhealthyRestartMinutes uint32            `protobuf:"varint,21,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
 	ProcessLimit            uint32            `protobuf:"varint,22,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
 	InitMemoryMb            uint32            `protobuf:"varint,23,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	MaxPlayers              uint32            `protobuf:"varint,24,opt,name=max_players,json=maxPlayers,proto3" json:"max_players,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -942,6 +959,13 @@ func (x *CreateServerRequest) GetProcessLimit() uint32 {
 func (x *CreateServerRequest) GetInitMemoryMb() uint32 {
 	if x != nil {
 		return x.InitMemoryMb
+	}
+	return 0
+}
+
+func (x *CreateServerRequest) GetMaxPlayers() uint32 {
+	if x != nil {
+		return x.MaxPlayers
 	}
 	return 0
 }
@@ -1269,7 +1293,11 @@ type UpdateServerRequest struct {
 	ProcessLimit uint32 `protobuf:"varint,19,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
 	// Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
 	// 0, as older masters send it, for the same as memory_mb.
-	InitMemoryMb  uint32 `protobuf:"varint,20,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	InitMemoryMb uint32 `protobuf:"varint,20,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
+	// How many players a Bedrock server lets join at once, from 1 to 100; 0 for 10. Each plays
+	// over a UDP port of their own, which the node publishes: the server's port and the ones
+	// after it. Other servers take none, as their server.properties says.
+	MaxPlayers    uint32 `protobuf:"varint,21,opt,name=max_players,json=maxPlayers,proto3" json:"max_players,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1440,6 +1468,13 @@ func (x *UpdateServerRequest) GetProcessLimit() uint32 {
 func (x *UpdateServerRequest) GetInitMemoryMb() uint32 {
 	if x != nil {
 		return x.InitMemoryMb
+	}
+	return 0
+}
+
+func (x *UpdateServerRequest) GetMaxPlayers() uint32 {
+	if x != nil {
+		return x.MaxPlayers
 	}
 	return 0
 }
@@ -2693,7 +2728,7 @@ var File_noryx_v1_server_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\x97\b\n" +
+	"\x15noryx/v1/server.proto\x12\bnoryx.v1\"\xb8\b\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2729,14 +2764,16 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x14stable_after_minutes\x18\x1a \x01(\rR\x12stableAfterMinutes\x12:\n" +
 	"\x19unhealthy_restart_minutes\x18\x1b \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
 	"\rprocess_limit\x18\x1c \x01(\rR\fprocessLimit\x12$\n" +
-	"\x0einit_memory_mb\x18\x1d \x01(\rR\finitMemoryMb\"Q\n" +
+	"\x0einit_memory_mb\x18\x1d \x01(\rR\finitMemoryMb\x12\x1f\n" +
+	"\vmax_players\x18\x1e \x01(\rR\n" +
+	"maxPlayers\"Q\n" +
 	"\tExtraPort\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x14\n" +
 	"\x05label\x18\x03 \x01(\tR\x05label\"\x14\n" +
 	"\x12ListServersRequest\"A\n" +
 	"\x13ListServersResponse\x12*\n" +
-	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xd4\a\n" +
+	"\aservers\x18\x01 \x03(\v2\x10.noryx.v1.ServerR\aservers\"\xf5\a\n" +
 	"\x13CreateServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x14.noryx.v1.ServerTypeR\x04type\x12\x18\n" +
@@ -2769,7 +2806,9 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x14stable_after_minutes\x18\x14 \x01(\rR\x12stableAfterMinutes\x12:\n" +
 	"\x19unhealthy_restart_minutes\x18\x15 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
 	"\rprocess_limit\x18\x16 \x01(\rR\fprocessLimit\x12$\n" +
-	"\x0einit_memory_mb\x18\x17 \x01(\rR\finitMemoryMb\x1a=\n" +
+	"\x0einit_memory_mb\x18\x17 \x01(\rR\finitMemoryMb\x12\x1f\n" +
+	"\vmax_players\x18\x18 \x01(\rR\n" +
+	"maxPlayers\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
@@ -2783,7 +2822,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x12StopServerResponse\"&\n" +
 	"\x14RestartServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15RestartServerResponse\"\xf1\x05\n" +
+	"\x15RestartServerResponse\"\x92\x06\n" +
 	"\x13UpdateServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2810,7 +2849,9 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x14stable_after_minutes\x18\x11 \x01(\rR\x12stableAfterMinutes\x12:\n" +
 	"\x19unhealthy_restart_minutes\x18\x12 \x01(\rR\x17unhealthyRestartMinutes\x12#\n" +
 	"\rprocess_limit\x18\x13 \x01(\rR\fprocessLimit\x12$\n" +
-	"\x0einit_memory_mb\x18\x14 \x01(\rR\finitMemoryMb\"@\n" +
+	"\x0einit_memory_mb\x18\x14 \x01(\rR\finitMemoryMb\x12\x1f\n" +
+	"\vmax_players\x18\x15 \x01(\rR\n" +
+	"maxPlayers\"@\n" +
 	"\x14UpdateServerResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\"$\n" +
 	"\x12UpdateImageRequest\x12\x0e\n" +
@@ -2889,7 +2930,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\acontent\"f\n" +
 	"\x1fCreateServerFromArchiveResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\x12\x19\n" +
-	"\bleft_out\x18\x02 \x03(\tR\aleftOut*\xcf\x02\n" +
+	"\bleft_out\x18\x02 \x03(\tR\aleftOut*\xe8\x02\n" +
 	"\n" +
 	"ServerType\x12\x1b\n" +
 	"\x17SERVER_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -2905,7 +2946,8 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x11SERVER_TYPE_FOLIA\x10\n" +
 	"\x12\x14\n" +
 	"\x10SERVER_TYPE_LEAF\x10\v\x12\x15\n" +
-	"\x11SERVER_TYPE_QUILT\x10\f*\x81\x01\n" +
+	"\x11SERVER_TYPE_QUILT\x10\f\x12\x17\n" +
+	"\x13SERVER_TYPE_BEDROCK\x10\r*\x81\x01\n" +
 	"\rRestartPolicy\x12\x1e\n" +
 	"\x1aRESTART_POLICY_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15RESTART_POLICY_ALWAYS\x10\x01\x12\x1b\n" +

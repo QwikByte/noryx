@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -88,5 +89,58 @@ func TestConnIsSharedPerNode(t *testing.T) {
 	}
 	if _, err := s.Conn(t.Context(), "n1"); err == nil {
 		t.Error("Conn returned a connection to a deleted node")
+	}
+}
+
+// Conn keeps no connection to a node that changed while it loaded the node: it loads it again
+// and connects to its new address, or fails once the node was removed.
+func TestConnOfNodeChangedMeanwhile(t *testing.T) {
+	s := newTestService(t)
+	for _, id := range []string{"n1", "n2"} {
+		if _, err := s.db.Exec(`INSERT INTO nodes (id, name, address, enrolled_at, created_at) VALUES (?, ?, '127.0.0.1:7443', 1, 0)`, id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// change changes the node the first time Conn loaded it.
+	change := func(fn func() error) {
+		loads := 0
+		s.loaded = func() {
+			if loads++; loads == 1 {
+				if err := fn(); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	change(func() error {
+		n, err := s.Get(t.Context(), "n1")
+		if err == nil {
+			n.Address = "127.0.0.2:7443"
+			_, err = s.Update(t.Context(), n)
+		}
+		return err
+	})
+	target := func() string {
+		conn, err := s.Conn(t.Context(), "n1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return conn.(*grpc.ClientConn).Target()
+	}
+	if got := target(); got != "127.0.0.2:7443" {
+		t.Fatalf("Conn of a node whose address changed meanwhile connects to %s", got)
+	}
+	if got := target(); got != "127.0.0.2:7443" {
+		t.Fatalf("Conn again connects to %s", got)
+	}
+
+	change(func() error { return s.Delete(t.Context(), "n2") })
+	if _, err := s.Conn(t.Context(), "n2"); !errors.Is(err, errNotFound) {
+		t.Fatalf("Conn of a node removed meanwhile = %v", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.conns["n2"]; ok {
+		t.Error("a connection to the removed node was kept")
 	}
 }

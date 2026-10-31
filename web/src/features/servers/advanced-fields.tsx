@@ -68,24 +68,26 @@ export function HealthStartField({
   )
 }
 
-/** How many processes a server may run, and the heap Java starts with, folded away. */
+/** How many processes a server may run, and the heap Java starts with, unless it runs without Java, folded away. */
 export function ResourceFields({
   id,
   value,
   onChange,
+  java = true,
 }: {
   id: string
   value: ResourceSettings & { memoryMb: number; aikarFlags: boolean }
   onChange: (change: Partial<ResourceSettings>) => void
+  java?: boolean
 }) {
   const { processLimit, memoryMb } = value
   const heap = initialHeap(value)
   const summary = [
     t("{{count}} processes", { count: processLimit, defaultValue_one: "{{count}} process" }),
-    heap ? t("starts with {{memory}}", { memory: formatMegabytes(heap) }) : t("starts with all of its memory"),
+    java && (heap ? t("starts with {{memory}}", { memory: formatMegabytes(heap) }) : t("starts with all of its memory")),
   ]
   return (
-    <Fold title={t("Processes and heap")} summary={summary.join(" · ")}>
+    <Fold title={java ? t("Processes and heap") : t("Processes")} summary={summary.filter(Boolean).join(" · ")}>
       <Field>
         <FieldLabel htmlFor={`${id}-processes`}>{t("Processes and threads")}</FieldLabel>
         <NumberSelect
@@ -102,23 +104,25 @@ export function ResourceFields({
           )}
         </FieldDescription>
       </Field>
-      <Field>
-        <FieldLabel htmlFor={`${id}-heap`}>{t("Initial heap")}</FieldLabel>
-        <NumberSelect
-          id={`${id}-heap`}
-          value={heap}
-          options={[0, ...memoryOptionsMb.filter((mb) => mb < memoryMb)]}
-          fallback={0}
-          label={(mb) => (mb ? formatMegabytes(mb) : t("All of its memory"))}
-          onChange={(initMemoryMb) => onChange({ initMemoryMb })}
-          disabled={value.aikarFlags}
-        />
-        <FieldDescription>
-          {value.aikarFlags
-            ? t("Aikar's flags start Java with all of its memory.")
-            : t("The heap Java starts with, which grows up to the memory as the server needs it.")}
-        </FieldDescription>
-      </Field>
+      {java && (
+        <Field>
+          <FieldLabel htmlFor={`${id}-heap`}>{t("Initial heap")}</FieldLabel>
+          <NumberSelect
+            id={`${id}-heap`}
+            value={heap}
+            options={[0, ...memoryOptionsMb.filter((mb) => mb < memoryMb)]}
+            fallback={0}
+            label={(mb) => (mb ? formatMegabytes(mb) : t("All of its memory"))}
+            onChange={(initMemoryMb) => onChange({ initMemoryMb })}
+            disabled={value.aikarFlags}
+          />
+          <FieldDescription>
+            {value.aikarFlags
+              ? t("Aikar's flags start Java with all of its memory.")
+              : t("The heap Java starts with, which grows up to the memory as the server needs it.")}
+          </FieldDescription>
+        </Field>
+      )}
     </Fold>
   )
 }

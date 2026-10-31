@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
@@ -95,6 +97,8 @@ type info struct {
 	RuntimeName    string            `json:"runtimeName"`
 	RuntimeVersion string            `json:"runtimeVersion,omitempty"`
 	Storage        []storageLocation `json:"storage"`
+	// ServerTypes are the types of servers the agent creates, e.g. bedrock.
+	ServerTypes []string `json:"serverTypes"`
 }
 
 type storageLocation struct {
@@ -143,9 +147,14 @@ func (h *Handler) probe(ctx context.Context, n Node) view {
 	}
 	v.Status = "online"
 	name, version := res.RuntimeOf()
-	v.Info = &info{res.GetAgentVersion(), res.GetHostname(), res.GetOs(), res.GetCpuCount(), res.GetMemoryBytes(), res.GetRuntime(), name, version, []storageLocation{}}
+	v.Info = &info{res.GetAgentVersion(), res.GetHostname(), res.GetOs(), res.GetCpuCount(), res.GetMemoryBytes(), res.GetRuntime(), name, version, []storageLocation{}, []string{}}
 	for _, l := range res.GetStorage() {
 		v.Info.Storage = append(v.Info.Storage, storageLocation{l.GetName(), l.GetPath(), l.GetFreeBytes(), l.GetTotalBytes()})
+	}
+	for _, value := range slices.Sorted(maps.Keys(noryxv1.ServerType_name)) {
+		if typ := noryxv1.ServerType(value); res.Creates(typ) {
+			v.Info.ServerTypes = append(v.Info.ServerTypes, typ.Slug())
+		}
 	}
 	return v
 }

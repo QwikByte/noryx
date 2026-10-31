@@ -21,6 +21,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/node"
 )
@@ -227,58 +228,55 @@ func (s *Store) Latest(ctx context.Context, nodeID string) (*noryxv1.GetStatsRes
 
 // add records the node and its running servers.
 func (s *Store) add(ctx context.Context, nodeID string, at time.Time, stats *noryxv1.GetStatsResponse) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	insert, err := tx.PrepareContext(ctx, `
-		INSERT INTO usage_samples (time, node_id, server_id, cpu_millis, memory_bytes, net_received, net_sent, disk_bytes, players, tps)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer insert.Close()
-	n := stats.GetNode()
-	if _, err := insert.ExecContext(ctx, at.Unix(), nodeID, "", n.GetCpuMillis(), n.GetMemoryUsedBytes(), 0, 0, 0, nil, nil); err != nil {
-		return err
-	}
-	for _, srv := range recorded(stats) {
-		var players, tps any
-		if p := srv.GetPlayers(); p != nil {
-			players = p.GetOnline()
-		}
-		if validTPS(srv.GetTps()) {
-			tps = srv.GetTps()
-		}
-		if _, err := insert.ExecContext(ctx, at.Unix(), nodeID, srv.GetId(), srv.GetCpuMillis(), srv.GetMemoryBytes(),
-			srv.GetNetworkReceivedBytesPerSecond(), srv.GetNetworkSentBytesPerSecond(), srv.GetDiskBytes(), players, tps); err != nil {
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		insert, err := tx.PrepareContext(ctx, `
+			INSERT INTO usage_samples (time, node_id, server_id, cpu_millis, memory_bytes, net_received, net_sent, disk_bytes, players, tps)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		if err != nil {
 			return err
 		}
-	}
-	// Only the running datastores that the master has on the node, each once.
-	insertDatastore, err := tx.PrepareContext(ctx, `
-		INSERT INTO datastore_usage (time, datastore_id, cpu_millis, memory_bytes, connections, disk_bytes)
-		SELECT ?, id, ?, ?, ?, ? FROM datastores WHERE id = ? AND node_id = ?`)
-	if err != nil {
-		return err
-	}
-	defer insertDatastore.Close()
-	seen := map[string]bool{}
-	for _, ds := range stats.GetDatastores() {
-		if !ds.GetRunning() || seen[ds.GetId()] || len(seen) == maxServers {
-			continue
-		}
-		seen[ds.GetId()] = true
-		var connections any
-		if ds.Connections != nil {
-			connections = ds.GetConnections()
-		}
-		if _, err := insertDatastore.ExecContext(ctx, at.Unix(), ds.GetCpuMillis(), ds.GetMemoryBytes(), connections, ds.GetDiskBytes(), ds.GetId(), nodeID); err != nil {
+		defer insert.Close()
+		n := stats.GetNode()
+		if _, err := insert.ExecContext(ctx, at.Unix(), nodeID, "", n.GetCpuMillis(), n.GetMemoryUsedBytes(), 0, 0, 0, nil, nil); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for _, srv := range recorded(stats) {
+			var players, tps any
+			if p := srv.GetPlayers(); p != nil {
+				players = p.GetOnline()
+			}
+			if validTPS(srv.GetTps()) {
+				tps = srv.GetTps()
+			}
+			if _, err := insert.ExecContext(ctx, at.Unix(), nodeID, srv.GetId(), srv.GetCpuMillis(), srv.GetMemoryBytes(),
+				srv.GetNetworkReceivedBytesPerSecond(), srv.GetNetworkSentBytesPerSecond(), srv.GetDiskBytes(), players, tps); err != nil {
+				return err
+			}
+		}
+		// Only the running datastores that the master has on the node, each once.
+		insertDatastore, err := tx.PrepareContext(ctx, `
+			INSERT INTO datastore_usage (time, datastore_id, cpu_millis, memory_bytes, connections, disk_bytes)
+			SELECT ?, id, ?, ?, ?, ? FROM datastores WHERE id = ? AND node_id = ?`)
+		if err != nil {
+			return err
+		}
+		defer insertDatastore.Close()
+		seen := map[string]bool{}
+		for _, ds := range stats.GetDatastores() {
+			if !ds.GetRunning() || seen[ds.GetId()] || len(seen) == maxServers {
+				continue
+			}
+			seen[ds.GetId()] = true
+			var connections any
+			if ds.Connections != nil {
+				connections = ds.GetConnections()
+			}
+			if _, err := insertDatastore.ExecContext(ctx, at.Unix(), ds.GetCpuMillis(), ds.GetMemoryBytes(), connections, ds.GetDiskBytes(), ds.GetId(), nodeID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // recorded returns the running servers of a measurement with valid IDs, each once, and at most

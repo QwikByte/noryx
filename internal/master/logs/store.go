@@ -13,6 +13,7 @@ import (
 
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -167,32 +168,29 @@ func (s *Store) write(ctx context.Context, batch []Entry, c *cursor) error {
 }
 
 func (s *Store) insert(ctx context.Context, batch []Entry, c *cursor) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	stmt, err := tx.PrepareContext(ctx, `INSERT INTO log_entries (`+fields+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for i, e := range batch {
-		attrs, _ := json.Marshal(e.Attrs) // can't fail for strings
-		res, err := stmt.ExecContext(ctx, e.Time.UnixMilli(), int(e.Level), e.Source, e.Category, e.Message, e.User,
-			e.NodeID, e.NodeName, e.ServerID, e.ServerName, string(attrs))
+	return database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		stmt, err := tx.PrepareContext(ctx, `INSERT INTO log_entries (`+fields+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 		if err != nil {
 			return err
 		}
-		batch[i].ID, _ = res.LastInsertId()
-	}
-	if c != nil {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO log_cursors (node_id, boot, seq) VALUES (?, ?, ?)
-			ON CONFLICT (node_id) DO UPDATE SET boot = excluded.boot, seq = excluded.seq`, c.node, c.boot, c.seq); err != nil {
-			return err
+		defer stmt.Close()
+		for i, e := range batch {
+			attrs, _ := json.Marshal(e.Attrs) // can't fail for strings
+			res, err := stmt.ExecContext(ctx, e.Time.UnixMilli(), int(e.Level), e.Source, e.Category, e.Message, e.User,
+				e.NodeID, e.NodeName, e.ServerID, e.ServerName, string(attrs))
+			if err != nil {
+				return err
+			}
+			batch[i].ID, _ = res.LastInsertId()
 		}
-	}
-	return tx.Commit()
+		if c != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO log_cursors (node_id, boot, seq) VALUES (?, ?, ?)
+				ON CONFLICT (node_id) DO UPDATE SET boot = excluded.boot, seq = excluded.seq`, c.node, c.boot, c.seq); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // report logs a problem of the store, at most once every reportEvery.
@@ -261,7 +259,7 @@ func (s *Store) remove(ctx context.Context, cond string, args ...any) (int64, er
 		if err != nil {
 			return removed, err
 		}
-		n, _ := res.RowsAffected()
+		n := database.RowsAffected(res)
 		if removed += n; n < pruneStep {
 			return removed, nil
 		}

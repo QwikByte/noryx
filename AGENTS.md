@@ -53,7 +53,9 @@ internal/master/
                        rolling restarts, maintenance, Bedrock players and the settings of proxies
   player/              kicks, bans, whitelists and operators on many servers at once, their joined lists, sending
                        players to another server of a network
-  files/               file manager, streamed between the browser and the agent
+  files/               file manager, streamed between the browser and the agent; SFTP shares its calls of the agent
+  sftp/                SFTP for the files of servers with API tokens: SSH server, host key, folders of nodes and
+                       servers, through the same calls of the agents as the file manager
   properties/          server.properties editor
   plugin/              installs, lists and removes plugins and mods of servers, from Modrinth and Hangar
   modrinth/            client for the Modrinth API and CDN
@@ -67,11 +69,12 @@ internal/master/
                        addresses servers reach them at, dumps, upgrades, rotating passwords and browsing tables
   schedule/            tasks that run on servers or nodes at set times: storage, scheduler, REST API
   backup/              backups of servers, backup jobs as scheduled tasks, and the copies of their backups in
-                       S3-compatible storage or on other nodes, with the storages for them
+                       S3-compatible storage or on other nodes, with the storages for them; backups of the master: its
+                       archive, encrypted with a passphrase, restoring it, and its backup job
   policy/              the panel's schedules (policies in the API): restarts with warnings, stops, starts, commands
   workflow/            workflows: triggers, steps with conditions, loops and variables, templates of data, runs and
                        webhooks
-  database/            SQLite and embedded migrations
+  database/            SQLite, embedded migrations, transactions and the helpers of rows that features share
   logs/                log in the database, logging of API requests, collecting the agents' logs, REST API, CLI
   notify/              notifications of new log entries by rules to Discord, Slack, webhooks and mail, with a dialer
                        that only reaches public addresses
@@ -95,11 +98,12 @@ internal/agent/
   fileset/             files of file sets on servers: secrets filled in, the manifest that hides them, their state
   properties/          reads and updates server.properties, keeping comments
   plugin/              plugin and mod files of servers
-  backup/              backups of servers: selection, archives, restoring, and the store that keeps dumps and
-                       copies of backups of other nodes too
+  backup/              backups of servers: selection, archives, restoring, and the store that keeps dumps,
+                       copies of backups of other nodes and archives of the master too
   datastore/           datastores of networks: databases and users, dumps loaded as their users, tables shown read
                        only, the local CLI's part
   logs/                latest log entries in memory, log service, logging of every call
+  grpcerr/             turns errors into the gRPC codes and texts that all services answer with
   progress/            tells the master the progress of calls, e.g. downloading an image, through ProgressService
   stats/               measures what the node and its servers use: CPU, memory, network, data, players, TPS
   runtime/             runtime interface, also for datastores; docker/ implements it, runtimetest/ keeps datastores
@@ -109,6 +113,7 @@ web/                   admin panel (React, Vite, Tailwind CSS, shadcn/ui), embed
   src/components/      shared components; ui/ holds the shadcn/ui components
   src/lib/             helpers: API client, formatting, i18n, theme
   src/locales/         translations of the panel's texts
+  e2e/                 smoke test of the panel in a browser (Playwright), which TestPanelInBrowser in internal/e2e runs
 docs/                  user documentation
 packaging/             installer, systemd units, options and package scripts; .goreleaser.yaml builds releases
 scripts/               test environments, deploying test builds, release notes
@@ -118,13 +123,14 @@ scripts/               test environments, deploying test builds, release notes
 
 Run what CI runs before you push:
 
-| Command                                                   | Checks                                                    |
-| --------------------------------------------------------- | --------------------------------------------------------- |
-| `go test -race ./...`                                     | all Go tests, including the end-to-end tests              |
-| `golangci-lint run ./...`                                 | Go code (CI uses golangci-lint v2.14.0)                   |
-| `cd web && npm run lint && npm run build`                 | oxlint, the translations, TypeScript and the build        |
-| `make generate`                                           | the generated gRPC code; CI fails while it is out of date |
-| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh` | the shell scripts                                         |
+| Command                                                                      | Checks                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `go test -race ./...`                                                        | all Go tests, including the end-to-end tests                       |
+| `golangci-lint run ./...`                                                    | Go code (CI uses golangci-lint v2.14.0)                            |
+| `cd web && npm run lint && npm run build && npm test`                        | oxlint, the translations, TypeScript, the build and the unit tests |
+| `NORYX_PANEL_TEST=1 go test -tags ui -run TestPanelInBrowser ./internal/e2e` | the smoke test of the built panel in Chromium                      |
+| `make generate`                                                              | the generated gRPC code; CI fails while it is out of date          |
+| `shellcheck packaging/*.sh packaging/*/*.sh scripts/*.sh`                    | the shell scripts                                                  |
 
 The tests need Linux. [docs/development.md](docs/development.md) explains how to run master, agent and panel locally.
 
@@ -140,6 +146,8 @@ The tests need Linux. [docs/development.md](docs/development.md) explains how to
   panel and are never logged.
 - **Panel texts** are English and serve as translation keys: `t("…")`, `<Trans>` for texts with markup, `msg("…")`
   outside of components. Run `npm run i18n` in `web` and translate new texts in `web/src/locales/de.json`.
+- **Panel tests:** test what a module of the panel decides with Vitest, in a `*.test.ts` or `*.test.tsx` next to it,
+  which runs in Node without a browser.
 - **Commits** start with one sentence in the imperative that says what changes, e.g. "Let a network change its proxy",
   with details in the body.
 

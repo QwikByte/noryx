@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { t } from "i18next"
 import { type ReactNode, useState } from "react"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/number-input"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import { type MasterSettings, settingsQuery } from "./api"
 
 type Limits = Pick<MasterSettings, "sessionHours" | "minPasswordLength" | "setupLinkHours" | "maxTokenDays" | "sessionIdleHours">
@@ -12,7 +13,7 @@ type Limits = Pick<MasterSettings, "sessionHours" | "minPasswordLength" | "setup
  * How many characters new passwords need, how long setup links are valid, and the limits of API tokens and unused
  * sessions, which are off unless chosen. Passwords never need fewer characters than they always did.
  */
-export function SignInFields({ value, onChange }: { value: Limits; onChange: (change: Partial<Limits>) => void }) {
+export function SignInFields({ value, onChange, errorAt }: { value: Limits; onChange: (change: Partial<Limits>) => void; errorAt?: ErrorsAt }) {
   // The fields stay while they are empty, until the limits are switched off.
   const [idle, setIdle] = useState(value.sessionIdleHours > 0)
   const [tokens, setTokens] = useState(value.maxTokenDays > 0)
@@ -48,6 +49,7 @@ export function SignInFields({ value, onChange }: { value: Limits; onChange: (ch
           unit={t("hours without use")}
           value={value.sessionIdleHours}
           onChange={(sessionIdleHours) => onChange({ sessionIdleHours })}
+          errors={errorAt?.("sessionIdleHours")}
         >
           {t("Up to as long as sessions last. Applies to all sessions right away.")}
         </NumberField>
@@ -61,6 +63,7 @@ export function SignInFields({ value, onChange }: { value: Limits; onChange: (ch
           unit={t("characters")}
           value={value.minPasswordLength}
           onChange={(minPasswordLength) => onChange({ minPasswordLength })}
+          errors={errorAt?.("minPasswordLength")}
         >
           {t("From 12 to 64. Applies to the passwords set from now on; those set before keep working.")}
         </NumberField>
@@ -72,6 +75,7 @@ export function SignInFields({ value, onChange }: { value: Limits; onChange: (ch
           unit={t("hours")}
           value={value.setupLinkHours}
           onChange={(setupLinkHours) => onChange({ setupLinkHours })}
+          errors={errorAt?.("setupLinkHours")}
         >
           {t("Up to a week. Applies to the links created from now on.")}
         </NumberField>
@@ -101,6 +105,7 @@ export function SignInFields({ value, onChange }: { value: Limits; onChange: (ch
           unit={t("days")}
           value={value.maxTokenDays}
           onChange={(maxTokenDays) => onChange({ maxTokenDays })}
+          errors={errorAt?.("maxTokenDays")}
         >
           {over > 0 &&
             t("{{count}} existing tokens expire later or never. Their users can revoke them on their account page.", {
@@ -121,6 +126,7 @@ function NumberField({
   unit,
   value,
   onChange,
+  errors,
   children,
 }: {
   id: string
@@ -130,25 +136,15 @@ function NumberField({
   unit: string
   value: number
   onChange: (value: number) => void
+  errors?: FieldErrors
   children?: ReactNode
 }) {
   return (
-    <Field>
+    <Field data-invalid={!!errors}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="number"
-          required
-          min={min}
-          max={max}
-          className="font-mono sm:w-32"
-          value={value}
-          onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-        />
-        <span className="text-sm text-muted-foreground">{unit}</span>
-      </div>
+      <NumberInput id={id} min={min} max={max} unit={unit} value={value} onChange={onChange} invalid={!!errors} />
       {children && <FieldDescription>{children}</FieldDescription>}
+      <FieldError errors={errors} />
     </Field>
   )
 }

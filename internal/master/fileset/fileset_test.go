@@ -1,6 +1,7 @@
 package fileset
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -71,13 +72,22 @@ func TestCheck(t *testing.T) {
 		"large binary":        {Path: "a.png", Data: make([]byte, 1<<20+1)},
 	} {
 		bad := Input{Name: "x", Files: []File{f}}
-		if err := bad.check(exists); err == nil {
-			t.Errorf("%s: accepted", name)
+		if err := bad.check(exists); fieldOf(err) != "files" {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 	twice := Input{Name: "x", Files: []File{{Path: "a.yml"}, {Path: "/a.yml"}}}
-	if err := twice.check(exists); err == nil {
-		t.Error("a path twice was accepted")
+	if err := twice.check(exists); fieldOf(err) != "files" {
+		t.Errorf("a path twice: %v", err)
+	}
+	for field, bad := range map[string]Input{
+		"name":        {Name: " "},
+		"description": {Name: "x", Description: strings.Repeat("a", maxDescription+1)},
+		"targets":     {Name: "x", Targets: []Target{{Kind: KindTag, Value: "two words"}}},
+	} {
+		if err := bad.check(exists); fieldOf(err) != field {
+			t.Errorf("%s: %v", field, err)
+		}
 	}
 
 	for name, v := range map[string]Variable{
@@ -93,8 +103,8 @@ func TestCheck(t *testing.T) {
 		"twice for the servers": {Name: "role", Values: []Value{{Kind: KindTag, Scope: "a", Value: "1"}, {Kind: KindTag, Scope: "A", Value: "2"}}},
 	} {
 		bad := Input{Name: "x", Variables: []Variable{v}}
-		if err := bad.check(exists); err == nil {
-			t.Errorf("variable with %s: accepted", name)
+		if err := bad.check(exists); fieldOf(err) != "variables" {
+			t.Errorf("variable with %s: %v", name, err)
 		}
 	}
 	if err := (&Input{Name: "x", Variables: []Variable{{Name: "a"}, {Name: "a"}}}).check(exists); err == nil {
@@ -103,6 +113,15 @@ func TestCheck(t *testing.T) {
 	if err := (&Input{Name: "x", Variables: []Variable{{Name: "motd", Values: []Value{{Kind: KindAll, Value: "<green>Welcome & have fun: #1!"}}}}}).check(exists); err != nil {
 		t.Errorf("a value with punctuation: %v", err)
 	}
+}
+
+// fieldOf returns the field of the request that err is about, or "".
+func fieldOf(err error) string {
+	var apiErr *httpapi.Error
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	return apiErr.Field
 }
 
 func TestRender(t *testing.T) {

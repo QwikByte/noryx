@@ -92,7 +92,7 @@ func (j Jobs) Check(raw json.RawMessage) (json.RawMessage, error) {
 	var s JobSettings
 	msg := "Choose what to back up."
 	if err := json.Unmarshal(raw, &s); err == nil {
-		msg = s.Selection.check()
+		_, msg = s.Selection.check()
 		if s.Selection.empty() && len(s.Datastores) > 0 {
 			msg = "" // a job that only dumps datastores
 		}

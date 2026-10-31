@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { ServerFiles } from "@/features/files/api"
 import { PickDialog } from "@/features/files/path-picker"
 import { msg } from "@/lib/i18n"
+import type { ErrorsAt, FieldErrors } from "@/lib/use-draft"
 import { type JobSettings, pathsError, type Selection } from "./api"
 
 const choices: [key: keyof Omit<Selection, "paths" | "exclude">, label: string, description: string][] = [
@@ -19,8 +20,18 @@ const choices: [key: keyof Omit<Selection, "paths" | "exclude">, label: string, 
   ["config", msg("Configuration"), msg("server.properties, whitelist and other settings, without jars and logs.")],
 ]
 
-/** Chooses what of a server, or of the servers of a job, is backed up. */
-export function SelectionField({ value, server, onChange }: { value: Selection; server?: ServerFiles; onChange: (selection: Selection) => void }) {
+/** Chooses what of a server, or of the servers of a job, is backed up; errorAt tells what the master refused of its paths. */
+export function SelectionField({
+  value,
+  server,
+  onChange,
+  errorAt,
+}: {
+  value: Selection
+  server?: ServerFiles
+  onChange: (selection: Selection) => void
+  errorAt?: ErrorsAt
+}) {
   return (
     <>
       <FieldSet>
@@ -57,6 +68,7 @@ export function SelectionField({ value, server, onChange }: { value: Selection; 
           paths={value.paths}
           server={server}
           onChange={(paths) => onChange({ ...value, paths })}
+          errors={errorAt?.("paths")}
         />
       )}
       <PathsField
@@ -68,6 +80,7 @@ export function SelectionField({ value, server, onChange }: { value: Selection; 
         paths={value.exclude ?? []}
         server={server}
         onChange={(exclude) => onChange({ ...value, exclude })}
+        errors={errorAt?.("exclude")}
       />
     </>
   )
@@ -83,6 +96,7 @@ function PathsField({
   paths,
   server,
   onChange,
+  errors,
 }: {
   id: string
   label: string
@@ -94,10 +108,13 @@ function PathsField({
   paths: string[]
   server?: ServerFiles
   onChange: (paths: string[]) => void
+  /** What the master refused of the paths. */
+  errors?: FieldErrors
 }) {
   const [browsing, setBrowsing] = useState(false)
   const [typed, setTyped] = useState("")
-  const error = pathsError(paths)
+  const invalid = pathsError(paths)
+  const error = invalid ? [{ message: invalid }] : errors
   const add = (more: string[]) => onChange([...new Set([...paths, ...more])])
   const addTyped = () => {
     if (typed.trim()) add([typed.trim().replace(/^\/+|\/+$/g, "")])
@@ -143,7 +160,7 @@ function PathsField({
           }}
         />
       </div>
-      {error ? <FieldError>{error}</FieldError> : <FieldDescription>{description}</FieldDescription>}
+      {error ? <FieldError errors={error} /> : <FieldDescription>{description}</FieldDescription>}
       {browsing && (
         <PickDialog
           title={pick}

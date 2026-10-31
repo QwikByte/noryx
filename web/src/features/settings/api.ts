@@ -10,7 +10,7 @@ import { publicSettingsQuery, type UserDefaults } from "./public"
 /** The certificate the panel serves: self-signed, of Let's Encrypt, or none for plain HTTP, e.g. behind a reverse proxy. */
 export type PanelHTTPS = "" | "self-signed" | "letsencrypt"
 
-/** Settings of the master; they apply right away, the panel's address and HTTPS when the master starts again. */
+/** Settings of the master; they apply right away, the addresses of the panel and SFTP and HTTPS when the master starts again. */
 export interface MasterSettings {
   /** IP:port the panel listens at from the next start; empty means the address from the command line. */
   panelAddr: string
@@ -19,6 +19,8 @@ export interface MasterSettings {
   panelDomain: string
   /** host:port join tokens tell agents to enroll at; empty means the address from the command line. */
   enrollAddr: string
+  /** IP:port the master serves the files of servers at over SFTP from its next start; empty turns SFTP off. */
+  sftpAddr: string
   sessionHours: number
   joinTokenMinutes: number
   /** Limits new nodes get. */
@@ -102,6 +104,11 @@ export interface Master {
   enrollAddr: string
   caFingerprint: string
   certificateExpiresAt: string
+  /** Where SFTP listens, unless it is off, and the SHA256 fingerprint of its host key. */
+  sftpAddr?: string
+  sftpHostKey?: string
+  /** Why SFTP is off although the settings name an address. */
+  sftpError?: string
   /** Whether administrators can restart the master from the panel. */
   restartable: boolean
 }

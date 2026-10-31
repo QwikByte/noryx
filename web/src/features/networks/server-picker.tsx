@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { NodeServer } from "@/features/servers/api"
-import { isFabric, serverType } from "@/features/servers/server-types"
+import { isBedrock, isFabric, serverType } from "@/features/servers/server-types"
 import { cn } from "@/lib/utils"
 import type { Forwarding, ServerRef } from "./api"
 import { canJoin, forwardingMod, key, refOf } from "./servers"
@@ -15,6 +15,7 @@ import { canJoin, forwardingMod, key, refOf } from "./servers"
 function reason(type: string, forwarding?: Forwarding) {
   if (!forwarding || canJoin(type, forwarding)) return undefined
   if (isFabric(type)) return t("FabricProxy-Lite only supports Velocity's modern forwarding.")
+  if (isBedrock(type)) return t("Bedrock players join a network through Geyser on its proxy, not on Bedrock servers.")
   return t("Vanilla servers can't verify the players a proxy forwards.")
 }
 

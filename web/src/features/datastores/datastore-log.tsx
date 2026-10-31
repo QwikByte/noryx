@@ -1,12 +1,11 @@
 import { CaretDownIcon, ScrollIcon } from "@phosphor-icons/react"
 import { t } from "i18next"
-import { type Ref, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { type Ref, useId, useLayoutEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { msg } from "@/lib/i18n"
+import { type StreamState, useEventStream } from "@/lib/use-event-stream"
 import { cn } from "@/lib/utils"
 import type { Datastore } from "./api"
-
-type Connection = "connecting" | "live" | "ended" | "lost" | "failed"
 
 interface Line {
   id: number
@@ -15,7 +14,7 @@ interface Line {
 
 const maxLines = 1000
 
-const connections: Record<Connection, { text: string; dot: string }> = {
+const connections: Record<StreamState, { text: string; dot: string }> = {
   connecting: { text: msg("Connecting…"), dot: "bg-console-warn animate-pulse" },
   live: { text: msg("Live"), dot: "bg-console-command shadow-[0_0_8px_var(--console-command)]" },
   ended: { text: msg("Showing the last output"), dot: "bg-console-muted" },
@@ -67,50 +66,28 @@ export function DatastoreLog({
   )
 }
 
-/**
- * Follows the log. It connects again when the state of the datastore changes, e.g. when it starts
- * again, and when the master renews the stream to check the access again, and continues after
- * the latest line.
- */
+/** Follows the log. It connects again when the state of the datastore changes, e.g. when it starts again, and continues after the latest line. */
 function LogView({ datastore: ds }: { datastore: Datastore }) {
   const [lines, setLines] = useState<Line[]>([])
-  const [connection, setConnection] = useState<Connection>("connecting")
   const viewport = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
   const nextId = useRef(0)
   const pending = useRef<Line[]>([])
   const frame = useRef(0)
-  const lastId = useRef("")
 
-  useEffect(() => {
-    let source: EventSource
-    const connect = () => {
-      source = new EventSource(`/api/datastores/${ds.id}/logs?after=${lastId.current}`)
-      source.onopen = () => setConnection("live")
-      // Lines arrive in bursts (the first ones are hundreds), so they are rendered once per frame.
-      source.onmessage = (event: MessageEvent<string>) => {
-        lastId.current = event.lastEventId
-        pending.current.push({ id: nextId.current++, text: event.data })
-        frame.current ||= requestAnimationFrame(() => {
-          frame.current = 0
-          const batch = pending.current
-          pending.current = []
-          setLines((current) => [...current, ...batch].slice(-maxLines))
-        })
-      }
-      source.addEventListener("end", () => {
-        source.close()
-        setConnection("ended")
+  const connection = useEventStream(`/datastores/${ds.id}/logs`, {
+    reconnectOn: ds.state,
+    // Lines arrive in bursts (the first ones are hundreds), so they are rendered once per frame.
+    onMessage: (event) => {
+      pending.current.push({ id: nextId.current++, text: event.data })
+      frame.current ||= requestAnimationFrame(() => {
+        frame.current = 0
+        const batch = pending.current
+        pending.current = []
+        setLines((current) => [...current, ...batch].slice(-maxLines))
       })
-      source.addEventListener("renew", () => {
-        source.close()
-        connect()
-      })
-      source.onerror = () => setConnection(source.readyState === EventSource.CLOSED ? "failed" : "lost")
-    }
-    connect()
-    return () => source.close()
-  }, [ds.id, ds.state])
+    },
+  })
 
   useLayoutEffect(() => {
     const el = viewport.current

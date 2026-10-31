@@ -6,6 +6,7 @@ import { HubLayout } from "@/components/hub-layout"
 import { automation, home, library, startPage } from "@/components/navigation"
 import { NotFound } from "@/components/not-found"
 import { PageFocus } from "@/components/page-focus"
+import { PageSkeleton } from "@/components/page-skeleton"
 import { DocumentTitle } from "@/components/page-title"
 import { Toaster } from "@/components/ui/sonner"
 import { accessQuery } from "@/features/access/api"
@@ -13,6 +14,7 @@ import { accessOf } from "@/features/access/use-access"
 import { validateUserSearch } from "@/features/access/browse"
 import { meQuery, mustSetUpMfa, type User } from "@/features/auth/api"
 import { LoginPage } from "@/features/auth/login-page"
+import { validateRedirect } from "@/features/auth/redirect"
 import { validateLogSearch } from "@/features/logs/search"
 import { validateNetworkSearch } from "@/features/networks/browse"
 import { validateNodeSearch } from "@/features/nodes/browse"
@@ -21,7 +23,7 @@ import type { Kind } from "@/features/plugins/api"
 import { preferencesQuery } from "@/features/preferences/api"
 import { validateServerSearch } from "@/features/servers/browse"
 import { firstTab } from "@/features/servers/tabs"
-import { ApiError, onOutdated } from "@/lib/api"
+import { ApiError, onOutdated, onSignedOut } from "@/lib/api"
 import { msg } from "@/lib/i18n"
 import { validateQuery } from "@/lib/search"
 
@@ -44,13 +46,8 @@ function signInAgain(error: Error) {
   }
 }
 
-// Only same-site paths are accepted as redirect targets. The key must be set explicitly,
-// because the router merges the validated values over the raw search parameters.
-function validateRedirect(search: Record<string, unknown>): { redirect?: string } {
-  const target = search.redirect
-  const safe = typeof target === "string" && target.startsWith("/") && !target.startsWith("//")
-  return { redirect: safe ? target : undefined }
-}
+// Pages outside the panel's shell show nothing while they load, as the skeleton of a page is shaped for the shell.
+const noPending = () => null
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError: (error, query) => query.queryKey[0] !== "me" && signInAgain(error) }),
@@ -96,6 +93,7 @@ const twoFactorRoute = createRoute({
     if (!user.mustSetUpMfa) throw redirect({ to: search.redirect ?? "/" })
   },
   component: lazyRouteComponent(() => import("@/features/auth/two-factor-page"), "TwoFactorPage"),
+  pendingComponent: noPending,
 })
 
 // Users set their password here with a setup link; the token is in the fragment.
@@ -104,6 +102,7 @@ const setupRoute = createRoute({
   path: "/setup",
   staticData: { title: msg("Set your password") },
   component: lazyRouteComponent(() => import("@/features/auth/setup-page"), "SetupPage"),
+  pendingComponent: noPending,
 })
 
 const appRoute = createRoute({
@@ -122,6 +121,7 @@ const appRoute = createRoute({
     if (user.mustSetUpMfa) throw redirect({ to: "/two-factor", search })
   },
   component: AppShell,
+  pendingComponent: noPending,
 })
 
 // Addresses that lead to no page show a hint within the panel, after signing in.
@@ -382,6 +382,12 @@ const newBackupJobRoute = createRoute({
   staticData: { title: msg("Backups") },
   component: lazyRouteComponent(() => import("@/features/backups/backup-job-page"), "NewBackupJobPage"),
 })
+const masterBackupRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/backups/master",
+  staticData: { title: msg("Backups") },
+  component: lazyRouteComponent(() => import("@/features/backups/master-backup"), "MasterBackupPage"),
+})
 const backupJobRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/backups/$jobId",
@@ -561,6 +567,7 @@ export const router = createRouter({
       fileSetRoute,
       automationRoute.addChildren([backupJobsRoute, policiesRoute, workflowsRoute, agendaRoute]),
       newBackupJobRoute,
+      masterBackupRoute,
       backupJobRoute,
       newPolicyRoute,
       policyRoute,
@@ -584,6 +591,10 @@ export const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultErrorComponent: ErrorPage,
+  // While the code of a page loads on a slow link; fast loads don't flash it, and once shown it stays a moment.
+  defaultPendingComponent: PageSkeleton,
+  defaultPendingMs: 300,
+  defaultPendingMinMs: 300,
 })
 
 /** Whether leaving the page would lose something, e.g. unsaved changes or uploads, so that the browser asks first. */
@@ -596,6 +607,9 @@ function leavingLoses() {
 onOutdated(() => {
   if (!leavingLoses()) location.reload()
 })
+
+// Streams of events, which aren't queries, tell an expired session here.
+onSignedOut(() => signInAgain(new ApiError(401, "")))
 
 declare module "@tanstack/react-router" {
   interface Register {

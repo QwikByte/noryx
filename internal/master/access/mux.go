@@ -1,6 +1,7 @@
 package access
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -109,18 +110,28 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			httpapi.WriteError(w, r, httpapi.Errorf(http.StatusUnauthorized, "Sign in to continue."))
 			return
 		}
-		g, err := s.Grants(r.Context(), user.ID)
+		g, err := s.GrantsOf(r.Context(), user)
 		if err != nil {
-			httpapi.WriteError(w, r, fmt.Errorf("load the permissions of %s: %w", user.Username, err))
+			httpapi.WriteError(w, r, err)
 			return
-		}
-		if t := user.Token; t != nil && t.Permissions != nil {
-			perms := make([]Permission, len(t.Permissions))
-			for i, p := range t.Permissions {
-				perms[i] = Permission(p)
-			}
-			g = g.Only(perms)
 		}
 		next.ServeHTTP(w, r.WithContext(WithGrants(r.Context(), g)))
 	})
+}
+
+// GrantsOf returns the grants a user has now, and of those only what the API token of the
+// user allows, if the user acts with one.
+func (s *Service) GrantsOf(ctx context.Context, user auth.User) (Grants, error) {
+	g, err := s.Grants(ctx, user.ID)
+	if err != nil {
+		return g, fmt.Errorf("load the permissions of %s: %w", user.Username, err)
+	}
+	if t := user.Token; t != nil && t.Permissions != nil {
+		perms := make([]Permission, len(t.Permissions))
+		for i, p := range t.Permissions {
+			perms[i] = Permission(p)
+		}
+		g = g.Only(perms)
+	}
+	return g, nil
 }

@@ -24,111 +24,120 @@ import { QrCode } from "./qr-code"
 
 type Codes = { recoveryCodes: string[] }
 
-/** Sets up an authenticator app with a QR code; a code of the app and the password turn it on. */
-export function MfaSetupDialog({
-  username,
-  enable,
-  onEnabled,
-  trigger = <Button>{t("Set up")}</Button>,
-}: {
+interface Setup {
   username: string
   enable: UseMutationResult<Codes, Error, { password: string; code: string }>
   onEnabled: (codes: string[]) => void
-  trigger?: ReactElement
-}) {
+}
+
+/** Sets up an authenticator app with a QR code; a code of the app and the password turn it on. */
+export function MfaSetupDialog({ trigger = <Button>{t("Set up")}</Button>, ...props }: Setup & { trigger?: ReactElement }) {
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ code: "", password: "" })
   const setup = useSetUpMfa()
 
   // Every setup gets a new secret.
   function onOpenChange(next: boolean) {
     setOpen(next)
-    setForm({ code: "", password: "" })
-    enable.reset()
+    props.enable.reset()
     if (next) setup.mutate()
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    enable.mutate(form, {
-      onSuccess: ({ recoveryCodes }) => {
-        onOpenChange(false)
-        onEnabled(recoveryCodes)
-      },
-    })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{t("Set up two-factor authentication")}</DialogTitle>
-            <DialogDescription>
-              {t(
-                "Use an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator, Aegis or your password manager.",
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <ol className="grid gap-6">
-            <Step n={1} title={t("Scan this QR code with the app")}>
-              {setup.error ? (
-                <ErrorCallout error={setup.error} retry={false} />
-              ) : setup.data ? (
-                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-                  <QrCode value={setup.data.uri} label={t("QR code for your authenticator app")} className="size-40 shrink-0" />
-                  <div className="w-full min-w-0 space-y-2 text-muted-foreground">
-                    <p>{t("Can't scan it? Enter this key in the app instead.")}</p>
-                    <CopyField label={t("Key")} value={setup.data.secret} />
-                  </div>
-                </div>
-              ) : (
-                <Skeleton className="h-40 rounded-xl" />
-              )}
-            </Step>
-            <Step n={2} title={t("Confirm with a code from the app and your password")}>
-              <FieldGroup className="sm:grid sm:grid-cols-2 sm:gap-4">
-                <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
-                <Field>
-                  <FieldLabel htmlFor="mfa-code">{t("Code")}</FieldLabel>
-                  <Input
-                    id="mfa-code"
-                    autoComplete="one-time-code"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="000000"
-                    className="font-mono tracking-[0.3em]"
-                    value={form.code}
-                    onChange={(e) => setForm({ ...form, code: e.target.value.replace(/\D/g, "") })}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="mfa-password">{t("Password")}</FieldLabel>
-                  <Input
-                    id="mfa-password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  />
-                </Field>
-              </FieldGroup>
-              <p className="text-muted-foreground">{t("Your other sessions end, and your API tokens stop working.")}</p>
-            </Step>
-          </ol>
-          {enable.error && <FieldError>{enable.error.message}</FieldError>}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" disabled={!setup.data || enable.isPending || form.code.length !== 6 || !form.password}>
-              {enable.isPending ? t("Turning on…") : t("Turn on")}
-            </Button>
-          </DialogFooter>
-        </form>
+        <MfaSetupForm {...props} setup={setup} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The code and password, entered anew each time the dialog opens, under the QR code of the setup. */
+function MfaSetupForm({
+  username,
+  enable,
+  onEnabled,
+  setup,
+  onClose,
+}: Setup & { setup: ReturnType<typeof useSetUpMfa>; onClose: () => void }) {
+  const [form, setForm] = useState({ code: "", password: "" })
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    enable.mutate(form, {
+      onSuccess: ({ recoveryCodes }) => {
+        onClose()
+        onEnabled(recoveryCodes)
+      },
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{t("Set up two-factor authentication")}</DialogTitle>
+        <DialogDescription>
+          {t(
+            "Use an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator, Aegis or your password manager.",
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      <ol className="grid gap-6">
+        <Step n={1} title={t("Scan this QR code with the app")}>
+          {setup.error ? (
+            <ErrorCallout error={setup.error} retry={false} />
+          ) : setup.data ? (
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+              <QrCode value={setup.data.uri} label={t("QR code for your authenticator app")} className="size-40 shrink-0" />
+              <div className="w-full min-w-0 space-y-2 text-muted-foreground">
+                <p>{t("Can't scan it? Enter this key in the app instead.")}</p>
+                <CopyField label={t("Key")} value={setup.data.secret} />
+              </div>
+            </div>
+          ) : (
+            <Skeleton className="h-40 rounded-xl" />
+          )}
+        </Step>
+        <Step n={2} title={t("Confirm with a code from the app and your password")}>
+          <FieldGroup className="sm:grid sm:grid-cols-2 sm:gap-4">
+            <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
+            <Field>
+              <FieldLabel htmlFor="mfa-code">{t("Code")}</FieldLabel>
+              <Input
+                id="mfa-code"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                className="font-mono tracking-[0.3em]"
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value.replace(/\D/g, "") })}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="mfa-password">{t("Password")}</FieldLabel>
+              <Input
+                id="mfa-password"
+                type="password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </Field>
+          </FieldGroup>
+          <p className="text-muted-foreground">{t("Your other sessions end, and your API tokens stop working.")}</p>
+        </Step>
+      </ol>
+      {enable.error && <FieldError>{enable.error.message}</FieldError>}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" disabled={!setup.data || enable.isPending || form.code.length !== 6 || !form.password}>
+          {enable.isPending ? t("Turning on…") : t("Turn on")}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 
@@ -146,77 +155,85 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   )
 }
 
-/** Asks for the password before a change of two-factor authentication. */
-export function ConfirmPasswordDialog<R>({
-  trigger,
-  title,
-  description,
-  action,
-  destructive = false,
-  change,
-  onSuccess,
-}: {
-  trigger: ReactElement
+interface Confirmation<R> {
   title: string
   description: string
   action: string
   destructive?: boolean
   change: UseMutationResult<R, Error, string>
   onSuccess: (result: R) => void
-}) {
+}
+
+/** Asks for the password before a change of two-factor authentication. */
+export function ConfirmPasswordDialog<R>({ trigger, ...confirmation }: Confirmation<R> & { trigger: ReactElement }) {
   const [open, setOpen] = useState(false)
-  const [password, setPassword] = useState("")
 
   function onOpenChange(next: boolean) {
     setOpen(next)
-    setPassword("")
-    change.reset()
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    change.mutate(password, {
-      onSuccess: (result) => {
-        onOpenChange(false)
-        onSuccess(result)
-      },
-    })
+    confirmation.change.reset()
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={submit} className="grid gap-6">
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="confirm-password">{t("Password")}</FieldLabel>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="current-password"
-                autoFocus
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </Field>
-            {change.error && <FieldError>{change.error.message}</FieldError>}
-          </FieldGroup>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("Cancel")}</Button>
-            </DialogClose>
-            <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={change.isPending || !password}>
-              {action}
-            </Button>
-          </DialogFooter>
-        </form>
+        <ConfirmPasswordForm {...confirmation} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The password, entered anew each time the dialog opens. */
+function ConfirmPasswordForm<R>({
+  title,
+  description,
+  action,
+  destructive = false,
+  change,
+  onSuccess,
+  onClose,
+}: Confirmation<R> & { onClose: () => void }) {
+  const [password, setPassword] = useState("")
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    change.mutate(password, {
+      onSuccess: (result) => {
+        onClose()
+        onSuccess(result)
+      },
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-6">
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="confirm-password">{t("Password")}</FieldLabel>
+          <Input
+            id="confirm-password"
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+        {change.error && <FieldError>{change.error.message}</FieldError>}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">{t("Cancel")}</Button>
+        </DialogClose>
+        <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={change.isPending || !password}>
+          {action}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 

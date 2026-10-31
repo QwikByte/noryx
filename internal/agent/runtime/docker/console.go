@@ -39,8 +39,8 @@ var errQuiet = errors.New("the proxy didn't answer")
 var notSent = []string{"That user is not online", "The specified server does not exist", "Only in game players"}
 
 // SendCommand runs the command of a game server on its console over RCON, keeping the
-// connection for the next one. Proxies have no RCON and get the command on their console
-// instead, whose output follows in the logs; see command.
+// connection for the next one. Proxies and Bedrock servers have no RCON and get the command on
+// their console instead, whose output follows in the logs; see command and bedrockCommand.
 func (d *Docker) SendCommand(ctx context.Context, id, command string) (string, error) {
 	c, spec, err := d.inspect(ctx, id)
 	switch {
@@ -52,6 +52,8 @@ func (d *Docker) SendCommand(ctx context.Context, id, command string) (string, e
 		return "", runtime.ErrUnsupported // created by an older agent, until it is created again
 	case spec.Type.Proxy():
 		return "", d.command(ctx, id, spec.Type, command)
+	case spec.Type.Bedrock():
+		return "", d.bedrockCommand(ctx, id, command)
 	}
 	host := hostOf(c)
 	out, err := d.consoles.Command(ctx, id, host+" "+c.State.StartedAt, func(ctx context.Context) (string, string, error) {
@@ -164,6 +166,29 @@ func (d *Docker) command(ctx context.Context, id string, typ noryxv1.ServerType,
 		return err
 	}
 	return nil // quiet means sent
+}
+
+// bedrockCommand writes a command to the console of a Bedrock server. Its answer to save query
+// tells whether the server is ready for its worlds to be copied, so it is awaited.
+func (d *Docker) bedrockCommand(ctx context.Context, id, command string) error {
+	if command != "save query" {
+		return d.console(ctx, id, command, nil)
+	}
+	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
+	defer cancel()
+	err := d.console(ctx, id, command, func(line string) (bool, error) {
+		switch line = plainLine(line); {
+		case strings.Contains(line, "Files are now ready to be copied"):
+			return true, nil
+		case strings.Contains(line, "previous save has not been completed"):
+			return true, runtime.ErrNotReady
+		}
+		return false, nil
+	})
+	if err != nil && ctx.Err() != nil {
+		return fmt.Errorf("%w: the server didn't answer save query", runtime.ErrNotReady)
+	}
+	return err
 }
 
 // sent reads the answer of BungeeCord to a send command, line by line, until it tells whether

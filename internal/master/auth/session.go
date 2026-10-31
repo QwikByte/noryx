@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -118,7 +119,7 @@ func unixOrZero(sec int64) time.Time {
 // aren't found.
 func (s *Service) EndSession(ctx context.Context, userID int64, id string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ? AND user_id = ?`, id, userID)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errNoSuchSession
 	}
 	return err

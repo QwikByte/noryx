@@ -117,12 +117,51 @@ and configuration, which can hold passwords that weren't set through file sets.
 The master keeps users, nodes, networks, templates, file sets with their secrets, backup jobs, the storages for
 [copies of backups](#copies-of-backups) with their secret keys, schedules, settings and the log in its database, and the
 certificate authority (CA) that its agents trust in `pki`. Losing them means enrolling every node again, and losing
-track of the copies of backups. `sudo -u noryx noryx-master backup <file>` saves both in a `.tar.gz` archive, also while
-the master runs; with `-` instead of a file, it writes the archive to stdout, e.g. for
-`ssh master 'sudo -u noryx noryx-master backup -' > master.tar.gz` on another machine. The CA's private key lets anyone
-control the agents, and the secret keys of storages let anyone read the copies there, so keep the archive as safe as the
-master. To restore it, e.g. on a new machine after
-`install.sh master`:
+track of the copies of backups. An archive holds both, and the host key of [SFTP](servers.md#sftp) if the master has
+one, so that clients still trust a restored master. It holds every secret of the master, and **the CA's private key in it
+lets anyone who gets the archive control the agents of all nodes**, and with them every server. Keep archives as safe as
+the master itself.
+
+- **Backup job of the master.** **Backup of the master** on the **Backups** tab of the **Automation** saves an archive
+  at set times, see [Targets and times](#targets-and-times), while the master runs. It keeps the archives in a storage
+  for [copies of backups](#copies-of-backups), in the folder `master` of the storage's folder, e.g.
+  `noryx/master/noryx-master-20261031-033000-k3x7qa.tar.gz.age`, or on a node, in `<backups of the location>/master`,
+  apart from the backups of the servers there and out of their reach; the master relays them, and the node needs an
+  up-to-date agent. Keep them away from the master's machine. The job keeps as many of the newest archives there as it
+  should, at least 1, and deletes its older ones there, never anything else; archives in a place that it no longer keeps
+  them in stay there. There is one such job at most, and while there is none, **Needs attention** reminds administrators
+of it. Its runs, its last and next run and its failures show like those
+  of other jobs, also in **Needs attention**, the **Agenda** and as warnings of the category **Backups** in the log,
+  which [notifications](monitoring.md#notifications) can send.
+- **Passphrase.** With a passphrase of at least 12 characters, the job encrypts the archives with
+  [age](https://age-encryption.org), so that whoever gets one can't read it without the passphrase; `age -d` decrypts
+  them too. Without a passphrase, they aren't encrypted, which the panel warns about. The master keeps the passphrase in
+  its database, like the secret keys of storages, and never shows or logs it; a new one applies to the next archives.
+  Keep it somewhere else too, e.g. in a password manager: without it, no archive can be restored.
+- **By hand.** `sudo -u noryx noryx-master backup <file>` saves an unencrypted `.tar.gz` archive, also while the master
+  runs; with `-` instead of a file, it writes the archive to stdout, e.g. for
+  `ssh master 'sudo -u noryx noryx-master backup -' > master.tar.gz` on another machine, or for
+  `… | age -p > master.tar.gz.age`, which encrypts it with a passphrase.
+- **Permissions.** Only administrators can see, change and run the backup job of the master, and each run needs the
+  administrator who saved it last to still be one, see [Security](security.md#backups-of-the-master).
+
+To restore an archive, e.g. on a new machine after `install.sh master`, stop the master, copy the archive to the machine
+where the user `noryx` can read it, and restore it:
+
+```sh
+sudo systemctl stop noryx-master
+sudo -u noryx noryx-master restore /tmp/noryx-master-20261031-033000-k3x7qa.tar.gz.age
+sudo systemctl start noryx-master
+```
+
+`noryx-master restore` asks for the passphrase of an encrypted archive, or reads it from `NORYX_MASTER_PASSPHRASE`, e.g.
+with `sudo -u noryx --preserve-env=NORYX_MASTER_PASSPHRASE noryx-master restore …` in scripts. It refuses while the
+master runs, and checks all of the archive before it replaces anything: that the passphrase is right, that nothing in it
+was changed or cut off, that it holds nothing but the database and the CA, that this version of the master can open the
+database and that the CA has its key. Then it replaces the database, the CA and, if the archive has one, the host key of
+SFTP in the data directory, and keeps what it replaced in a folder `replaced-<time>-…` there; delete it once the master
+works, as it holds the private key of the CA it
+had. An unencrypted archive can also be restored by hand:
 
 ```sh
 sudo systemctl stop noryx-master

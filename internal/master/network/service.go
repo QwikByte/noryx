@@ -29,6 +29,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/node"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -238,7 +239,7 @@ func (s *Service) Create(ctx context.Context, d Draft) (Network, error) {
 	if err != nil {
 		return n, err
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, proxy_type, forwarding_secret, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -297,7 +298,7 @@ func (s *Service) update(ctx context.Context, current, n Network) (Network, erro
 	for _, b := range current.Backends {
 		if !slices.ContainsFunc(n.Backends, b.same) {
 			if err := s.leave(ctx, b); err != nil {
-				return current, httpapi.Errorf(http.StatusBadGateway, "%s could not be made standalone again: %s", b.Name, message(err))
+				return current, httpapi.Errorf(http.StatusBadGateway, "%s could not be made standalone again: %s", b.Name, httpapi.Message(err))
 			}
 		}
 	}
@@ -307,7 +308,7 @@ func (s *Service) update(ctx context.Context, current, n Network) (Network, erro
 			return current, err
 		}
 	}
-	if err := s.inTx(ctx, func(tx *sql.Tx) error { return save(ctx, tx, n) }); err != nil {
+	if err := database.InTx(ctx, s.db, func(tx *sql.Tx) error { return save(ctx, tx, n) }); err != nil {
 		return current, conflict(err, n.Name)
 	}
 	return n, s.apply(ctx, n, n.BedrockPort != current.BedrockPort)
@@ -345,12 +346,12 @@ func (s *Service) Delete(ctx context.Context, id string) (warning string, err er
 			continue
 		}
 		if err := s.leave(ctx, b); err != nil && !skipped(b.Ref) {
-			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted, because %s could not be made standalone again: %s", b.Name, message(err))
+			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted, because %s could not be made standalone again: %s", b.Name, httpapi.Message(err))
 		}
 	}
 	if !offline {
 		if err := s.release(ctx, n, "proxy"); err != nil && !skipped(n.Proxy) {
-			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted: %s", message(err))
+			return "", httpapi.Errorf(http.StatusBadGateway, "The network was not deleted: %s", httpapi.Message(err))
 		}
 	}
 	if _, err = s.db.ExecContext(ctx, `DELETE FROM networks WHERE id = ?`, n.ID); err != nil || !offline {
@@ -387,7 +388,7 @@ func (s *Service) release(ctx context.Context, n Network, step string) error {
 	operation.Step(ctx, step)
 	detach := &noryxv1.ConfigureNetworkRequest{Id: n.Proxy.ServerID, Forwarding: noryxv1.Forwarding_FORWARDING_NONE}
 	if _, err := s.configure(ctx, n.Proxy, detach); ignoreMissing(err) != nil {
-		return httpapi.Errorf(http.StatusBadGateway, "The proxy could not be configured: %s", message(err))
+		return httpapi.Errorf(http.StatusBadGateway, "The proxy could not be configured: %s", httpapi.Message(err))
 	}
 	return nil
 }
@@ -445,7 +446,7 @@ func (s *Service) Move(ctx context.Context, serverID, from, to string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var id string
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		for _, query := range []string{
 			`UPDATE networks SET proxy_node_id = ?1 WHERE proxy_node_id = ?2 AND proxy_server_id = ?3 RETURNING id`,
 			`UPDATE network_backends SET node_id = ?1 WHERE node_id = ?2 AND server_id = ?3 RETURNING network_id`,
@@ -939,7 +940,9 @@ func (s *Service) backend(ctx context.Context, ref Ref, forwarding string) (*nor
 		return nil, err
 	}
 	switch typ := srv.GetType(); {
-	case typ.Proxy() || typ == noryxv1.ServerType_SERVER_TYPE_VANILLA:
+	case typ.Bedrock():
+		return nil, httpapi.Errorf(http.StatusBadRequest, "Bedrock servers can't be part of a network. Bedrock players join a network through Geyser on its proxy instead.")
+	case !typ.Backend():
 		return nil, httpapi.Errorf(http.StatusBadRequest, "Only Paper and its forks, Fabric, Quilt, Forge and NeoForge servers can verify the players a proxy forwards.")
 	case typ.Fabric() && forwarding != Modern:
 		return nil, errFabricMode
@@ -1040,18 +1043,6 @@ func save(ctx context.Context, tx *sql.Tx, n Network) error {
 	return nil
 }
 
-// inTx runs fn in a transaction that is committed if fn succeeds.
-func (s *Service) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		return errors.Join(err, tx.Rollback())
-	}
-	return tx.Commit()
-}
-
 // backendName derives the name players use for a server, e.g. "Survival 2" becomes
 // "survival-2", and keeps it unique within the network.
 func backendName(serverName string, existing []Backend) string {
@@ -1086,19 +1077,12 @@ type failed struct {
 }
 
 func (f *failed) Error() string {
-	return fmt.Sprintf("%s could not be configured: %s", f.what, strings.TrimSuffix(message(f.err), ".")+".")
+	return fmt.Sprintf("%s could not be configured: %s", f.what, strings.TrimSuffix(httpapi.Message(f.err), ".")+".")
 }
 
 func applyFailed(what string, err error) error { return &failed{what, err} }
 
 // message returns the message of an error of an agent or of the master.
-func message(err error) string {
-	if st, ok := status.FromError(err); ok {
-		return st.Message()
-	}
-	return err.Error()
-}
-
 // ignoreMissing ignores that the agent does not know a server, e.g. as it was deleted.
 func ignoreMissing(err error) error {
 	if status.Code(err) == codes.NotFound {

@@ -174,6 +174,20 @@ export interface SearchResult {
   tooLarge: number
 }
 
+/** How to reach the files of a server over SFTP: its port, the fingerprint of its host key and the server's folder; none while SFTP is off. */
+export interface SftpAccess {
+  port?: number
+  hostKey?: string
+  path?: string
+}
+
+export const sftpQuery = (s: ServerFiles) =>
+  queryOptions({
+    queryKey: ["sftp", s.nodeId, s.serverId],
+    queryFn: () => api<SftpAccess>(`/nodes/${s.nodeId}/servers/${s.serverId}/sftp`),
+    staleTime: 60_000,
+  })
+
 /** Searches the text files of a folder and the folders in it, as the file manager shows them. */
 export const searchQuery = (s: ServerFiles, path: string, text: string) =>
   queryOptions({
