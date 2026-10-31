@@ -29,8 +29,9 @@ func (t Token) String() string {
 func ParseToken(s string) (Token, error) {
 	var t Token
 	invalid := errors.New("invalid join token")
-	data, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(strings.TrimSpace(s), tokenPrefix))
-	if err != nil || json.Unmarshal(data, &t) != nil {
+	encoded, ok := strings.CutPrefix(strings.TrimSpace(s), tokenPrefix)
+	data, err := base64.RawURLEncoding.DecodeString(encoded)
+	if !ok || err != nil || json.Unmarshal(data, &t) != nil {
 		return t, invalid
 	}
 	if t.Master == "" || t.NodeID == "" || t.Secret == "" || len(t.CA) == 0 {

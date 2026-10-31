@@ -261,7 +261,7 @@ func (s *Service) NewJoinToken(ctx context.Context, id string) (JoinToken, error
 // that doesn't answer pings for 20 seconds is cut off, as is one that pings more than every 5
 // minutes, which agents never do here.
 func (s *Service) EnrollmentServer() *grpc.Server {
-	srv := grpc.NewServer(
+	srv := grpc.NewServer(append(logging.Recover(),
 		grpc.Creds(credentials.NewTLS(pki.MasterServerTLS(s.cert))),
 		grpc.ConnectionTimeout(10*time.Second),
 		grpc.MaxConcurrentStreams(4),
@@ -271,7 +271,7 @@ func (s *Service) EnrollmentServer() *grpc.Server {
 			Time: time.Minute, Timeout: 20 * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: 5 * time.Minute}),
-	)
+	)...)
 	noryxv1.RegisterEnrollmentServiceServer(srv, s)
 	return srv
 }

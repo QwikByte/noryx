@@ -17,7 +17,8 @@ func TestTokenRoundTrip(t *testing.T) {
 }
 
 func TestParseTokenRejectsGarbage(t *testing.T) {
-	for _, s := range []string{"", "noryx1_", "noryx1_!!!", Token{Master: "x"}.String(), Token{Master: "x", NodeID: "n1", Secret: "s"}.String()} {
+	valid := Token{Master: "x", NodeID: "n1", Secret: "s", CA: []byte{1}}.String()
+	for _, s := range []string{"", "noryx1_", "noryx1_!!!", Token{Master: "x"}.String(), Token{Master: "x", NodeID: "n1", Secret: "s"}.String(), valid[len("noryx1_"):]} {
 		if _, err := ParseToken(s); err == nil {
 			t.Errorf("ParseToken(%q) succeeded", s)
 		}
