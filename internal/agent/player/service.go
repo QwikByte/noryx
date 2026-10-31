@@ -18,6 +18,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/properties"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
@@ -323,10 +324,8 @@ func (s *Service) open(ctx context.Context, id string) (runtime.Server, *datadir
 	}
 	srv, err := runtime.Find(ctx, s.rt, id)
 	switch {
-	case errors.Is(err, runtime.ErrNotFound):
-		return srv, nil, status.Error(codes.NotFound, "Server not found.")
 	case err != nil:
-		return srv, nil, status.Error(codes.Internal, err.Error())
+		return srv, nil, grpcerr.Status(err)
 	case srv.Type.Proxy():
 		return srv, nil, status.Error(codes.FailedPrecondition, "Players are managed on the game servers of a network.")
 	}

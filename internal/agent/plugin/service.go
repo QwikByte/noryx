@@ -22,6 +22,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
@@ -307,17 +308,5 @@ func (s *Service) open(ctx context.Context, id string) (*datadir.Dir, string, no
 }
 
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Server not found.")
-	case errors.Is(err, fs.ErrNotExist):
-		return status.Error(codes.NotFound, "Plugin not found.")
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	}
-	return status.Error(codes.Internal, err.Error())
+	return grpcerr.Status(err, grpcerr.Known{Err: fs.ErrNotExist, Code: codes.NotFound, Text: "Plugin not found."})
 }

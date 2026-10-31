@@ -27,6 +27,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 	"github.com/QwikByte/noryx/internal/agent/secrets"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -446,17 +447,8 @@ func failed(format string, args ...any) error {
 }
 
 func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown:
-		return err
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Server not found.")
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	case strings.Contains(err.Error(), "path escapes from parent"): // os.Root, e.g. through a symbolic link
+	if datadir.Escapes(err) {
 		return failed("A path of the file set leads outside of the server folder.")
 	}
-	return status.Error(codes.Internal, err.Error())
+	return grpcerr.Status(err)
 }

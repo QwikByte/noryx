@@ -28,6 +28,7 @@ import (
 	"github.com/QwikByte/noryx/internal/agent/archive"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
 	"github.com/QwikByte/noryx/internal/agent/fileset"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	mcnet "github.com/QwikByte/noryx/internal/agent/network"
 	"github.com/QwikByte/noryx/internal/agent/properties"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
@@ -868,27 +869,11 @@ func toProto(s runtime.Server) *noryxv1.Server {
 	}
 }
 
-func toStatus(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case status.Code(err) != codes.Unknown: // e.g. a refused archive
-		return err
-	case errors.As(err, new(storage.FullError)):
-		return status.Error(codes.ResourceExhausted, err.Error())
-	case errors.Is(err, runtime.ErrNotFound):
-		return status.Error(codes.NotFound, "Server not found.")
-	case errors.Is(err, runtime.ErrNotRunning):
-		return status.Error(codes.FailedPrecondition, "Start the server to send commands.")
-	case errors.Is(err, runtime.ErrNotReady):
-		return status.Error(codes.FailedPrecondition, "The server is starting. Wait until it runs to send commands.")
-	case errors.Is(err, runtime.ErrUnsupported):
-		return status.Error(codes.FailedPrecondition, "This type of server does not support that.")
-	case errors.Is(err, storage.ErrUnknown):
-		return status.Errorf(codes.InvalidArgument, "%s. Add it on the node with: noryx-agent storage add", err)
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return status.FromContextError(err).Err()
-	default:
-		return status.Error(codes.Internal, err.Error())
-	}
+// known are the errors of servers that the service answers with a code and a text.
+var known = []grpcerr.Known{
+	{Err: runtime.ErrNotRunning, Code: codes.FailedPrecondition, Text: "Start the server to send commands."},
+	{Err: runtime.ErrNotReady, Code: codes.FailedPrecondition, Text: "The server is starting. Wait until it runs to send commands."},
+	{Err: runtime.ErrUnsupported, Code: codes.FailedPrecondition, Text: "This type of server does not support that."},
 }
+
+func toStatus(err error) error { return grpcerr.Status(err, known...) }

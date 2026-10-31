@@ -18,6 +18,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
+	"github.com/QwikByte/noryx/internal/agent/grpcerr"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 )
 
@@ -150,11 +151,8 @@ func (s *Service) open(ctx context.Context, id string) (runtime.Spec, *datadir.D
 		return runtime.Spec{}, nil, status.Error(codes.InvalidArgument, "invalid server ID")
 	}
 	srv, err := runtime.Find(ctx, s.rt, id)
-	if errors.Is(err, runtime.ErrNotFound) {
-		return runtime.Spec{}, nil, status.Error(codes.NotFound, "Server not found.")
-	}
 	if err != nil {
-		return runtime.Spec{}, nil, status.Error(codes.Internal, err.Error())
+		return runtime.Spec{}, nil, grpcerr.Status(err)
 	}
 	spec := srv.Spec
 	if spec.Type.Proxy() {

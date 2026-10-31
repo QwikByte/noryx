@@ -100,6 +100,7 @@ internal/agent/
   datastore/           datastores of networks: databases and users, dumps loaded as their users, tables shown read
                        only, the local CLI's part
   logs/                latest log entries in memory, log service, logging of every call
+  grpcerr/             turns errors into the gRPC codes and texts that all services answer with
   progress/            tells the master the progress of calls, e.g. downloading an image, through ProgressService
   stats/               measures what the node and its servers use: CPU, memory, network, data, players, TPS
   runtime/             runtime interface, also for datastores; docker/ implements it, runtimetest/ keeps datastores
