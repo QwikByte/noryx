@@ -4,10 +4,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -88,27 +85,13 @@ func TestNeedsRenewal(t *testing.T) {
 
 func TestKeyPairStorage(t *testing.T) {
 	ca, dir := newCA(t), t.TempDir()
-	old := enrollNode(t, ca, "node-1")
-	// Earlier versions stored certificate and key in two files.
-	keyDER, err := x509.MarshalPKCS8PrivateKey(old.PrivateKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writePEMFile(t, filepath.Join(dir, "node.crt"), "CERTIFICATE", old.Certificate[0])
-	writePEMFile(t, filepath.Join(dir, "node.key"), "PRIVATE KEY", keyDER)
-	if loaded, err := LoadKeyPair(dir, "node"); err != nil || loaded.Leaf.SerialNumber.Cmp(old.Leaf.SerialNumber) != 0 {
-		t.Fatalf("legacy key pair not loaded: %v", err)
-	}
-
-	renewed := enrollNode(t, ca, "node-1")
-	if err := SaveKeyPair(dir, "node", renewed.Certificate[0], renewed.PrivateKey.(crypto.Signer)); err != nil {
-		t.Fatal(err)
-	}
-	if loaded, err := LoadKeyPair(dir, "node"); err != nil || loaded.Leaf.SerialNumber.Cmp(renewed.Leaf.SerialNumber) != 0 {
-		t.Fatalf("renewed key pair not loaded: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "node.key")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("the replaced private key is still on disk")
+	for _, pair := range []tls.Certificate{enrollNode(t, ca, "node-1"), enrollNode(t, ca, "node-1")} { // the second renews
+		if err := SaveKeyPair(dir, "node", pair.Certificate[0], pair.PrivateKey.(crypto.Signer)); err != nil {
+			t.Fatal(err)
+		}
+		if loaded, err := LoadKeyPair(dir, "node"); err != nil || loaded.Leaf.SerialNumber.Cmp(pair.Leaf.SerialNumber) != 0 {
+			t.Fatalf("saved key pair not loaded: %v", err)
+		}
 	}
 }
 
@@ -142,13 +125,6 @@ func must[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
-}
-
-func writePEMFile(t *testing.T, path, blockType string, der []byte) {
-	t.Helper()
-	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der}), 0o600); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // handshake runs a TLS handshake over loopback. It returns the certificate the server

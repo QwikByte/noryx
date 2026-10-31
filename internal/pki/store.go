@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -21,30 +20,13 @@ func SaveKeyPair(dir, name string, certDER []byte, key crypto.Signer) error {
 	}
 	data := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	data = append(data, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})...)
-	if err := writeFile(dir, name+".pem", data); err != nil {
-		return err
-	}
-	// The former layout kept the pair in two files; its key must not outlive the renewal.
-	return errors.Join(removeIfExists(filepath.Join(dir, name+".crt")), removeIfExists(filepath.Join(dir, name+".key")))
+	return writeFile(dir, name+".pem", data)
 }
 
-// LoadKeyPair reads <name>.pem from dir, or <name>.crt and <name>.key written by earlier versions.
+// LoadKeyPair reads <name>.pem from dir.
 func LoadKeyPair(dir, name string) (tls.Certificate, error) {
 	path := filepath.Join(dir, name+".pem")
-	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-		return tls.LoadX509KeyPair(filepath.Join(dir, name+".crt"), filepath.Join(dir, name+".key"))
-	}
 	return tls.LoadX509KeyPair(path, path)
-}
-
-// hasKeyPair reports whether dir contains a key pair called name in any layout.
-func hasKeyPair(dir, name string) bool {
-	for _, file := range []string{name + ".pem", name + ".crt"} {
-		if _, err := os.Stat(filepath.Join(dir, file)); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // SaveCert writes <name>.crt to dir.
@@ -81,11 +63,4 @@ func writeFile(dir, file string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), filepath.Join(dir, file))
-}
-
-func removeIfExists(path string) error {
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	return nil
 }

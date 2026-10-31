@@ -14,7 +14,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 )
 
@@ -38,10 +40,10 @@ type CA struct {
 
 // LoadOrCreateCA loads the CA stored in dir, creating it on first start.
 func LoadOrCreateCA(dir string) (*CA, error) {
-	if !hasKeyPair(dir, "ca") {
+	pair, err := LoadKeyPair(dir, "ca")
+	if errors.Is(err, fs.ErrNotExist) {
 		return createCA(dir)
 	}
-	pair, err := LoadKeyPair(dir, "ca")
 	if err != nil {
 		return nil, fmt.Errorf("load CA: %w", err)
 	}
