@@ -29,6 +29,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/node"
 	"github.com/QwikByte/noryx/internal/master/operation"
@@ -238,7 +239,7 @@ func (s *Service) Create(ctx context.Context, d Draft) (Network, error) {
 	if err != nil {
 		return n, err
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, proxy_type, forwarding_secret, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -307,7 +308,7 @@ func (s *Service) update(ctx context.Context, current, n Network) (Network, erro
 			return current, err
 		}
 	}
-	if err := s.inTx(ctx, func(tx *sql.Tx) error { return save(ctx, tx, n) }); err != nil {
+	if err := database.InTx(ctx, s.db, func(tx *sql.Tx) error { return save(ctx, tx, n) }); err != nil {
 		return current, conflict(err, n.Name)
 	}
 	return n, s.apply(ctx, n, n.BedrockPort != current.BedrockPort)
@@ -445,7 +446,7 @@ func (s *Service) Move(ctx context.Context, serverID, from, to string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var id string
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := database.InTx(ctx, s.db, func(tx *sql.Tx) error {
 		for _, query := range []string{
 			`UPDATE networks SET proxy_node_id = ?1 WHERE proxy_node_id = ?2 AND proxy_server_id = ?3 RETURNING id`,
 			`UPDATE network_backends SET node_id = ?1 WHERE node_id = ?2 AND server_id = ?3 RETURNING network_id`,
@@ -1038,18 +1039,6 @@ func save(ctx context.Context, tx *sql.Tx, n Network) error {
 		}
 	}
 	return nil
-}
-
-// inTx runs fn in a transaction that is committed if fn succeeds.
-func (s *Service) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		return errors.Join(err, tx.Rollback())
-	}
-	return tx.Commit()
 }
 
 // backendName derives the name players use for a server, e.g. "Survival 2" becomes

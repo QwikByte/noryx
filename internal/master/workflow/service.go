@@ -22,6 +22,7 @@ import (
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/logs"
 	"github.com/QwikByte/noryx/internal/master/network"
@@ -477,7 +478,7 @@ func (s *Service) Update(ctx context.Context, id string, d Draft, by Author) (Wo
 	if err != nil {
 		return Workflow{}, taken(err, d.Name)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return Workflow{}, errNotFound
 	}
 	if err := s.reload(ctx); err != nil {
@@ -525,7 +526,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNotFound
 	}
 	s.mu.Lock()
@@ -549,7 +550,7 @@ func (s *Service) NewHook(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return "", errNotFound
 	}
 	return token, s.reload(ctx)
@@ -561,7 +562,7 @@ func (s *Service) DeleteHook(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNotFound
 	}
 	return s.reload(ctx)
@@ -867,7 +868,7 @@ func (s *Service) Cancel(id string, runID int64) error {
 // runColumns are those of a run in workflow_runs r, without its steps and data.
 const runColumns = `r.id, r.workflow_id, r.trigger, r.started_by, r.started_at, r.ended_at, r.outcome, r.error`
 
-func scanRun(row interface{ Scan(...any) error }, extra ...any) (Run, string, error) {
+func scanRun(row database.Scanner, extra ...any) (Run, string, error) {
 	var r Run
 	var workflow string
 	var started, ended int64

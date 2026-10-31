@@ -24,6 +24,7 @@ import (
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/backup"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/logs"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/network"
@@ -119,7 +120,7 @@ func (x *scope) resolve(ctx context.Context, s Servers) ([]schedule.Server, erro
 		for _, item := range named {
 			t, ok := ref(item)
 			if !ok {
-				return nil, bad("%q names no server.", clip(text(item), 100))
+				return nil, bad("%q names no server.", database.Clip(text(item), 100))
 			}
 			list = append(list, t)
 		}
@@ -351,7 +352,7 @@ func runCommand(ctx context.Context, x *scope, _ Step, s *commandSettings) (any,
 			}
 			return nil
 		})
-		return map[string]any{"output": clip(output, maxText)}, err
+		return map[string]any{"output": database.Clip(output, maxText)}, err
 	})
 	if m, ok := out.(map[string]any); ok && m["server"] != nil {
 		m["output"] = m["server"].(map[string]any)["output"]
@@ -488,7 +489,7 @@ func runBackup(ctx context.Context, x *scope, st Step, s *backupSettings) (any, 
 	// The job of the backups is the step, so that its retention only deletes its own.
 	job := sha256.Sum256([]byte(x.run.wf.ID + "/" + st.ID))
 	task := schedule.Task{
-		ID: hex.EncodeToString(job[:16]), Name: clip(cmp.Or(label, x.run.wf.Name), 64), Settings: settings,
+		ID: hex.EncodeToString(job[:16]), Name: database.Clip(cmp.Or(label, x.run.wf.Name), 64), Settings: settings,
 		Schedule: schedule.Schedule{TimeZone: x.run.wf.TimeZone},
 	}
 	a := action{log: "Back up server", done: "Backed up"}
@@ -891,7 +892,7 @@ func runNotify(_ context.Context, x *scope, _ Step, s *notifySettings) (any, err
 	level, _ := logging.ParseLevel(s.Level)
 	e := logs.Entry{
 		Time: time.Now(), Level: level, Source: logs.FromMaster, Category: logging.Workflows.Value.String(),
-		Message: clip(strings.TrimSpace(msg), 2000), Attrs: map[string]string{"workflow": x.run.wf.Name},
+		Message: database.Clip(strings.TrimSpace(msg), 2000), Attrs: map[string]string{"workflow": x.run.wf.Name},
 	}
 	if err := x.run.svc.deps.Notify.Post(s.Channel, e); err != nil {
 		return nil, err
@@ -959,7 +960,7 @@ func runHTTP(ctx context.Context, x *scope, _ Step, s *httpSettings) (any, error
 	}
 	req, err := http.NewRequestWithContext(ctx, s.Method, url, strings.NewReader(body))
 	if err != nil {
-		return nil, bad("%q is no URL.", clip(url, 200))
+		return nil, bad("%q is no URL.", database.Clip(url, 200))
 	}
 	req.Header.Set("User-Agent", "Noryx/"+buildinfo.Version)
 	if body != "" {
@@ -1027,6 +1028,6 @@ func runLog(ctx context.Context, x *scope, _ Step, s *logSettings) (any, error) 
 		return nil, err
 	}
 	level, _ := logging.ParseLevel(s.Level)
-	slog.Log(ctx, level, clip(msg, 2000), logging.Workflows, "workflow", x.run.wf.Name, "workflow_id", x.run.wf.ID)
+	slog.Log(ctx, level, database.Clip(msg, 2000), logging.Workflows, "workflow", x.run.wf.Name, "workflow_id", x.run.wf.ID)
 	return nil, nil
 }

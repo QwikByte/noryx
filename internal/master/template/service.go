@@ -21,6 +21,7 @@ import (
 	"unicode"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/modrinth"
 	"github.com/QwikByte/noryx/internal/master/plugin"
@@ -186,7 +187,7 @@ func (s *Service) Update(ctx context.Context, id string, in Input) (Template, er
 	if err != nil {
 		return t, uniqueName(err, t.Name)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return t, errNotFound
 	}
 	return s.Get(ctx, id)
@@ -197,7 +198,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNotFound
 	}
 	return nil
@@ -361,9 +362,7 @@ func (t Template) data() (string, error) {
 	return string(data), err
 }
 
-type scanner interface{ Scan(dest ...any) error }
-
-func scan(row scanner) (Template, error) {
+func scan(row database.Scanner) (Template, error) {
 	var t Template
 	var data string
 	var createdAt int64

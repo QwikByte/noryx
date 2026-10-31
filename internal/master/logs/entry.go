@@ -13,10 +13,10 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -76,17 +76,17 @@ func (e *Entry) clamp() {
 	if !categoryPattern.MatchString(e.Category) {
 		e.Category = logging.System.Value.String()
 	}
-	e.Message = truncate(e.Message, maxMessage)
+	e.Message = database.Clip(e.Message, maxMessage)
 	for _, s := range []*string{&e.User, &e.NodeID, &e.NodeName, &e.ServerID, &e.ServerName} {
-		*s = truncate(*s, maxName)
+		*s = database.Clip(*s, maxName)
 	}
 	attrs, left := map[string]string{}, maxAttrsSize
 	for _, k := range slices.Sorted(maps.Keys(e.Attrs))[:min(len(e.Attrs), maxAttrs)] {
-		name := truncate(k, maxName)
+		name := database.Clip(k, maxName)
 		if left -= len(name); left <= 0 {
 			break
 		}
-		v := truncate(e.Attrs[k], min(maxValue, left))
+		v := database.Clip(e.Attrs[k], min(maxValue, left))
 		attrs[name] = v
 		left -= len(v)
 	}
@@ -97,18 +97,6 @@ func (e *Entry) clamp() {
 func (e *Entry) size() int {
 	attrs, _ := json.Marshal(e.Attrs) // can't fail for strings
 	return len(e.Message) + len(attrs)
-}
-
-// truncate cuts s to at most n bytes of valid UTF-8.
-func truncate(s string, n int) string {
-	s = strings.ToValidUTF8(s, "�")
-	if len(s) <= n {
-		return s
-	}
-	for n > 0 && !utf8.RuneStart(s[n]) {
-		n--
-	}
-	return s[:n] + "…"
 }
 
 // Filter selects entries; empty fields select all.

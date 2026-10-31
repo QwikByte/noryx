@@ -13,6 +13,7 @@ import (
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
@@ -63,7 +64,7 @@ func (s *Service) seen(ctx context.Context, id string, notAfter time.Time) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if rowsAffected(res) == 1 && notAfter.After(s.expiries[id]) { // not for a node removed meanwhile
+	if database.RowsAffected(res) == 1 && notAfter.After(s.expiries[id]) { // not for a node removed meanwhile
 		s.expiries[id] = notAfter
 	}
 }

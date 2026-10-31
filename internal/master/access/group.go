@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -109,26 +110,21 @@ func (s *Service) saveGroup(ctx context.Context, id string, in GroupInput, write
 	if err != nil {
 		return Group{}, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Group{}, err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	res, err := write(tx, perms)
-	if err == nil && rowsAffected(res) == 0 {
-		err = errGroupNotFound
-	}
-	if err == nil {
-		_, err = tx.ExecContext(ctx, `DELETE FROM group_targets WHERE group_id = ?`, id)
-	}
-	for _, t := range in.Targets {
-		if err == nil {
-			_, err = tx.ExecContext(ctx, `INSERT INTO group_targets (group_id, node_id, server_id) VALUES (?, ?, ?)`, id, t.NodeID, t.ServerID)
+	err = database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		res, err := write(tx, perms)
+		if err == nil && database.RowsAffected(res) == 0 {
+			err = errGroupNotFound
 		}
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
+		if err == nil {
+			_, err = tx.ExecContext(ctx, `DELETE FROM group_targets WHERE group_id = ?`, id)
+		}
+		for _, t := range in.Targets {
+			if err == nil {
+				_, err = tx.ExecContext(ctx, `INSERT INTO group_targets (group_id, node_id, server_id) VALUES (?, ?, ?)`, id, t.NodeID, t.ServerID)
+			}
+		}
+		return err
+	})
 	if err != nil {
 		return Group{}, constraint(err, in.Name)
 	}
@@ -137,7 +133,7 @@ func (s *Service) saveGroup(ctx context.Context, id string, in GroupInput, write
 
 func (s *Service) deleteGroup(ctx context.Context, id string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM user_groups WHERE id = ?`, id)
-	if err == nil && rowsAffected(res) == 0 {
+	if err == nil && database.RowsAffected(res) == 0 {
 		err = errGroupNotFound
 	}
 	return err
@@ -253,20 +249,15 @@ func (s *Service) each(ctx context.Context, query string, scan func(*sql.Rows) e
 
 // setGroups replaces the groups of a user.
 func (s *Service) setGroups(ctx context.Context, userID int64, groupIDs []string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
-	_, err = tx.ExecContext(ctx, `DELETE FROM group_members WHERE user_id = ?`, userID)
-	for _, id := range groupIDs {
-		if err == nil {
-			_, err = tx.ExecContext(ctx, `INSERT INTO group_members (group_id, user_id) VALUES (?, ?)`, id, userID)
+	err := database.InTx(ctx, s.db, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM group_members WHERE user_id = ?`, userID)
+		for _, id := range groupIDs {
+			if err == nil {
+				_, err = tx.ExecContext(ctx, `INSERT INTO group_members (group_id, user_id) VALUES (?, ?)`, id, userID)
+			}
 		}
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
+		return err
+	})
 	if err != nil && strings.Contains(err.Error(), "FOREIGN KEY") {
 		err = errGroupNotFound
 	}
@@ -300,9 +291,4 @@ func (s *Service) Forget(ctx context.Context, nodeID, serverID string) error {
 func (s *Service) Move(ctx context.Context, serverID, from, to string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE group_targets SET node_id = ? WHERE node_id = ? AND server_id = ?`, to, from, serverID)
 	return err
-}
-
-func rowsAffected(res sql.Result) int64 {
-	n, _ := res.RowsAffected()
-	return n
 }

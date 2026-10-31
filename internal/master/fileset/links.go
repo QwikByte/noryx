@@ -27,7 +27,7 @@ func (s *Service) Prune(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n > 0 {
+	if n := database.RowsAffected(res); n > 0 {
 		slog.Info("Removed deleted networks from the targets of file sets", logging.Files, "targets", n)
 	}
 	exists, err := database.IDs(ctx, s.store.db, `SELECT id FROM networks`)
@@ -72,7 +72,7 @@ func (s store) dropValues(ctx context.Context, drop func(Value) bool) error {
 			// A set saved in the meantime keeps what it was saved with.
 			var res sql.Result
 			if res, merr = s.db.ExecContext(ctx, `UPDATE file_sets SET variables = ? WHERE id = ? AND CAST(variables AS TEXT) = ?`, string(data), set.id, set.data); merr == nil {
-				if n, _ := res.RowsAffected(); n > 0 {
+				if database.RowsAffected(res) > 0 {
 					slog.Info("Removed values of variables for servers or networks that are gone", logging.Files, "file_set", set.name)
 				}
 			}

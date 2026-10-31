@@ -19,6 +19,7 @@ import (
 
 	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/master/access"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/s3"
 )
@@ -182,7 +183,7 @@ func (c *Copies) saveStorage(ctx context.Context, id string, in storageInput) (S
 			UPDATE backup_storages SET name = ?, endpoint = ?, region = ?, bucket = ?, prefix = ?, access_key = ?, secret_key = ?, path_style = ?, encrypt = ?
 			WHERE id = ?`, s.Name, s.Endpoint, s.Region, s.Bucket, s.Prefix, s.AccessKey, s.secretKey, s.PathStyle, s.Encrypt, id)
 		if err == nil {
-			if n, _ := res.RowsAffected(); n == 0 {
+			if database.RowsAffected(res) == 0 {
 				err = errNoStorage
 			}
 		}
@@ -228,7 +229,7 @@ func (c *Copies) deleteStorage(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errNoStorage
 	}
 	return nil

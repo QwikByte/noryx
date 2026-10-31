@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 )
 
 const (
@@ -131,11 +132,11 @@ func (j *journal) end(r *Run, err error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	slices.Sort(j.notes)
-	r.EndedAt, r.Note = time.Now(), clip(strings.Join(slices.Compact(j.notes), "\n"))
+	r.EndedAt, r.Note = time.Now(), database.Clip(strings.Join(slices.Compact(j.notes), "\n"), maxError)
 	r.Steps = append([]Step{}, j.steps[:min(len(j.steps), maxSteps)]...)
 	switch {
 	case err != nil:
-		r.Outcome, r.Error = Failed, clip(err.Error())
+		r.Outcome, r.Error = Failed, database.Clip(err.Error(), maxError)
 	case len(r.Steps) > 0 && !slices.ContainsFunc(r.Steps, func(s Step) bool { return s.Outcome != OutcomeSkipped }):
 		r.Outcome = OutcomeSkipped
 	default:
@@ -144,7 +145,6 @@ func (j *journal) end(r *Run, err error) {
 }
 
 // clip shortens the error or note of a run to what is stored.
-func clip(msg string) string { return msg[:min(len(msg), maxError)] }
 
 // record stores a run of a task, unless the task was deleted meanwhile, and forgets the
 // oldest runs beyond maxRuns.

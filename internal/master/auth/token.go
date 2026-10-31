@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
 
@@ -126,7 +127,7 @@ func (s *Service) CreateToken(ctx context.Context, userID int64, password, code 
 	switch {
 	case err != nil && strings.Contains(err.Error(), "UNIQUE"):
 		err = httpapi.Errorf(http.StatusConflict, "You have a token named %q already.", t.Name)
-	case err == nil && rowsAffected(res) == 0:
+	case err == nil && database.RowsAffected(res) == 0:
 		err = httpapi.Errorf(http.StatusConflict, "You have %d tokens already. Revoke those you don't need.", maxTokens)
 	}
 	if err != nil {

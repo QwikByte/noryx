@@ -228,7 +228,7 @@ func (s *Service) finish(ctx context.Context, t Task) {
 	category := s.kinds[t.kind].Category()
 	if err != nil {
 		slog.Warn("Can't turn off a task after its last date", category, "task", t.Name, "err", err)
-	} else if n, _ := res.RowsAffected(); n > 0 {
+	} else if database.RowsAffected(res) > 0 {
 		slog.Info("Turned off a task after its last date", category, "task", t.Name)
 	}
 }
@@ -578,7 +578,7 @@ func (s *Service) Prune(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		if database.RowsAffected(res) == 0 {
 			continue
 		}
 		slog.Info("Removed what no longer exists from a task", s.kinds[t.kind].Category(), "task", t.Name, "removed", strings.Join(removed, "; "))

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/QwikByte/noryx/internal/logging"
+	"github.com/QwikByte/noryx/internal/master/database"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 	"github.com/QwikByte/noryx/internal/master/logs"
 	"github.com/QwikByte/noryx/internal/master/schedule"
@@ -126,7 +127,7 @@ func (r Rule) matches(e logs.Entry, groups map[schedule.Target]func(nodeID, serv
 
 const ruleColumns = `id, channel_id, enabled, level, categories, node_id, server_id, tag, network_id, created_at`
 
-func scanRule(row interface{ Scan(...any) error }) (Rule, error) {
+func scanRule(row database.Scanner) (Rule, error) {
 	var (
 		r          Rule
 		categories string
@@ -213,7 +214,7 @@ func (s *Service) UpdateRule(ctx context.Context, id string, in RuleInput) (Rule
 	if err != nil {
 		return r, err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return r, errRuleNotFound
 	}
 	if err := s.reload(ctx); err != nil {
@@ -243,7 +244,7 @@ func (s *Service) DeleteRule(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return errRuleNotFound
 	}
 	return s.reload(ctx)
@@ -263,7 +264,7 @@ func (s *Service) Move(ctx context.Context, serverID, from, to string) error {
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if database.RowsAffected(res) == 0 {
 		return nil
 	}
 	return s.reload(ctx)
@@ -284,7 +285,7 @@ func (s *Service) prune(ctx context.Context, query string, args ...any) error {
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n := database.RowsAffected(res)
 	if n == 0 {
 		return nil
 	}
