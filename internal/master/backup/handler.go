@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -238,9 +236,6 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		res, err = c.UpdateBackup(ctx, &noryxv1.UpdateBackupRequest{ServerId: serverID, BackupId: r.PathValue("backup"), Label: req.Label, Kept: req.Kept})
 	}
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to change backups.")
-	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
 		return
@@ -265,9 +260,6 @@ func (h *Handler) files(w http.ResponseWriter, r *http.Request) {
 		res, err = c.ListBackupFiles(ctx, &noryxv1.ListBackupFilesRequest{
 			ServerId: r.PathValue("id"), BackupId: r.PathValue("backup"), Path: r.URL.Query().Get("path"),
 		})
-	}
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to look into backups.")
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
@@ -321,15 +313,6 @@ func (h *Handler) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spec, backupID := h.spec(r, "backup.restore", []string{"restore"}, http.StatusOK), r.PathValue("backup")
-	if len(req.Paths) > 0 || req.SnapshotFirst {
-		ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
-		err := h.supports(ctx, spec.NodeID, spec.ServerID)
-		cancel()
-		if err != nil {
-			httpapi.WriteError(w, r, err)
-			return
-		}
-	}
 	h.ops.Run(w, r, spec, func(ctx context.Context) (any, error) {
 		return h.restoreOn(ctx, spec.NodeID, spec.ServerID, backupID, req)
 	})
@@ -379,9 +362,6 @@ func (h *Handler) restoreInto(w http.ResponseWriter, r *http.Request) {
 				slog.Warn("Can't delete the copy of a backup", logging.Backups, logging.KeyNode, req.Node, logging.KeyServer, req.Server, "backup", copied.GetId(), "err", err)
 			}
 		}()
-		if b.GetUntrusted() && !copied.GetUntrusted() { // an older agent would trust it
-			return nil, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to restore backups from elsewhere into its servers.")
-		}
 		return h.restoreOn(ctx, req.Node, req.Server, copied.GetId(), req.restoreRequest)
 	})
 }
@@ -426,21 +406,7 @@ func (h *Handler) checkInto(ctx context.Context, r *http.Request, nodeID, server
 	if i < 0 {
 		return nil, nil, nil, httpapi.Errorf(http.StatusNotFound, "Backup not found.")
 	}
-	return list.GetBackups()[i], source, target, h.supports(ctx, nodeID, serverID)
-}
-
-// supports refuses restores that agents of older versions would do in another way: restore
-// all of a backup, without backing up first, or restore a backup of another server without
-// the secrets of the server.
-func (h *Handler) supports(ctx context.Context, nodeID, serverID string) error {
-	c, err := h.client(ctx, nodeID)
-	if err != nil {
-		return err
-	}
-	if _, err := c.ListBackupFiles(ctx, &noryxv1.ListBackupFilesRequest{ServerId: serverID}); status.Code(err) == codes.Unimplemented {
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to restore chosen files, into other servers or with a backup first.")
-	}
-	return nil // the agent knows the call; what is wrong with this one doesn't matter
+	return list.GetBackups()[i], source, target, nil
 }
 
 // copy copies a backup of a server to another server, with the secrets of the server
@@ -457,7 +423,7 @@ func (h *Handler) copy(ctx context.Context, nodeID string, source *noryxv1.Serve
 	}
 	header := &noryxv1.ImportBackupHeader{ServerId: toServer, Backup: &noryxv1.Backup{
 		Id: noryxv1.NewBackupID(time.Unix(b.GetCreatedUnix(), 0)), Label: cmp.Or(b.GetLabel(), source.GetName()), CreatedUnix: b.GetCreatedUnix(),
-		Size: hidden(b.GetSize()), Paths: b.GetPaths(), Exclude: b.GetExclude(), Untrusted: b.GetUntrusted(),
+		Size: hidden(b.GetSize()), Paths: b.GetPaths(), Exclude: b.GetExclude(),
 	}}
 	var copied int64
 	res, err := node.Relay(ctx,
@@ -586,8 +552,6 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.As(err, &tooLarge):
 		err = httpapi.Errorf(http.StatusRequestEntityTooLarge, "Backups can have up to %d GB.", maxUpload>>30)
-	case status.Code(err) == codes.Unimplemented:
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to upload backups.")
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)

@@ -70,7 +70,6 @@ type agent struct {
 	servers  []*noryxv1.Server
 	backups  []*noryxv1.Backup // of s1, the newest first
 	broken   map[string]bool   // backups whose download fails after the first chunk
-	older    bool              // keeps no copies and trusts the backups it imports
 	copies   map[string]*noryxv1.Backup
 	imported []*noryxv1.ImportBackupHeader // of backups and copies
 	archives map[string][]byte             // of the backups it imported and the copies it keeps, by ID
@@ -109,10 +108,6 @@ func (a *agent) ListBackups(_ context.Context, req *noryxv1.ListBackupsRequest) 
 		return &noryxv1.ListBackupsResponse{}, nil
 	}
 	return &noryxv1.ListBackupsResponse{Backups: a.backups}, nil
-}
-
-func (a *agent) ListBackupFiles(context.Context, *noryxv1.ListBackupFilesRequest) (*noryxv1.ListBackupFilesResponse, error) {
-	return &noryxv1.ListBackupFilesResponse{}, nil
 }
 
 func (a *agent) DownloadBackup(req *noryxv1.DownloadBackupRequest, stream grpc.ServerStreamingServer[noryxv1.DownloadBackupResponse]) error {
@@ -170,7 +165,8 @@ func receive[T interface{ GetData() []byte }](recv func() (T, error)) ([]byte, e
 	}
 }
 
-// keep keeps what an import received: the copy of a backup, or a backup imported into a server.
+// keep keeps what an import received, as untrusted: the copy of a backup, or a backup imported
+// into a server.
 func (a *agent) keep(h *noryxv1.ImportBackupHeader, data []byte, isCopy bool) (*noryxv1.Backup, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -178,7 +174,7 @@ func (a *agent) keep(h *noryxv1.ImportBackupHeader, data []byte, isCopy bool) (*
 		return nil, status.Error(codes.AlreadyExists, "the copy exists")
 	}
 	b := proto.Clone(h.GetBackup()).(*noryxv1.Backup)
-	b.Size, b.Untrusted = int64(len(data)), !a.older
+	b.Size, b.Untrusted = int64(len(data)), true
 	a.imported, a.archives[b.GetId()] = append(a.imported, h), data
 	if isCopy {
 		a.copies[b.GetId()] = b
@@ -187,9 +183,6 @@ func (a *agent) keep(h *noryxv1.ImportBackupHeader, data []byte, isCopy bool) (*
 }
 
 func (a *agent) ImportCopy(stream grpc.ClientStreamingServer[noryxv1.ImportCopyRequest, noryxv1.ImportCopyResponse]) error {
-	if a.older {
-		return status.Error(codes.Unimplemented, "unknown method ImportCopy")
-	}
 	first, err := stream.Recv()
 	if err != nil {
 		return err
@@ -260,9 +253,8 @@ func (a *agent) lastImport() (h *noryxv1.ImportBackupHeader, data string, restor
 	return h, string(a.archives[id]), slices.Clone(a.restored), slices.Contains(a.deleted, h.GetServerId()+"/"+id)
 }
 
-// copying is a master with the storage Offsite of a fake bucket and the nodes n1, n2 and n3,
-// whose agents keep copies but n3's, which is older. The job t1 backs up the server s1 of n1,
-// lobby.
+// copying is a master with the storage Offsite of a fake bucket and the nodes n1 and n2, whose
+// agents keep copies. The job t1 backs up the server s1 of n1, lobby.
 type copying struct {
 	*Copies
 	nodes   *nodetest.Nodes
@@ -283,9 +275,9 @@ func newCopying(t *testing.T) *copying {
 	c := &copying{nodes: nodetest.New(t, db), bucket: s3test.New(t), agents: map[string]*agent{}}
 	c.Copies = NewCopies(db, c.nodes, c.bucket.Client().Transport)
 	paper, velocity := noryxv1.ServerType_SERVER_TYPE_PAPER, noryxv1.ServerType_SERVER_TYPE_VELOCITY
-	for _, id := range []string{"n1", "n2", "n3"} {
+	for _, id := range []string{"n1", "n2"} {
 		a := &agent{
-			name: id, older: id == "n3", broken: map[string]bool{}, copies: map[string]*noryxv1.Backup{}, archives: map[string][]byte{},
+			name: id, broken: map[string]bool{}, copies: map[string]*noryxv1.Backup{}, archives: map[string][]byte{},
 			servers: []*noryxv1.Server{{Id: "s1", Name: "Lobby", Type: paper}, {Id: "s2", Name: "Hub", Type: paper}, {Id: "proxy", Name: "Proxy", Type: velocity}},
 		}
 		c.agents[id] = a
@@ -443,8 +435,8 @@ func TestSyncFailures(t *testing.T) {
 
 // Copies on another node: the master relays each backup to its agent, which keeps it in the
 // storage location of the job, replaces a copy that the agent kept but the master didn't
-// record, and deletes those the job no longer keeps. Agents of older versions keep none, and
-// the node of the server can't keep its copies.
+// record, and deletes those the job no longer keeps. The node of the server can't keep its
+// copies.
 func TestSyncToNode(t *testing.T) {
 	c := newCopying(t)
 	n1, n2 := c.agents["n1"], c.agents["n2"]
@@ -482,11 +474,6 @@ func TestSyncToNode(t *testing.T) {
 		t.Fatalf("copies %q", got)
 	}
 
-	s.Copy = &CopyTo{Node: "n3"}
-	if change, err := c.Sync(t.Context(), c.job, s, c.lobby); change != "" || err == nil ||
-		err.Error() != "can't copy the backup of 2026-10-03 04:00:00: Update the agent of n3 to keep copies of backups." {
-		t.Fatalf("Sync to an older agent = %q, %v", change, err)
-	}
 	s.Copy = &CopyTo{Node: "n1"}
 	var skipped schedule.Skipped
 	if _, err := c.Sync(t.Context(), c.job, s, c.lobby); !errors.As(err, &skipped) {
@@ -540,7 +527,7 @@ func (r *reapplied) Reapply(_ context.Context, serverID string) error {
 // server's network again.
 func TestRestoreCopy(t *testing.T) {
 	c := newCopying(t)
-	n1, n2, n3 := c.agents["n1"], c.agents["n2"], c.agents["n3"]
+	n1, n2 := c.agents["n1"], c.agents["n2"]
 	n1.do(func() { n1.backups = []*noryxv1.Backup{n1.backupOf("b1", 1)} })
 	c.sync(t, JobSettings{Copy: &CopyTo{Storage: c.offsite}}, c.lobby, "copied 1 to Offsite")
 	c.sync(t, JobSettings{Copy: &CopyTo{Node: "n2"}}, c.lobby, "copied 1 to n2")
@@ -574,7 +561,7 @@ func TestRestoreCopy(t *testing.T) {
 	}
 	header, data, restored, deleted := n1.lastImport()
 	b := header.GetBackup()
-	if header.GetServerId() != "s2" || !b.GetUntrusted() || b.GetLabel() != "Nightly" || b.GetSize() != int64(len(archive)) || data != archive ||
+	if header.GetServerId() != "s2" || b.GetLabel() != "Nightly" || b.GetSize() != int64(len(archive)) || data != archive ||
 		b.GetCreatedUnix() != n1.backupOf("b1", 1).GetCreatedUnix() || !strings.HasPrefix(b.GetId(), "20261001-040000-") || b.GetJobId() != "" ||
 		!slices.Equal(restored, []string{"s2/" + b.GetId()}) || !deleted {
 		t.Fatalf("imported %v with %q, restored %q, deleted again: %t", header, data, restored, deleted)
@@ -609,14 +596,6 @@ func TestRestoreCopy(t *testing.T) {
 	}
 	if _, data, _, _ := n1.lastImport(); data != archive {
 		t.Fatalf("imported %q", data)
-	}
-
-	// An agent of an older version would trust the copy, which is deleted again unrestored.
-	if rec := serve(access.Admin(), "POST", "/api/backup-copies/"+inStorage+"/restore", `{"node": "n3", "server": "s2"}`); rec.Code != http.StatusNotImplemented {
-		t.Fatalf("restore on an older agent: status %d: %s", rec.Code, rec.Body)
-	}
-	if _, _, restored, deleted := n3.lastImport(); len(restored) != 0 || !deleted {
-		t.Fatalf("older agent restored %q, deleted the copy again: %t", restored, deleted)
 	}
 
 	for _, tc := range []struct {

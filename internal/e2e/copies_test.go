@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/runtime"
 	masterapp "github.com/QwikByte/noryx/internal/master/app"
@@ -40,21 +38,6 @@ func unpacked(t *testing.T, data []byte) map[string]string {
 	return files
 }
 
-// trusting makes an agent answer imports of backups like one from before untrusted backups,
-// which trusted what it imported.
-var trusting = grpc.ChainStreamInterceptor(func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	return handler(srv, trustingStream{ss})
-})
-
-type trustingStream struct{ grpc.ServerStream }
-
-func (s trustingStream) SendMsg(m any) error {
-	if res, ok := m.(*noryxv1.ImportBackupResponse); ok && res.GetBackup() != nil {
-		res.Backup.Untrusted = false
-	}
-	return s.ServerStream.SendMsg(m)
-}
-
 // nextSecond waits for the next second, so that backups made one after the other have times
 // that tell which is newer.
 func nextSecond() { time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second))) }
@@ -67,7 +50,6 @@ func TestBackupCopies(t *testing.T) {
 	a1, a2, a3 := m.startAgent(t, "node-1"), m.startAgent(t, "node-2"), m.startAgent(t, "node-3")
 	lobby := m.createServer(t, a1, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
 	other := m.createServer(t, a3, "Other", noryxv1.ServerType_SERVER_TYPE_PAPER, 25566)
-	older := m.createServer(t, m.startAgent(t, "node-4", trusting), "Older", noryxv1.ServerType_SERVER_TYPE_PAPER, 25567)
 	proxy := m.createServer(t, a3, "Proxy", noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25577)
 	data := serverData{t, filepath.Join(a1.runtime.dir, lobby.ServerID)}
 	data.write("world/level.dat", "level")
@@ -209,12 +191,6 @@ func TestBackupCopies(t *testing.T) {
 		return map[string]string{"node": ref.NodeID, "server": ref.ServerID}
 	}
 	api.do("POST", "/api/backup-copies/"+strconv.FormatInt(copies[0].ID, 10)+"/restore", into(proxy), http.StatusConflict, nil)
-	// An older agent would trust the copy, and keeps none of it.
-	api.do("POST", "/api/backup-copies/"+strconv.FormatInt(copies[0].ID, 10)+"/restore", into(older), http.StatusNotImplemented, nil)
-	var olderBackups []backupView
-	if api.do("GET", "/api/nodes/"+older.NodeID+"/servers/"+older.ServerID+"/backups", nil, http.StatusOK, &olderBackups); len(olderBackups) != 0 {
-		t.Fatalf("the copy stayed with the server: %+v", olderBackups)
-	}
 	api.do("POST", "/api/backup-copies/"+strconv.FormatInt(copies[0].ID, 10)+"/restore", into(other), http.StatusOK, nil)
 	if otherData.read("world/level.dat") != "level" || otherData.read("server.properties") != "motd=lobby\nrcon.password=other-secret\n" ||
 		otherData.read("plugins/Sync/token.yml") != "" {

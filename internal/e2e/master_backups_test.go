@@ -11,22 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	masterapp "github.com/QwikByte/noryx/internal/master/app"
 	"github.com/QwikByte/noryx/internal/master/backup"
 	"github.com/QwikByte/noryx/internal/master/schedule"
 )
-
-// withoutMasterBackups makes an agent answer like one from before it kept backups of the master.
-var withoutMasterBackups = grpc.ChainStreamInterceptor(func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	if strings.HasSuffix(info.FullMethod, "/ImportMasterBackup") {
-		return status.Error(codes.Unimplemented, "unknown method ImportMasterBackup")
-	}
-	return handler(srv, ss)
-})
 
 // runOnce runs a task right away and returns its run once it ended.
 func runOnce(t *testing.T, api apiClient, path string) schedule.Run {
@@ -49,7 +37,7 @@ func runOnce(t *testing.T, api apiClient, path string) schedule.Run {
 // may see and change it, and there is one at most.
 func TestMasterBackups(t *testing.T) {
 	m := startMaster(t)
-	a1, older := m.startAgent(t, "node-1"), m.startAgent(t, "node-2", withoutMasterBackups)
+	a1 := m.startAgent(t, "node-1")
 	svc := m.services(t)
 	srv := httptest.NewTLSServer(masterapp.Handler(svc))
 	t.Cleanup(srv.Close)
@@ -146,12 +134,6 @@ func TestMasterBackups(t *testing.T) {
 	api.do("PUT", path, job(map[string]string{"node": a1.node.ID}, nil), http.StatusOK, &task)
 	if !task.HasSecret {
 		t.Fatal("a change without a passphrase removed it")
-	}
-
-	// An agent from before asks to be updated.
-	api.do("PUT", path, job(map[string]string{"node": older.node.ID}, ""), http.StatusOK, &task)
-	if run := runOnce(t, api, path); !strings.Contains(run.Error, "Update the agent of node-2") {
-		t.Errorf("run with an older agent = %+v", run)
 	}
 
 	// Once the user who saved it last is no longer an administrator, it no longer runs.

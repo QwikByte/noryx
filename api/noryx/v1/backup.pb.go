@@ -35,7 +35,7 @@ type BackupSelection struct {
 	// Further files or folders, relative to the data directory. Missing ones are skipped.
 	Paths []string `protobuf:"bytes,5,rep,name=paths,proto3" json:"paths,omitempty"`
 	// Files or folders inside the others that are left out, e.g. the tiles of a map plugin.
-	// Restoring the backup leaves them as they are. Agents of older versions archive them.
+	// Restoring the backup leaves them as they are.
 	Exclude       []string `protobuf:"bytes,6,rep,name=exclude,proto3" json:"exclude,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -551,7 +551,7 @@ type RestoreBackupRequest struct {
 	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	BackupId string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
 	// Files and folders of the backup to restore, relative to the data directory; empty for
-	// all it holds. Each must be in the backup. Agents of older versions restore all.
+	// all it holds. Each must be in the backup.
 	Paths []string `protobuf:"bytes,3,rep,name=paths,proto3" json:"paths,omitempty"`
 	// Backs up what the restore replaces first, as a backup made by hand in the storage
 	// location of the restored one.

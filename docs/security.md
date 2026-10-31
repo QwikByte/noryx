@@ -411,8 +411,7 @@ network's secret and forwarding settings. It needs the permission to see the bac
 backups of the other server, and only goes between game servers or between proxies. Like moving a server, it brings
 whatever the backup holds, e.g. plugins, which a compromised node could have changed like the data of its servers.
 Marking a backup to keep needs the permission to back up the server, and letting its job delete it again the one to
-delete backups. The master refuses restoring chosen paths, into another server or with a backup first on nodes whose
-agent would ignore that, e.g. restore all of a backup instead.
+delete backups.
 
 An uploaded backup is untrusted. The agent receives it outside the server's data, keeps it only once it checked it like
 an archive of the file manager (see [File manager](#file-manager)), and marks it as untrusted in its details, which only
@@ -420,15 +419,14 @@ the agent writes. Restoring an untrusted backup checks it again, with limits for
 1 TB), and extracts it confined like an archive of the file manager, without the files that only hold secrets, the
 manifest of file sets and the files of the agent, whose versions on the server stay as they are, e.g. the pardons that
 wait for the end of temporary bans; it replaces every secret in the other files with the server's own, not only
-placeholders, and keeps the server's network settings like any restore. A backup from another node, moved
-with its server, copied there or a copy restored into a server, is untrusted too: the agent keeps it once it checked it
-like an uploaded one, with the limits for backups, and refuses it once it is larger than the master announced or less
-than 1 GB would stay free, also when the data of a moving server arrive. Listing, downloading and restoring an
-untrusted backup read the directory of its archive within the limits for backups too. The mark moves with the backup to
-another node, and copies for restoring into another server keep it; the master refuses both with agents that would
-drop it. Uploading needs the permissions to back up and to restore the server, and to change its files: an uploaded
-backup can bring any file, e.g. a plugin, which runs with the server and can read its secrets once it is restored, such
-as the forwarding secret of its network, like a plugin uploaded with the file manager.
+placeholders, and keeps the server's network settings like any restore. A backup from another node, moved with its
+server, copied there or a copy restored into a server, is untrusted too: the agent keeps it once it checked it like an
+uploaded one, with the limits for backups, and refuses it once it is larger than the master announced or less than 1 GB
+would stay free, also when the data of a moving server arrive. The agent marks every backup it imports as untrusted
+itself, whatever the master tells. Listing, downloading and restoring an untrusted backup read the directory of its
+archive within the limits for backups too. Uploading needs the permissions to back up and to restore the server, and to
+change its files: an uploaded backup can bring any file, e.g. a plugin, which runs with the server and can read its
+secrets once it is restored, such as the forwarding secret of its network, like a plugin uploaded with the file manager.
 
 ## Copies of backups
 
@@ -456,12 +454,11 @@ and never restores them itself: the master relays them, as agents never connect 
 read them there, like the backups of the servers on their own node. Agents mark every backup that came from elsewhere, a
 copy or one of another node, as untrusted, and restore it like an uploaded backup (see [Backups](#backups)): checked
 again with the limits for backups, extracted confined like an archive of the file manager, and with every secret
-replaced by the server's own; the master refuses to restore a copy with an agent that would trust it. So a compromised
-node or storage can change the data of the servers restored from its
+replaced by the server's own. So a compromised node or storage can change the data of the servers restored from its
 copies, like a node can change the backups of its own servers, but nothing beyond them. A copy belongs to its server on
 the node it was copied from, and follows the server when it moves: nodes tell the IDs of their servers themselves, so a
-compromised node that claims the ID of another node's server only gets copies of its own, and a job neither replaces
-nor deletes that server's copies for it.
+compromised node that claims the ID of another node's server only gets copies of its own, and a job neither replaces nor
+deletes that server's copies for it.
 
 Copies take the backups of all servers away from their nodes, so adding, changing and deleting storages, and saving a
 job that copies, need the permissions to manage backup jobs and to see and download the backups of all servers; each run

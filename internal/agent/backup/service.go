@@ -556,7 +556,7 @@ func uploadedPaths(f *os.File) ([]string, error) {
 
 // importedDetails validates a backup from another node like those made here.
 func importedDetails(b *noryxv1.Backup) (Details, error) {
-	d := Details{Label: b.GetLabel(), Created: time.Unix(b.GetCreatedUnix(), 0), JobID: b.GetJobId(), Kept: b.GetKept(), Untrusted: b.GetUntrusted()}
+	d := Details{Label: b.GetLabel(), Created: time.Unix(b.GetCreatedUnix(), 0), JobID: b.GetJobId(), Kept: b.GetKept()}
 	for _, p := range b.GetPaths() {
 		name, ok := datadir.Name(p)
 		if !ok {

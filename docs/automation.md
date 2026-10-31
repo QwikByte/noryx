@@ -55,9 +55,6 @@ are archived, so players stay connected.
   copies the backup to the other server with the secrets hidden, like a download, restores it there and deletes the
   copy. Like a duplicate, the other server keeps its own secrets and those of its network, and its forwarding settings,
   and gets no files with secrets of file sets.
-- Restoring chosen files, into another server or with a backup first needs an up-to-date agent on the node, as does
-  moving backups that leave something out or are kept; the panel says so otherwise. Until a node's agent is updated,
-  jobs that keep backups of days, weeks or months keep all of them there, and backups there leave nothing out.
 - Deleting a server deletes its backups too, but not their [copies](#copies-of-backups). Locally,
   `noryx-agent backup list|create|restore` works without the master, e.g. to restore a server while the master is
   unreachable.
@@ -110,7 +107,6 @@ and configuration, which can hold passwords that weren't set through file sets.
   Seeing and restoring the copies of a server needs the permission to see its backups, those of servers that are gone
   the permission on all servers; restoring needs the permission to restore backups of the server restored into, and
   deleting a copy the one to delete backups.
-- Copying to a node needs an up-to-date agent there, and restoring a copy one on the node of the server restored into.
 
 ## Backing up the master
 
@@ -126,13 +122,12 @@ the master itself.
   at set times, see [Targets and times](#targets-and-times), while the master runs. It keeps the archives in a storage
   for [copies of backups](#copies-of-backups), in the folder `master` of the storage's folder, e.g.
   `noryx/master/noryx-master-20261031-033000-k3x7qa.tar.gz.age`, or on a node, in `<backups of the location>/master`,
-  apart from the backups of the servers there and out of their reach; the master relays them, and the node needs an
-  up-to-date agent. Keep them away from the master's machine. The job keeps as many of the newest archives there as it
-  should, at least 1, and deletes its older ones there, never anything else; archives in a place that it no longer keeps
-  them in stay there. There is one such job at most, and while there is none, **Needs attention** reminds administrators
-of it. Its runs, its last and next run and its failures show like those
-  of other jobs, also in **Needs attention**, the **Agenda** and as warnings of the category **Backups** in the log,
-  which [notifications](monitoring.md#notifications) can send.
+  apart from the backups of the servers there and out of their reach; the master relays them. Keep them away from the
+  master's machine. The job keeps as many of the newest archives there as it should, at least 1, and deletes its older
+  ones there, never anything else; archives in a place that it no longer keeps them in stay there. There is one such job
+  at most, and while there is none, **Needs attention** reminds administrators of it. Its runs, its last and next run
+  and its failures show like those of other jobs, also in **Needs attention**, the **Agenda** and as warnings of the
+  category **Backups** in the log, which [notifications](monitoring.md#notifications) can send.
 - **Passphrase.** With a passphrase of at least 12 characters, the job encrypts the archives with
   [age](https://age-encryption.org), so that whoever gets one can't read it without the passphrase; `age -d` decrypts
   them too. Without a passphrase, they aren't encrypted, which the panel warns about. The master keeps the passphrase in
