@@ -219,7 +219,7 @@ function ChangeDatastoreForm({ datastore: ds, onClose }: { datastore: Datastore;
         }),
       {
         title,
-        done: (changed) => ({ message: t("Changed the datastore {{name}}", { name: ds.name }), description: changed.warning, warning: !!changed.warning }),
+        done: () => ({ message: t("Changed the datastore {{name}}", { name: ds.name }) }),
         then: onClose,
       },
     )

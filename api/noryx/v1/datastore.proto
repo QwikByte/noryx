@@ -91,7 +91,7 @@ message Datastore {
   uint32 port = 10;
   // Databases of a running datastore, sorted.
   repeated string databases = 11;
-  // The parameters of its engine; agents of older versions send none, as they don't know them.
+  // The parameters of its engine.
   DatastoreParameters parameters = 12;
 }
 
@@ -307,7 +307,7 @@ message BrowseTableRequest {
   uint64 offset = 5;
   // Rows returned at most.
   uint32 limit = 6;
-  // A column to sort the rows by; empty for none. Agents of older versions ignore it.
+  // A column to sort the rows by; empty for none.
   string sort = 7;
   bool descending = 8;
   // Leaves out the rows that don't match; none for all rows.
@@ -347,8 +347,6 @@ message BrowseTableResponse {
   repeated TableRow rows = 2;
   // The table has more rows after these.
   bool more = 3;
-  // The agent sorted and filtered the rows as asked; agents of older versions don't.
-  bool sorted_and_filtered = 4;
 }
 
 message StreamDatastoreLogsRequest {

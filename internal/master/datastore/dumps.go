@@ -10,9 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
@@ -147,9 +144,6 @@ func (s *Service) Upload(ctx context.Context, id, database, label string, size i
 		return Dump{}, err
 	}
 	res, err := stream.CloseAndRecv()
-	if status.Code(err) == codes.Unimplemented {
-		return Dump{}, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the datastore's node to upload dumps.")
-	}
 	return toDump(res.GetDump()), err
 }
 

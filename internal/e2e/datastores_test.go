@@ -278,7 +278,7 @@ func TestDatastores(t *testing.T) {
 	api.do("PATCH", "/api/datastores/"+ds.ID, map[string]any{"maxConnections": 400, "bufferMb": 768}, http.StatusOK, &changed)
 	api.do("PATCH", "/api/datastores/"+ds.ID, map[string]any{"memoryMb": 2048}, http.StatusOK, &changed)
 	list, _ = a1.runtime.ListDatastores(t.Context())
-	if changed.MaxConnections != 400 || changed.BufferMB != 768 || changed.Warning != "" || list[0].MaxConnections != 400 || list[0].BufferMB != 768 || list[0].MemoryMB != 2048 {
+	if changed.MaxConnections != 400 || changed.BufferMB != 768 || list[0].MaxConnections != 400 || list[0].BufferMB != 768 || list[0].MemoryMB != 2048 {
 		t.Fatalf("after tuning: %+v, on the node %+v", changed, list[0])
 	}
 

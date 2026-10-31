@@ -148,7 +148,7 @@ type Datastore struct {
 	Port uint32 `protobuf:"varint,10,opt,name=port,proto3" json:"port,omitempty"`
 	// Databases of a running datastore, sorted.
 	Databases []string `protobuf:"bytes,11,rep,name=databases,proto3" json:"databases,omitempty"`
-	// The parameters of its engine; agents of older versions send none, as they don't know them.
+	// The parameters of its engine.
 	Parameters    *DatastoreParameters `protobuf:"bytes,12,opt,name=parameters,proto3" json:"parameters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2181,7 +2181,7 @@ type BrowseTableRequest struct {
 	Offset uint64 `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
 	// Rows returned at most.
 	Limit uint32 `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
-	// A column to sort the rows by; empty for none. Agents of older versions ignore it.
+	// A column to sort the rows by; empty for none.
 	Sort       string `protobuf:"bytes,7,opt,name=sort,proto3" json:"sort,omitempty"`
 	Descending bool   `protobuf:"varint,8,opt,name=descending,proto3" json:"descending,omitempty"`
 	// Leaves out the rows that don't match; none for all rows.
@@ -2518,11 +2518,9 @@ type BrowseTableResponse struct {
 	Columns []*TableColumn         `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
 	Rows    []*TableRow            `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
 	// The table has more rows after these.
-	More bool `protobuf:"varint,3,opt,name=more,proto3" json:"more,omitempty"`
-	// The agent sorted and filtered the rows as asked; agents of older versions don't.
-	SortedAndFiltered bool `protobuf:"varint,4,opt,name=sorted_and_filtered,json=sortedAndFiltered,proto3" json:"sorted_and_filtered,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	More          bool `protobuf:"varint,3,opt,name=more,proto3" json:"more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BrowseTableResponse) Reset() {
@@ -2572,13 +2570,6 @@ func (x *BrowseTableResponse) GetRows() []*TableRow {
 func (x *BrowseTableResponse) GetMore() bool {
 	if x != nil {
 		return x.More
-	}
-	return false
-}
-
-func (x *BrowseTableResponse) GetSortedAndFiltered() bool {
-	if x != nil {
-		return x.SortedAndFiltered
 	}
 	return false
 }
@@ -2862,12 +2853,11 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x04null\x18\x02 \x01(\bR\x04null\x12\x1c\n" +
 	"\ttruncated\x18\x03 \x01(\bR\ttruncated\"8\n" +
 	"\bTableRow\x12,\n" +
-	"\x06values\x18\x01 \x03(\v2\x14.noryx.v1.TableValueR\x06values\"\xb2\x01\n" +
+	"\x06values\x18\x01 \x03(\v2\x14.noryx.v1.TableValueR\x06values\"\x82\x01\n" +
 	"\x13BrowseTableResponse\x12/\n" +
 	"\acolumns\x18\x01 \x03(\v2\x15.noryx.v1.TableColumnR\acolumns\x12&\n" +
 	"\x04rows\x18\x02 \x03(\v2\x12.noryx.v1.TableRowR\x04rows\x12\x12\n" +
-	"\x04more\x18\x03 \x01(\bR\x04more\x12.\n" +
-	"\x13sorted_and_filtered\x18\x04 \x01(\bR\x11sortedAndFiltered\"h\n" +
+	"\x04more\x18\x03 \x01(\bR\x04more\"h\n" +
 	"\x1aStreamDatastoreLogsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04tail\x18\x02 \x01(\rR\x04tail\x12&\n" +

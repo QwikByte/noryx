@@ -44,8 +44,6 @@ export interface Datastore {
   maxConnections: number
   /** MB of InnoDB's buffer pool or PostgreSQL's shared buffers; 0 for the default, which follows the memory. */
   bufferMb: number
-  /** What a creation or change left out, e.g. on an agent of an older version. */
-  warning?: string
 }
 
 /** The bounds and defaults of the parameters of an engine with memoryMb, as the master checks them. */

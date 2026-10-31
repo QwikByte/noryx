@@ -4,9 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
@@ -55,7 +52,7 @@ func (s *Service) Tables(ctx context.Context, id, name string) ([]Table, error) 
 		}
 		return err
 	})
-	return tables, browsing(err)
+	return tables, err
 }
 
 // Browse returns a page of the rows of a table that req chooses, which the agent only reads.
@@ -71,9 +68,6 @@ func (s *Service) Browse(ctx context.Context, id string, req *noryxv1.BrowseTabl
 	page := Page{Columns: []Column{}, Rows: [][]Value{}}
 	err = s.call(ctx, ds.NodeID, func(ctx context.Context, c noryxv1.DatastoreServiceClient) error {
 		res, err := c.BrowseTable(ctx, req)
-		if err == nil && (req.GetSort() != "" || req.GetFilter() != nil) && !res.GetSortedAndFiltered() {
-			return status.Error(codes.Unimplemented, "the agent can't sort and filter")
-		}
 		for _, col := range res.GetColumns() {
 			page.Columns = append(page.Columns, Column{col.GetName(), col.GetType(), col.GetPrimaryKey()})
 		}
@@ -87,16 +81,5 @@ func (s *Service) Browse(ctx context.Context, id string, req *noryxv1.BrowseTabl
 		page.More = res.GetMore()
 		return err
 	})
-	if status.Code(err) == codes.Unimplemented && (req.GetSort() != "" || req.GetFilter() != nil) {
-		return Page{}, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the datastore's node to sort and filter tables.")
-	}
-	return page, browsing(err)
-}
-
-// browsing tells to update agents that can't browse databases yet.
-func browsing(err error) error {
-	if status.Code(err) == codes.Unimplemented {
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the datastore's node to look into its databases.")
-	}
-	return err
+	return page, err
 }

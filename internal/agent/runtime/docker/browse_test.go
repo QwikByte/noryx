@@ -97,7 +97,7 @@ func TestBrowseLive(t *testing.T) {
 			// Sorted by a column and filtered by its text, with values that would need escaping.
 			sorted, err := browse(&noryxv1.BrowseTableRequest{Sort: "id", Descending: true, Limit: 2})
 			must(t, err)
-			if rows := sorted.GetRows(); !sorted.GetSortedAndFiltered() || len(rows) != 2 || rows[0].GetValues()[0].GetText() != "2" {
+			if rows := sorted.GetRows(); len(rows) != 2 || rows[0].GetValues()[0].GetText() != "2" {
 				t.Errorf("sorted by id %v", sorted)
 			}
 			for filter, want := range map[*noryxv1.TableFilter]int{

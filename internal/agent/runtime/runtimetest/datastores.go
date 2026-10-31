@@ -191,7 +191,7 @@ func (f *Datastores) Browse(ctx context.Context, id string, req *noryxv1.BrowseT
 	content, _ := f.Content(id, req.GetDatabase())
 	matches := filter == nil || content == filter.GetValue() ||
 		filter.GetContains() && strings.Contains(strings.ToLower(content), strings.ToLower(filter.GetValue()))
-	res := &noryxv1.BrowseTableResponse{Columns: []*noryxv1.TableColumn{{Name: "content", Type: "text"}}, SortedAndFiltered: true}
+	res := &noryxv1.BrowseTableResponse{Columns: []*noryxv1.TableColumn{{Name: "content", Type: "text"}}}
 	if req.GetOffset() == 0 && req.GetLimit() > 0 && matches {
 		res.Rows = []*noryxv1.TableRow{{Values: []*noryxv1.TableValue{{Text: content}}}}
 	}

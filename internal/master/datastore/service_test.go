@@ -25,21 +25,6 @@ import (
 	"github.com/QwikByte/noryx/internal/master/overlay"
 )
 
-// TestTaken keeps the parameters that the agent took: none on agents of older versions, which
-// answer without them, with a warning if it was asked for some.
-func TestTaken(t *testing.T) {
-	tuned := Datastore{MaxConnections: 300, BufferMB: 512}
-	if ds, warning := taken(tuned, &noryxv1.Datastore{Parameters: tuned.parameters()}); ds.MaxConnections != 300 || ds.BufferMB != 512 || warning != "" {
-		t.Errorf("a current agent: %+v, %q", ds, warning)
-	}
-	if ds, warning := taken(tuned, &noryxv1.Datastore{}); ds.MaxConnections != 0 || ds.BufferMB != 0 || warning == "" {
-		t.Errorf("an older agent: %+v, %q", ds, warning)
-	}
-	if _, warning := taken(Datastore{}, &noryxv1.Datastore{}); warning != "" {
-		t.Errorf("an older agent without parameters: %q", warning)
-	}
-}
-
 // agent is the agent of a node that runs datastores, beside servers that use memory and ports
 // of the node.
 type agent struct {
@@ -52,8 +37,6 @@ type agent struct {
 	passwords  map[string]string // of the users of databases, by datastore/database
 	servers    []*noryxv1.Server
 	memoryMB   uint64
-	older      bool             // runs no datastores
-	noParams   bool             // knows no parameters of datastores
 	fail       map[string]error // makes calls fail, by method
 	taken      map[uint32]bool  // ports that something else on the node uses
 	published  []*noryxv1.PublishDatastoreRequest
@@ -79,11 +62,7 @@ func (a *agent) failure(method, id string) error {
 }
 
 func (a *agent) answer(id string) *noryxv1.Datastore {
-	ds := proto.Clone(a.datastores[id]).(*noryxv1.Datastore)
-	if a.noParams {
-		ds.Parameters = nil
-	}
-	return ds
+	return proto.Clone(a.datastores[id]).(*noryxv1.Datastore)
 }
 
 func (a *agent) GetInfo(context.Context, *noryxv1.GetInfoRequest) (*noryxv1.GetInfoResponse, error) {
@@ -101,9 +80,6 @@ func (a *agent) ListServers(context.Context, *noryxv1.ListServersRequest) (*nory
 func (a *agent) ListDatastores(context.Context, *noryxv1.ListDatastoresRequest) (*noryxv1.ListDatastoresResponse, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.older {
-		return nil, status.Error(codes.Unimplemented, "unknown service noryx.v1.DatastoreService")
-	}
 	res := &noryxv1.ListDatastoresResponse{Versions: []*noryxv1.DatastoreVersions{
 		{Engine: noryxv1.DatastoreEngine_DATASTORE_ENGINE_MARIADB, Versions: []string{"11"}},
 		{Engine: noryxv1.DatastoreEngine_DATASTORE_ENGINE_POSTGRES, Versions: []string{"16", "17"}},
@@ -204,8 +180,8 @@ func (a *agent) PublishDatastore(_ context.Context, req *noryxv1.PublishDatastor
 	return &noryxv1.PublishDatastoreResponse{}, nil
 }
 
-// master keeps the datastores of the networks net1 and net2. Its nodes n1 and n2 have room for
-// datastores beside their servers, n3 runs an agent of an older version and n4 doesn't answer.
+// master keeps the datastores of the networks net1 and net2. Its nodes n1, n2 and n3 have room
+// for datastores beside their servers, and n4 doesn't answer.
 // It is its own overlay, of members, and the networks, which it configures again.
 type master struct {
 	*Service
@@ -228,7 +204,7 @@ func newMaster(t *testing.T) *master {
 	m := &master{db: db, agents: map[string]*agent{}}
 	for _, id := range []string{"n1", "n2", "n3"} {
 		a := &agent{
-			datastores: map[string]*noryxv1.Datastore{}, passwords: map[string]string{}, memoryMB: 4096, older: id == "n3", fail: map[string]error{}, taken: map[uint32]bool{},
+			datastores: map[string]*noryxv1.Datastore{}, passwords: map[string]string{}, memoryMB: 4096, fail: map[string]error{}, taken: map[uint32]bool{},
 		}
 		if id == "n1" { // 1536 MB, up to 25432
 			a.servers = []*noryxv1.Server{{Id: "lobby", MemoryMb: 1024, Port: 25430, Type: noryxv1.ServerType_SERVER_TYPE_BEDROCK, MaxPlayers: 3}}
@@ -302,12 +278,11 @@ func statusOf(err error) int {
 // A new datastore runs the newest version of its engine that the agent has, unless another one
 // is chosen, in the node's default storage location, and starts; the servers of the network join
 // it then. It must fit the memory that the node's servers and datastores leave, and refused or
-// failed ones are forgotten. Agents of older versions run none, and those that don't know the
-// parameters of datastores leave them at their defaults.
+// failed ones are forgotten.
 func TestCreate(t *testing.T) {
 	m := newMaster(t)
 	v := m.create(t, Input{Name: " main ", NodeID: "n1", Engine: "Postgres", MemoryMB: 512, CPUMillis: 1000, MaxConnections: 100})
-	if v.Name != "main" || v.Engine != "postgres" || v.Version != "17" || v.Storage != "default" || v.State != "running" || v.NodeName != "n1" || v.Warning != "" ||
+	if v.Name != "main" || v.Engine != "postgres" || v.Version != "17" || v.Storage != "default" || v.State != "running" || v.NodeName != "n1" ||
 		!slices.Equal(v.Endpoints, []Endpoint{{Host: "noryx-db-" + v.ID, Port: 5432}}) || len(v.Databases) != 0 || !slices.Equal(v.Versions, []string{"16", "17"}) {
 		t.Fatalf("created %+v", v)
 	}
@@ -336,7 +311,6 @@ func TestCreate(t *testing.T) {
 		{"an unknown node", "net1", Input{Name: "cache", NodeID: "n9", Engine: "mariadb", MemoryMB: 512}, http.StatusNotFound, "Node not found."},
 		{"an unknown version", "net1", Input{Name: "cache", NodeID: "n1", Engine: "postgres", Version: "15", MemoryMB: 512}, http.StatusBadRequest,
 			"The agent of n1 runs postgres 16 and 17."},
-		{"an older agent", "net1", Input{Name: "cache", NodeID: "n3", Engine: "mariadb", MemoryMB: 512}, http.StatusNotImplemented, "Update the agent of n3 to run datastores."},
 		// 4096 MB, 1024 kept free, 1536 for the server and 512 for main.
 		{"too much memory", "net1", Input{Name: "cache", NodeID: "n1", Engine: "mariadb", MemoryMB: 1100}, http.StatusConflict,
 			"n1 has room for a datastore with up to 1024 MB of memory."},
@@ -370,10 +344,10 @@ func TestCreate(t *testing.T) {
 		t.Fatalf("datastores of net1 %+v, %v", list, err)
 	}
 
-	n2.do(func() { n2.fail, n2.noParams = map[string]error{}, true })
+	n2.do(func() { n2.fail = map[string]error{} })
 	v, err := m.Create(t.Context(), "net1", Input{Name: "tuned", NodeID: "n2", Engine: "mariadb", MemoryMB: 512, BufferMB: 256})
-	if err != nil || v.Warning == "" || v.BufferMB != 0 || m.stored(t, v.ID).BufferMB != 0 {
-		t.Fatalf("Create on an agent without parameters = %+v, %v", v, err)
+	if err != nil || v.BufferMB != 256 || m.stored(t, v.ID).BufferMB != 256 {
+		t.Fatalf("Create with buffers = %+v, %v", v, err)
 	}
 
 	for i := range noryxv1.MaxNetworkDatastores - 3 {
@@ -428,10 +402,10 @@ func TestUpdate(t *testing.T) {
 	if _, err := m.Update(t.Context(), v.ID, Change{MemoryMB: 512}); httpapi.Message(err) != "the container can't be created" || m.stored(t, v.ID).MemoryMB != 1024 {
 		t.Fatalf("Update on a failing agent = %v", err)
 	}
-	n1.do(func() { n1.fail, n1.noParams = map[string]error{}, true })
+	n1.do(func() { n1.fail = map[string]error{} })
 	updated, err = m.Update(t.Context(), v.ID, Change{MemoryMB: 512})
-	if err != nil || updated.MemoryMB != 512 || updated.BufferMB != 0 || updated.Warning == "" || m.stored(t, v.ID).BufferMB != 0 {
-		t.Fatalf("Update on an agent without parameters = %+v, %v", updated, err)
+	if err != nil || updated.MemoryMB != 512 || updated.BufferMB != 256 || m.stored(t, v.ID).MemoryMB != 512 {
+		t.Fatalf("Update to less memory on a full node = %+v, %v", updated, err)
 	}
 	if _, err := m.Update(t.Context(), "nope", Change{}); !errors.Is(err, errNotFound) {
 		t.Errorf("Update of an unknown datastore = %v", err)
