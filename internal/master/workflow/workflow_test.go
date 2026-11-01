@@ -334,3 +334,33 @@ func TestCallsAndCancel(t *testing.T) {
 		t.Fatalf("runs of the child = %+v, %v", children, err)
 	}
 }
+
+// A workflow needs what the workflows it runs need, also through others, so that nobody runs
+// a workflow through another one that they couldn't run themselves.
+func TestCallsNeedWhatTheyRun(t *testing.T) {
+	s := testService(t)
+	create := func(name string, by Author, steps ...Step) (Workflow, error) {
+		return s.Create(t.Context(), Draft{Name: name, Definition: Definition{Steps: steps}}, by)
+	}
+	restart, err := create("Restart", admin, step("restart", "restart", map[string]any{"targets": []map[string]string{{"nodeId": "n1"}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	middle, err := create("Middle", admin, step("call", "call", callSettings{Workflow: restart.ID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := create("Outer", Author{}, step("call", "call", callSettings{Workflow: middle.ID})); err == nil {
+		t.Error("someone who may not restart servers saved a workflow that restarts them through another one")
+	}
+	outer, err := create("Outer", admin, step("call", "call", callSettings{Workflow: middle.ID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	needs := s.active[outer.ID].needs
+	s.mu.Unlock()
+	if !slices.Contains(needs, access.ServersRestart) {
+		t.Errorf("the workflow that restarts servers through another one needs %v", needs)
+	}
+}

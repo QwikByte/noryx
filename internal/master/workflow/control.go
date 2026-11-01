@@ -465,6 +465,17 @@ func runTerminate(_ context.Context, x *scope, _ Step, set *terminateSettings) (
 	return map[string]any{"result": result}, &stop{failed: set.Failed, message: database.Clip(msg, maxError)}
 }
 
+// called returns the IDs of the workflows that the steps run, unless they are turned off.
+func called(steps []Step) (ids []string) {
+	walk(steps, func(st *Step) {
+		var c callSettings
+		if st.Kind == "call" && !st.Disabled && json.Unmarshal(st.With, &c) == nil {
+			ids = append(ids, c.Workflow)
+		}
+	})
+	return ids
+}
+
 type callSettings struct {
 	Workflow string            `json:"workflow"`
 	Inputs   map[string]string `json:"inputs"`

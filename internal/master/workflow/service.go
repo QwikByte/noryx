@@ -244,6 +244,7 @@ func (s *Service) reload(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fresh, byHook := map[string]*active{}, map[string]string{}
+	own, calls := map[string][]access.Permission{}, map[string][]string{}
 	now := time.Now()
 	for _, wf := range list {
 		d := Draft{Name: wf.Name, Description: wf.Description, Enabled: wf.Enabled, Definition: wf.Definition}
@@ -252,6 +253,7 @@ func (s *Service) reload(ctx context.Context) error {
 			slog.Warn("A workflow is invalid and doesn't run", logging.Workflows, "workflow", wf.Name, "err", err)
 			wf.Enabled = false
 		}
+		own[wf.ID], calls[wf.ID] = needs, called(d.Steps)
 		a := &active{wf: wf, needs: needs, next: make([]time.Time, len(wf.Triggers))}
 		if h := hooks[wf.ID]; h != "" {
 			byHook[h] = wf.ID
@@ -265,6 +267,20 @@ func (s *Service) reload(ctx context.Context) error {
 			}
 		}
 		fresh[wf.ID] = a
+	}
+	// A workflow also needs what the workflows it runs need, and those that they run.
+	for id, a := range fresh {
+		a.needs = slices.Clone(own[id])
+		seen := map[string]bool{id: true}
+		for queue := slices.Clone(calls[id]); len(queue) > 0; queue = queue[1:] {
+			if c := queue[0]; !seen[c] {
+				seen[c] = true
+				a.needs = append(a.needs, own[c]...)
+				queue = append(queue, calls[c]...)
+			}
+		}
+		slices.Sort(a.needs)
+		a.needs = slices.Compact(a.needs)
 	}
 	s.active, s.hooks = fresh, byHook
 	select {
