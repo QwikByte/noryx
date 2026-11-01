@@ -40,6 +40,10 @@ Tests that run containers need root and only run with `NORYX_DOCKER_TEST` set: w
 `NORYX_DOCKER_TEST=1 go test ./internal/agent/runtime/docker`, datastores run in Docker, and with
 `NORYX_DOCKER_TEST=podman` in Podman, along with `TestPodmanLive`, which checks what Podman does differently.
 
+The components in `web/src/components/ui` come from [shadcn/ui](https://ui.shadcn.com), in the style that
+`web/components.json` names: `npx shadcn@latest add <component>` in `web` adds another one. `web/src/index.css` defines
+the variants they use, such as `data-open:`; add those a new component needs, from the shadcn package's `tailwind.css`.
+
 The panel's unit tests use [Vitest](https://vitest.dev). They sit next to the modules they test, as `*.test.ts` or
 `*.test.tsx`, and run in Node without a browser: `npm test` in `web` runs them once, `npx vitest` again on every change.
 
