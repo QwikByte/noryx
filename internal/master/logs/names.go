@@ -64,6 +64,8 @@ func (n *Names) Server(ctx context.Context, nodeID, id string) string {
 		if age := time.Since(known.at); age < namesRetry || age < namesTTL && known.names[id] != "" {
 			return known.names[id]
 		}
+	} else if n.Node(ctx, nodeID) == "" { // requests may name any node, which the cache mustn't keep
+		return ""
 	}
 	fresh := &serverNames{at: time.Now(), listed: map[string]string{}, names: map[string]string{}}
 	if known != nil {
