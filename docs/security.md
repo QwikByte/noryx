@@ -127,9 +127,9 @@ and the files with secrets of Geyser and Floodgate, the forwarding settings, inc
 its configuration, and a game server's online mode. The agent puts them into the extracted backup before it replaces
 anything, so an old backup brings back neither the secret of a network the server left nor the trust in its proxy, nor
 a former secret of its network; the master then configures the server's network again. A removed node may be
-compromised, and its proxy's data holds the secret, so a node with servers of networks is
-only removed once they left their networks: game servers of other nodes no longer trust its proxy, and proxies no
-longer send players to its servers. The node itself isn't contacted, and if a server of another node can't be
+compromised, and the data of its servers holds the secret, so a node with servers of networks is
+only removed once they left their networks: game servers of other nodes no longer trust its proxy, proxies no longer
+send players to its servers, and a network that goes on gets a new forwarding secret. The node itself isn't contacted, and if a server of another node can't be
 configured, the node stays. Only deleting a network whose proxy's node doesn't answer skips the proxy and the servers
 on that node, which then only trust each other, and says so. The forwarding mods come from Modrinth like other mods,
 checked against their SHA-512 hashes. Proxies read console commands from their standard input, which only the agent

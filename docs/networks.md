@@ -83,7 +83,8 @@ Removing a node whose servers are part of networks first takes them out, once co
 with `?release=true`, which also needs the permission to manage networks). A network whose proxy runs on the node, or
 all of whose game servers do, is deleted: its game servers on other nodes become standalone, and a proxy on another
 node stops forwarding. The other networks lose the node's servers, which players then neither join nor reach through
-host names; their proxies forget them first. The node itself isn't contacted, so a lost node can be removed too, but if
+host names; their proxies forget them first. As those servers knew the forwarding secret, these networks get a new one,
+and their running game servers restart once for it. The node itself isn't contacted, so a lost node can be removed too, but if
 a server of another node can't be configured, the node stays. A network that would be deleted can't take datastores on
 other nodes along, so delete them first; datastores on the node are forgotten with it, like its servers.
 
