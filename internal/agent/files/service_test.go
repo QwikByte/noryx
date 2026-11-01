@@ -6,7 +6,9 @@ import (
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -70,6 +72,23 @@ func TestWriteExpectedVersion(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(file); string(got) != "motd=D\nrcon.password=secret\n" {
 		t.Fatalf("file = %q", got)
+	}
+
+	// Content that ends before the size its header tells, e.g. as the client went away, writes nothing.
+	for _, name := range []string{"server.properties", "plugins.txt"} {
+		stream := &writeStream{ctx: context.Background(), msgs: []*noryxv1.WriteFileRequest{
+			{Content: &noryxv1.WriteFileRequest_Header{Header: &noryxv1.WriteFileHeader{ServerId: id, Path: name, Overwrite: true, Size: 100}}},
+			{Content: &noryxv1.WriteFileRequest_Data{Data: []byte("motd=cut")}},
+		}}
+		if err := svc.WriteFile(stream); status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s ended early: %v", name, err)
+		}
+	}
+	if got, _ := os.ReadFile(file); string(got) != "motd=D\nrcon.password=secret\n" {
+		t.Fatalf("file after a write that ended early = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(rt.dir, id, "plugins.txt")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("a new file that ended early: %v", err)
 	}
 }
 

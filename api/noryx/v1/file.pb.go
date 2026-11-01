@@ -498,7 +498,8 @@ type WriteFileHeader struct {
 	Path     string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// Replace an existing file; otherwise writing to an existing file fails.
 	Overwrite bool `protobuf:"varint,3,opt,name=overwrite,proto3" json:"overwrite,omitempty"`
-	// Size of the file if known, so that one that doesn't fit is refused before it is sent.
+	// Size of the file if known, so that one that doesn't fit is refused before it is sent, and
+	// one whose content ends early, e.g. as the client of an upload went away, isn't written.
 	Size int64 `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
 	// Replace the file only while it still has this version, e.g. the one an editor opened;
 	// otherwise the write fails with FAILED_PRECONDITION. A file that is gone has changed too.

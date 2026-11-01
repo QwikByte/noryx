@@ -170,14 +170,14 @@ func (s *Service) WriteFile(stream noryxv1.FileService_WriteFileServer) error {
 	// The file is replaced right after the content is written, and checked just before.
 	err = dir.Replace(name, header.GetOverwrite(), func(w io.Writer) error {
 		if !secrets.Redacted(name) {
-			if err := receive(stream, storage.Guard(w, top), MaxFileSize); err != nil {
+			if err := receive(stream, storage.Guard(w, top), MaxFileSize, header.GetSize()); err != nil {
 				return err
 			}
 			return unchanged(dir, name, header.GetExpected())
 		}
 		// The secrets the panel showed as placeholders stay as they are.
 		var data bytes.Buffer
-		if err := receive(stream, &data, maxRedacted); err != nil {
+		if err := receive(stream, &data, maxRedacted, header.GetSize()); err != nil {
 			return err
 		}
 		if err := unchanged(dir, name, header.GetExpected()); err != nil {
@@ -523,10 +523,13 @@ func fileInfo(info fs.FileInfo) *noryxv1.FileInfo {
 }
 
 // receive writes the data of a WriteFile stream to w, up to limit bytes.
-func receive(stream noryxv1.FileService_WriteFileServer, w io.Writer, limit int64) error {
+func receive(stream noryxv1.FileService_WriteFileServer, w io.Writer, limit, size int64) error {
 	var written int64
 	for {
 		msg, err := stream.Recv()
+		if errors.Is(err, io.EOF) && size > 0 && written != size {
+			return status.Errorf(codes.InvalidArgument, "The file ended after %d of its %d bytes, so it wasn't written.", written, size)
+		}
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
