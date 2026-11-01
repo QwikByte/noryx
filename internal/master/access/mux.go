@@ -45,7 +45,11 @@ func (m Mux) Handle(pattern string, need Need, h http.HandlerFunc) {
 			return
 		}
 		if p, ok := need(r, From(r.Context())); !ok {
-			httpapi.WriteError(w, r, Denied(p))
+			err := Denied(p)
+			if From(r.Context()).admin { // only AdminsSignedIn refuses administrators
+				err = errSignInFirst
+			}
+			httpapi.WriteError(w, r, err)
 			return
 		}
 		h(w, r)
@@ -96,6 +100,22 @@ func All(needs ...Need) Need {
 
 // AdminsOnly needs the user to be an administrator, for what no other group may get.
 func AdminsOnly(_ *http.Request, g Grants) (Permission, bool) { return Administrators, g.admin }
+
+// AdminsSignedIn needs an administrator signed in to the panel, for what no API token may do,
+// not even an administrator's with all permissions.
+func AdminsSignedIn(r *http.Request, g Grants) (Permission, bool) {
+	user, _ := auth.UserFrom(r.Context())
+	return Administrators, g.admin && user.Token == nil
+}
+
+// AdminSignedIn reports whether a request acts for an administrator signed in to the panel,
+// as AdminsSignedIn needs.
+func AdminSignedIn(ctx context.Context) bool {
+	_, ok := AdminsSignedIn((&http.Request{}).WithContext(ctx), From(ctx))
+	return ok
+}
+
+var errSignInFirst = httpapi.Errorf(http.StatusForbidden, "API tokens can't do this. Sign in to the panel for it.")
 
 // SignedIn needs no permission. Handlers using it only show what the user may see, or
 // check the permissions for what a request names, e.g. the servers of a bulk install.

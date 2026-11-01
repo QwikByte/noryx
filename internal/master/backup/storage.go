@@ -151,8 +151,8 @@ func (c *Copies) saveStorage(ctx context.Context, id string, in storageInput) (S
 		return Storage{}, httpapi.Errorf(http.StatusBadRequest, "%s", msg)
 	}
 	// Whoever changes the storage of the master's archives chooses where they go next.
-	if master, err := c.keepsMasterArchives(ctx, id); err != nil || master && !access.From(ctx).Has(access.Administrators) {
-		return Storage{}, cmp.Or(err, httpapi.Errorf(http.StatusForbidden, "Only administrators can change the storage that keeps the archives of the master."))
+	if master, err := c.keepsMasterArchives(ctx, id); err != nil || master && !access.AdminSignedIn(ctx) {
+		return Storage{}, cmp.Or(err, httpapi.Errorf(http.StatusForbidden, "Only administrators signed in to the panel can change the storage that keeps the archives of the master."))
 	}
 	s := storage{StorageSettings: in.StorageSettings, ID: id, secretKey: in.SecretKey}
 	if id != "" && in.SecretKey == "" {
