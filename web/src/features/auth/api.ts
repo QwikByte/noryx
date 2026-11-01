@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Permission } from "@/features/access/permissions"
+import { forgetOperations } from "@/features/operations/api"
 import { ApiError, api } from "@/lib/api"
 import { chooseLanguage } from "@/lib/i18n"
 import { forgetCommandHistories, ownCommandHistories } from "@/lib/use-command-history"
@@ -60,6 +61,7 @@ export function useLogout() {
     onSettled: () => {
       queryClient.clear()
       forgetCommandHistories()
+      forgetOperations()
     },
   })
 }
@@ -80,6 +82,7 @@ export function useSetup() {
     mutationFn: (input: { token: string; password: string }) => api<LoginResult>("/auth/setup", { body: input }),
     onSuccess: (result) => {
       queryClient.clear()
+      forgetOperations()
       if ("mfaRequired" in result) return
       ownCommandHistories(result.id)
       queryClient.setQueryData(meQuery.queryKey, result)

@@ -51,6 +51,17 @@ function publish(op: Operation) {
   for (const listener of listeners) listener()
 }
 
+/** Tells how an operation goes on, while this browser still follows it. */
+function update(op: Operation) {
+  if (live.has(op.id)) publish(op)
+}
+
+/** Forgets the operations this browser follows, as the user signs out: whoever signs in next may not see them. */
+export function forgetOperations() {
+  live.clear()
+  for (const listener of listeners) listener()
+}
+
 /** An operation this browser follows, as it goes on. */
 export function useLiveOperation(id?: string) {
   return useSyncExternalStore(subscribe, () => (id ? live.get(id) : undefined))
@@ -83,10 +94,12 @@ export async function operate<T>(path: string, init: RequestInit, onStart?: (op:
     try {
       op = await api<Operation>(`/operations/${op.id}`)
     } catch (e) {
-      if (e instanceof ApiError) throw e
-      continue // the network failed for a moment; the operation goes on
+      if (!(e instanceof ApiError)) continue // the network failed for a moment; the operation goes on
+      // It can't be followed any more, e.g. as the master restarted or the session ended.
+      update({ ...op, finishedAt: new Date().toISOString(), error: e.message })
+      throw e
     }
-    publish(op)
+    update(op)
   }
   if (op.error) throw new ApiError(0, op.error, op.cancelled ? cancelledCode : undefined)
   return op.result as T
@@ -104,7 +117,7 @@ export function useCancelOperation() {
   return useMutation({
     mutationFn: (id: string) => api<Operation>(`/operations/${id}/cancel`, { method: "POST" }),
     onSuccess: (op) => {
-      if (live.has(op.id)) publish(op)
+      update(op)
       return queryClient.invalidateQueries({ queryKey: operationsQuery.queryKey })
     },
   })

@@ -18,6 +18,7 @@ import { validateRedirect } from "@/features/auth/redirect"
 import { validateLogSearch } from "@/features/logs/search"
 import { validateNetworkSearch } from "@/features/networks/browse"
 import { validateNodeSearch } from "@/features/nodes/browse"
+import { forgetOperations } from "@/features/operations/api"
 import { validatePlayerSearch } from "@/features/players/search"
 import type { Kind } from "@/features/plugins/api"
 import { preferencesQuery } from "@/features/preferences/api"
@@ -40,6 +41,7 @@ function signInAgain(error: Error) {
   const { pathname, href } = router.latestLocation
   if (error instanceof ApiError && error.status === 401 && pathname !== "/login" && pathname !== "/setup") {
     queryClient.clear()
+    forgetOperations()
     void router.navigate({ to: "/login", search: { redirect: href } })
   } else if (mustSetUpMfa(error) && pathname !== "/two-factor") {
     void router.navigate({ to: "/two-factor", search: { redirect: href } })
