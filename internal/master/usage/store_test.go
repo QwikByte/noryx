@@ -200,7 +200,7 @@ func TestDatastoreHistory(t *testing.T) {
 	defer db.Close()
 	for _, sql := range []string{
 		`INSERT INTO nodes (id, name, address, created_at) VALUES ('n1', 'n1', 'host:7443', 0), ('n2', 'n2', 'host:7443', 0)`,
-		`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, forwarding_secret, created_at) VALUES ('net', 'Main', 'n1', 'proxy', '', 0)`,
+		`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, proxy_type, forwarding_secret, created_at) VALUES ('net', 'Main', 'n1', 'proxy', 'velocity', '', 0)`,
 		`INSERT INTO datastores (id, network_id, node_id, name, engine, version, memory_mb, cpu_millis, storage, created_at)
 			VALUES ('main', 'net', 'n1', 'main', 'mariadb', '11.8', 512, 0, '', 0), ('other', 'net', 'n2', 'other', 'postgres', '18', 512, 0, '', 0)`,
 	} {

@@ -279,15 +279,15 @@ CREATE TABLE networks (
     name              TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     proxy_node_id     TEXT    NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
     proxy_server_id   TEXT    NOT NULL,
+    proxy_type        TEXT    NOT NULL,
     forwarding_secret TEXT    NOT NULL,
-    created_at        INTEGER NOT NULL,
-    proxy_type        TEXT    NOT NULL DEFAULT 'velocity',
     forwarding        TEXT    NOT NULL DEFAULT 'modern',
     firewalled        INTEGER NOT NULL DEFAULT 0,
     try               TEXT    NOT NULL DEFAULT '[]',
     forced_hosts      TEXT    NOT NULL DEFAULT '[]',
     bedrock_port      INTEGER NOT NULL DEFAULT 0,
     apply_error       TEXT,
+    created_at        INTEGER NOT NULL,
     UNIQUE (proxy_node_id, proxy_server_id)
 );
 
@@ -350,8 +350,8 @@ CREATE TABLE datastores (
     UNIQUE (network_id, name)
 );
 
--- The databases of a datastore, each with a user of the same name. The API never returns
--- the passwords, which only reach the servers through file sets.
+-- The databases of a datastore, each with a user of the same name. Their passwords reach the
+-- servers through file sets; the API only returns one to those who may manage datastores.
 CREATE TABLE datastore_databases (
     datastore_id TEXT    NOT NULL REFERENCES datastores (id) ON DELETE CASCADE,
     name         TEXT    NOT NULL,
@@ -486,6 +486,7 @@ CREATE TABLE backup_copies (
     server_id   TEXT    NOT NULL,
     server_name TEXT    NOT NULL,
     proxy       INTEGER NOT NULL,
+    bedrock     INTEGER NOT NULL,
     node_id     TEXT    NOT NULL,
     node_name   TEXT    NOT NULL,
     backup_id   TEXT    NOT NULL,

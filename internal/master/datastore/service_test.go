@@ -218,7 +218,7 @@ func newMaster(t *testing.T) *master {
 	}
 	nodes.Add(t, "n4", nil)
 	for _, id := range []string{"net1", "net2"} {
-		if _, err := db.Exec(`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, forwarding_secret, created_at) VALUES (?, ?, 'n1', ?, 'secret', 0)`, id, id, id); err != nil {
+		if _, err := db.Exec(`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, proxy_type, forwarding_secret, created_at) VALUES (?, ?, 'n1', ?, 'velocity', 'secret', 0)`, id, id, id); err != nil {
 			t.Fatal(err)
 		}
 	}

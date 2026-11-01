@@ -281,7 +281,9 @@ export interface Copy extends Pick<Backup, "label" | "createdAt" | "size" | "pat
   /** The node that the server was on when it was copied. */
   nodeId: string
   nodeName: string
+  /** The kind of server, which only a server of the same kind restores. */
   proxy: boolean
+  bedrock: boolean
   backupId: string
   copiedAt: string
   /** The storage that holds it, or the node, in its storage location. */

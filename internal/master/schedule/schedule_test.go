@@ -331,7 +331,7 @@ func openDB(t *testing.T) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 	for _, statement := range []string{
 		`INSERT INTO nodes (id, name, address, created_at) VALUES ('n1', 'node-1', 'x:1', 0), ('n2', 'node-2', 'x:2', 0)`,
-		`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, forwarding_secret, created_at) VALUES ('` + networkID + `', 'Main', 'n1', '` + proxyP + `', 's', 0)`,
+		`INSERT INTO networks (id, name, proxy_node_id, proxy_server_id, proxy_type, forwarding_secret, created_at) VALUES ('` + networkID + `', 'Main', 'n1', '` + proxyP + `', 'velocity', 's', 0)`,
 	} {
 		if _, err := db.Exec(statement); err != nil {
 			t.Fatal(err)
