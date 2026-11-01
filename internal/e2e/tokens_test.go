@@ -64,8 +64,11 @@ func TestAPITokens(t *testing.T) {
 	}
 	var starter, full created
 	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "starter", "permissions": []string{"servers.start"}, "password": "wrong"}, http.StatusBadRequest, nil)
-	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "starter", "permissions": []string{"servers.start"}, "password": password}, http.StatusOK, &starter)
-	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "full", "password": password}, http.StatusOK, &full)
+	// Tokens last a year at most, unless the settings say otherwise.
+	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "starter", "permissions": []string{"servers.start"}, "password": password}, http.StatusBadRequest, nil)
+	year := time.Now().Add(365 * 24 * time.Hour)
+	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "starter", "permissions": []string{"servers.start"}, "expiresAt": year, "password": password}, http.StatusOK, &starter)
+	browserOfAlice.do("POST", "/api/auth/tokens", map[string]any{"name": "full", "expiresAt": year, "password": password}, http.StatusOK, &full)
 	script := withToken(t, srv, starter.Secret)
 
 	// The script starts the lobby without the password, but does no more than the token and Alice may.

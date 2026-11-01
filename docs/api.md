@@ -9,8 +9,9 @@ Users create their tokens on their account page (in the menu of their name in th
 **Create token**:
 
 - **Name**, to tell the tokens apart, e.g. `Backup script`.
-- **Expires after** 30 days, 90 days, a year, or never. If the settings limit how long tokens may last, only the
-  lifetimes within the limit are offered, and the limit itself; the master refuses others.
+- **Expires after** 30 days, 90 days, a year, or never. The settings limit how long tokens may last, to a year unless
+  administrators change it: only the lifetimes within the limit are offered, and the limit itself; the master refuses
+  others.
 - **Permissions**: all of the user's, also those the user gets later, or only some of them, e.g. only to start servers.
   Choosing one also chooses what it needs, e.g. seeing the servers one may start. Only the permissions the user has are
   offered.

@@ -102,16 +102,16 @@ covers until they set it up. Tokens only work on the routes that state their per
 the user's own account (`/api/auth/` and `/api/preferences`) refuse them, so a token can't sign in to the panel, change
 the password or two-factor authentication, end sessions or create and revoke tokens. Besides the API, tokens sign in to
 [SFTP](#sftp), with the same checks. A wrong token takes an attempt from the client's budget of sign-ins, and a client
-without attempts left can't use tokens either. Pages of other sites can't
-use a token in a browser: the master allows no cross-origin requests, so browsers don't send the header, and the
-cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
-a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
-tokens without the permission they need. The log names the token besides the user in the entries of what it did, and a
-token notes the address and time of its last use at most once a minute. The settings can limit how long new tokens last,
-up to 10 years: the master then refuses tokens that don't expire or expire later; one asked to expire up to a day
-later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their expiry, and the
-settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for being unused
-like sessions, as they have a lifetime of their own.
+without attempts left can't use tokens either. Pages of other sites can't use a token in a browser: the master allows no
+cross-origin requests, so browsers don't send the header, and the cross-origin request protection still refuses their
+changes; that of the session cookie stays as it is. Operations that a token started are the token's, so that a token
+with fewer permissions can't cancel those of its user or of other tokens without the permission they need. The log names
+the token besides the user in the entries of what it did, and a token notes the address and time of its last use at most
+once a minute. New tokens last a year at most, so that forgotten ones stop working; the settings can change the limit to
+1 day to 10 years, or lift it. The master refuses tokens that don't expire or expire later than the limit; one asked to
+expire up to a day later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their
+expiry, and the settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for
+being unused like sessions, as they have a lifetime of their own.
 
 ## Networks
 

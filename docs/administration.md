@@ -37,7 +37,7 @@ offers [pre-releases](installation.md#pre-releases), which only an option on its
 **Sign-in** also sets how many characters new passwords need (12 to 64, 12 by default), how long
 [setup links](#invitations) are valid (1 hour to a week, 3 days by default), whether sessions also end after a number of
 hours without use (up to as long as they last, off by default), and how long new [API tokens](api.md#api-tokens) may
-last at most (1 day to 10 years, no limit by default). A longer minimum applies the next time a password is set: on the
+last at most (1 day to 10 years, or no limit; a year by default). A longer minimum applies the next time a password is set: on the
 account page, with a setup link or with `noryx-master user add`; passwords set before keep working. Sessions unused for
 longer end with their next request, also those that started before; a panel that stays open, e.g. on a console, keeps
 using its session. With a limit of tokens, the master refuses new ones that don't expire or expire later, and the

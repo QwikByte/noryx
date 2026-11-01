@@ -23,6 +23,9 @@ func TestSignInLimits(t *testing.T) {
 	check(t, svc.Access.MakeAdmin(t.Context(), admin.ID))
 	root, visitor := browser(t, srv), browser(t, srv)
 	root.do("POST", "/api/auth/login", map[string]string{"username": "admin", "password": password}, http.StatusOK, nil)
+	// Tokens last a year at most until the settings lift the limit.
+	root.do("POST", "/api/auth/tokens", map[string]any{"name": "forever", "password": password}, http.StatusBadRequest, nil)
+	root.do("PUT", "/api/settings", map[string]any{"maxTokenDays": 0}, http.StatusOK, nil)
 	root.do("POST", "/api/auth/tokens", map[string]any{"name": "forever", "password": password}, http.StatusOK, nil)
 
 	root.do("PUT", "/api/settings", map[string]any{"minPasswordLength": 11}, http.StatusBadRequest, nil)

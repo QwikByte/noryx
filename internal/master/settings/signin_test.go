@@ -30,7 +30,7 @@ func TestSignInLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.MinPasswordLength() != 12 || s.SetupLinkTTL() != 72*time.Hour || s.MaxTokenLifetime() != 0 || s.SessionIdleTimeout() != 0 {
+	if s.MinPasswordLength() != 12 || s.SetupLinkTTL() != 72*time.Hour || s.MaxTokenLifetime() != 365*24*time.Hour || s.SessionIdleTimeout() != 0 {
 		t.Fatalf("defaults = %+v", s.Get())
 	}
 	update := func(change func(*Settings)) error {

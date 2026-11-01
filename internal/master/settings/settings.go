@@ -120,8 +120,8 @@ type Settings struct {
 	UpdateAgents     string `json:"updateAgents"`
 
 	// MinPasswordLength is how many characters new passwords need, and SetupLinkHours how long
-	// setup links are valid. MaxTokenDays is how long new API tokens may last, and sessions end
-	// after SessionIdleHours without use; 0 means no limit for both. MinPasswordLength and
+	// setup links are valid. MaxTokenDays is how long new API tokens may last, a year by default,
+	// and sessions end after SessionIdleHours without use; 0 means no limit for both. MinPasswordLength and
 	// SetupLinkHours are public, as the page of setup links shows them.
 	MinPasswordLength int `json:"minPasswordLength"`
 	SetupLinkHours    int `json:"setupLinkHours"`
@@ -180,7 +180,7 @@ func defaults() Settings {
 		NewServers:   server.DefaultNewServers(),
 		Warnings:     server.DefaultWarnings(),
 		UpdateAgents: allAgents, UpdateCheckHours: 6,
-		MinPasswordLength: minPasswordLength, SetupLinkHours: 72,
+		MinPasswordLength: minPasswordLength, SetupLinkHours: 72, MaxTokenDays: 365,
 		Retention: Retention{UsageDays: 30, SeenPlayers: true, SeenDays: 30, OperationHours: 1},
 	}
 }
