@@ -235,17 +235,18 @@ type session struct {
 	early atomic.Int64 // see writer
 }
 
-// signIn signs a user in with an API token as password.
-func (s *session) signIn(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+// signIn signs a user in with an API token, which SSH clients send as the password. Tokens are
+// random, unlike passwords, so the master keeps only their SHA-256.
+func (s *session) signIn(meta ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), signInTimeout)
 	defer cancel()
-	user, err := s.srv.Users.SignInWithToken(ctx, meta.User(), string(password), s.ip)
+	user, err := s.srv.Users.SignInWithToken(ctx, meta.User(), string(token), s.ip)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelWarn, "Sign in with SFTP failed", logging.Auth, slog.String(logging.KeyUser, meta.User()[:min(len(meta.User()), 64)]),
 			slog.String("ip", s.ip), slog.String("reason", httpapi.Message(err)))
 		return nil, err
 	}
-	s.user, s.secret = user, string(password)
+	s.user, s.secret = user, string(token)
 	slog.LogAttrs(ctx, slog.LevelInfo, "Sign in with SFTP", s.attrs(logging.Auth)...)
 	return &ssh.Permissions{}, nil
 }

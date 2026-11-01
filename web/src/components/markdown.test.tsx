@@ -41,6 +41,8 @@ describe("Markdown", () => {
 
   it("leaves out HTML comments, e.g. those of the pull request template", () => {
     expect(plain("before <!-- a\nhidden --> after")).toBe("<div><p>before  after</p></div>")
+    expect(plain("before <!-- never closed\n\nhidden")).toBe("<div><p>before</p></div>")
+    expect(plain("a <<!---->!-- b --> c")).toBe("<div><p>a  c</p></div>")
   })
 
   // Release notes come from GitHub and changelogs from Modrinth and Hangar: whatever they hold, the panel only
