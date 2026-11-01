@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 )
@@ -137,6 +138,52 @@ func TestDownload(t *testing.T) {
 	}
 	if c := New(DefaultAPI, DefaultCDN); !c.OnCDN(DefaultCDN+"data/x") || c.OnCDN("https://cdn.modrinth.com.example.com/data/x") {
 		t.Error("only files of Modrinth's CDN are on it")
+	}
+}
+
+// deadlines records how much time requests have left when they are sent.
+type deadlines struct {
+	mu   sync.Mutex
+	left []time.Duration
+}
+
+func (d *deadlines) RoundTrip(r *http.Request) (*http.Response, error) {
+	if at, ok := r.Context().Deadline(); ok {
+		d.mu.Lock()
+		d.left = append(d.left, time.Until(at))
+		d.mu.Unlock()
+	}
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+// Calls of the API get Timeout. Downloads get a second more for each 256 KiB of the file, so that
+// large files only fail on links slower than 256 KiB/s, and files of unknown size the time of the
+// largest.
+func TestTimeouts(t *testing.T) {
+	for size, want := range map[int64]time.Duration{
+		0: Timeout + 1024*time.Second, 1: Timeout, 100 << 20: Timeout + 400*time.Second,
+		MaxFileSize: Timeout + 1024*time.Second, MaxFileSize + 1: Timeout + 1024*time.Second,
+	} {
+		if got := DownloadTimeout(size); got != want {
+			t.Errorf("DownloadTimeout(%d) = %v, want %v", size, got, want)
+		}
+	}
+	f, c := newFake(t, map[string]string{"GET /v2/tag/game_version": "[]"})
+	d := &deadlines{}
+	c.http.Transport = d
+	jar := []byte("PK\x03\x04 a plugin")
+	f.serve("/cdn/data/AANobbMI/versions/IZskON6d/sodium.jar", jar)
+	file := File{URL: f.URL + "/cdn/data/AANobbMI/versions/IZskON6d/sodium.jar", Filename: "sodium.jar", Size: 100 << 20}
+	file.Hashes.SHA512 = sha512Hex(jar)
+	if _, err := c.Download(t.Context(), file); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.call(t.Context(), http.MethodGet, "/tag/game_version", nil, &[]any{}); err != nil {
+		t.Fatal(err)
+	}
+	near := func(left, want time.Duration) bool { return left <= want && left > want-time.Minute }
+	if len(d.left) != 2 || !near(d.left[0], DownloadTimeout(100<<20)) || !near(d.left[1], Timeout) {
+		t.Fatalf("time left of a download and a call: %v", d.left)
 	}
 }
 

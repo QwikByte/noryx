@@ -271,9 +271,7 @@ func (c *counters) measureDatastore(ctx context.Context, rt runtime.Runtime, ds 
 	}
 	stats.CpuMillis, _, _ = c.rates(u.Usage, now)
 	stats.Running, stats.MemoryBytes, stats.MemoryLimitBytes, stats.CpuLimitMillis = true, u.MemoryBytes, u.MemoryLimit, ds.CPUMillis
-	if u.Connections >= 0 {
-		stats.Connections = new(uint32(u.Connections)) //nolint:gosec // far fewer
-	}
+	stats.Connections = u.Connections
 	return stats
 }
 

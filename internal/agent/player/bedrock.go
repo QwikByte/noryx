@@ -28,7 +28,7 @@ func bedrockWhitelist(c *noryxv1.PlayerChange) bool {
 // whitelistBedrock changes the whitelist file of a running server for a Bedrock player and
 // makes it reload the file. The caller holds the server's lock, so that no other change of the
 // whitelist makes the server write its own list in between. Its messages are Minecraft's.
-func (s *Service) whitelistBedrock(ctx context.Context, id string, dir *datadir.Dir, c *noryxv1.PlayerChange) (*noryxv1.ChangePlayerResponse, error) {
+func (s *Service) whitelistBedrock(ctx context.Context, id string, dir *datadir.Dir, c *noryxv1.PlayerChange) (*noryxv1.PlayerChangeResult, error) {
 	list := []whitelisted{}
 	if err := readJSON(dir, whitelistFile, &list); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -42,7 +42,7 @@ func (s *Service) whitelistBedrock(ctx context.Context, id string, dir *datadir.
 	case c.GetUuid() != "":
 		list, out = append(list, whitelisted{c.GetUuid(), c.GetName()}), "Added "+c.GetName()+" to the whitelist"
 	case len(list) == before:
-		return &noryxv1.ChangePlayerResponse{Output: "Player is not whitelisted"}, nil
+		return &noryxv1.PlayerChangeResult{Output: "Player is not whitelisted"}, nil
 	}
 	data, err := json.MarshalIndent(append([]whitelisted{}, list...), "", "  ")
 	if err == nil {
@@ -54,5 +54,5 @@ func (s *Service) whitelistBedrock(ctx context.Context, id string, dir *datadir.
 	if _, err := s.rt.SendCommand(ctx, id, "minecraft:whitelist reload"); err != nil {
 		return nil, status.Errorf(codes.Unavailable, "The whitelist changed, but the server can't reload it: %v", err)
 	}
-	return &noryxv1.ChangePlayerResponse{Output: out}, nil
+	return &noryxv1.PlayerChangeResult{Output: out}, nil
 }

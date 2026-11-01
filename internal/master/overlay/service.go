@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -478,7 +476,7 @@ type Status struct {
 	Fingerprint string `json:"fingerprint,omitempty"`
 	Peers       []Peer `json:"peers"`
 	// Firewall tells whether the firewall rules of a member are in_place, missing or
-	// incomplete, and FirewallProblem what differs; older agents don't tell.
+	// incomplete, and FirewallProblem what differs; empty until the agent is configured.
 	Firewall        string `json:"firewall,omitempty"`
 	FirewallProblem string `json:"firewallProblem,omitempty"`
 	// Published are the ports that a member publishes in the network.
@@ -579,9 +577,6 @@ func (s *Service) call(ctx context.Context, nodeID string, fn func(context.Conte
 	conn, err := s.nodes.Conn(ctx, nodeID)
 	if err == nil {
 		err = fn(ctx, noryxv1.NewOverlayServiceClient(conn))
-	}
-	if status.Code(err) == codes.Unimplemented {
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to let it join the private network.")
 	}
 	return err
 }

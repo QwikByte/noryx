@@ -37,14 +37,6 @@ describe("validateLogSearch", () => {
     expect(search).toEqual({})
     expect(Object.keys(search).sort()).toEqual(["category", "from", "level", "node", "range", "search", "server", "source", "to", "user"])
   })
-
-  it("reads the hour of older addresses as a time from it to an hour later", () => {
-    expect(validateLogSearch({ hour: "2026-10-01T08:00:00Z" })).toMatchObject({ from: "2026-10-01T08:00:00.000Z", to: "2026-10-01T09:00:00.000Z" })
-    expect(validateLogSearch({ hour: "2026-10-01T08:00:00Z", from: "2026-10-01T07:00:00Z" })).toMatchObject({
-      from: "2026-10-01T07:00:00.000Z",
-      to: "2026-10-01T09:00:00.000Z",
-    })
-  })
 })
 
 describe("timeOf", () => {

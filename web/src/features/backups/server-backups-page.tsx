@@ -607,7 +607,7 @@ function CreateBackupForm({
         </DialogClose>
         <Button
           type="submit"
-          disabled={nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude ?? []) || create.isPending}
+          disabled={nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude) || create.isPending}
         >
           {create.isPending ? t("Backing up…") : t("Back up")}
         </Button>

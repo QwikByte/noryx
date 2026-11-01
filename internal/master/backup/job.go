@@ -57,15 +57,6 @@ func (s JobSettings) retention(timeZone string) *noryxv1.BackupRetention {
 	return &noryxv1.BackupRetention{Last: s.Keep, Days: s.KeepDays, Weeks: s.KeepWeeks, Months: s.KeepMonths, TimeZone: timeZone}
 }
 
-// keep is what agents of older versions, which only keep the newest backups, keep: all if
-// the job keeps backups by age, as they would delete those it keeps.
-func (s JobSettings) keep() uint32 {
-	if s.KeepDays > 0 || s.KeepWeeks > 0 || s.KeepMonths > 0 {
-		return 0
-	}
-	return s.Keep
-}
-
 // Datastore is a datastore of a network, which backup jobs dump.
 type Datastore struct{ ID, Name, NodeID, NodeName string }
 
@@ -229,7 +220,7 @@ func (j Jobs) dump(ctx context.Context, ds Datastore, t schedule.Task, s JobSett
 	conn, err := j.nodes.Conn(ctx, ds.NodeID)
 	if err == nil {
 		_, err = noryxv1.NewDatastoreServiceClient(conn).CreateDump(ctx, &noryxv1.CreateDumpRequest{
-			Id: ds.ID, Label: t.Name, Location: s.Location, JobId: t.ID, Keep: s.keep(), Retention: s.retention(t.Schedule.TimeZone),
+			Id: ds.ID, Label: t.Name, Location: s.Location, JobId: t.ID, Retention: s.retention(t.Schedule.TimeZone),
 		})
 	}
 	attrs := []any{logging.Backups, "task", t.Name, "datastore", ds.ID, "datastore_name", ds.Name, logging.KeyNode, ds.NodeID, logging.KeyNodeName, ds.NodeName}
@@ -261,7 +252,7 @@ func (j Jobs) BackUp(ctx context.Context, nodeID, serverID string, t schedule.Ta
 	}
 	res, err := noryxv1.NewBackupServiceClient(conn).CreateBackup(ctx, &noryxv1.CreateBackupRequest{
 		ServerId: serverID, Label: t.Name, Selection: s.Selection.proto(), Location: s.Location, JobId: t.ID,
-		Keep: s.keep(), Retention: s.retention(t.Schedule.TimeZone), SkipWithoutData: true,
+		Retention: s.retention(t.Schedule.TimeZone), SkipWithoutData: true,
 	})
 	return res.GetBackup(), err
 }

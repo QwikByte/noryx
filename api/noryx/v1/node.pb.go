@@ -64,22 +64,18 @@ type GetInfoResponse struct {
 	Os           string                 `protobuf:"bytes,3,opt,name=os,proto3" json:"os,omitempty"`
 	CpuCount     uint32                 `protobuf:"varint,4,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`
 	MemoryBytes  uint64                 `protobuf:"varint,5,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
-	// Container runtime driving the servers, e.g. "docker 29.0.0", or "unavailable"
-	// while the agent can't reach it; os, cpu_count and memory_bytes are empty then.
-	Runtime string `protobuf:"bytes,6,opt,name=runtime,proto3" json:"runtime,omitempty"`
 	// Where servers can keep their data; the default location comes first.
 	Storage []*StorageLocation `protobuf:"bytes,7,rep,name=storage,proto3" json:"storage,omitempty"`
 	// When the certificate the agent presents to the master expires.
 	CertificateNotAfterUnix int64 `protobuf:"varint,8,opt,name=certificate_not_after_unix,json=certificateNotAfterUnix,proto3" json:"certificate_not_after_unix,omitempty"`
 	// The container runtime the agent is set to use, "docker" or "podman", also while it
-	// can't reach it, and its version, e.g. "29.0.0", empty then. Older agents leave both
-	// empty, as they only run Docker; runtime tells its version.
+	// can't reach it, and its version, e.g. "29.0.0", empty then; os, cpu_count and
+	// memory_bytes are empty then too.
 	RuntimeName    string `protobuf:"bytes,9,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
 	RuntimeVersion string `protobuf:"bytes,10,opt,name=runtime_version,json=runtimeVersion,proto3" json:"runtime_version,omitempty"`
-	// The settings the agent applies; older agents leave them out.
+	// The settings the agent applies.
 	Settings *NodeSettings `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
-	// The types of servers the agent creates, e.g. for the panel to offer only those. Older
-	// agents leave it empty: they create all types up to SERVER_TYPE_QUILT.
+	// The types of servers the agent creates, e.g. for the panel to offer only those.
 	ServerTypes   []ServerType `protobuf:"varint,12,rep,packed,name=server_types,json=serverTypes,proto3,enum=noryx.v1.ServerType" json:"server_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -148,13 +144,6 @@ func (x *GetInfoResponse) GetMemoryBytes() uint64 {
 		return x.MemoryBytes
 	}
 	return 0
-}
-
-func (x *GetInfoResponse) GetRuntime() string {
-	if x != nil {
-		return x.Runtime
-	}
-	return ""
 }
 
 func (x *GetInfoResponse) GetStorage() []*StorageLocation {
@@ -668,14 +657,13 @@ var File_noryx_v1_node_proto protoreflect.FileDescriptor
 const file_noryx_v1_node_proto_rawDesc = "" +
 	"\n" +
 	"\x13noryx/v1/node.proto\x12\bnoryx.v1\x1a\x15noryx/v1/server.proto\"\x10\n" +
-	"\x0eGetInfoRequest\"\xe7\x03\n" +
+	"\x0eGetInfoRequest\"\xcd\x03\n" +
 	"\x0fGetInfoResponse\x12#\n" +
 	"\ragent_version\x18\x01 \x01(\tR\fagentVersion\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02os\x18\x03 \x01(\tR\x02os\x12\x1b\n" +
 	"\tcpu_count\x18\x04 \x01(\rR\bcpuCount\x12!\n" +
-	"\fmemory_bytes\x18\x05 \x01(\x04R\vmemoryBytes\x12\x18\n" +
-	"\aruntime\x18\x06 \x01(\tR\aruntime\x123\n" +
+	"\fmemory_bytes\x18\x05 \x01(\x04R\vmemoryBytes\x123\n" +
 	"\astorage\x18\a \x03(\v2\x19.noryx.v1.StorageLocationR\astorage\x12;\n" +
 	"\x1acertificate_not_after_unix\x18\b \x01(\x03R\x17certificateNotAfterUnix\x12!\n" +
 	"\fruntime_name\x18\t \x01(\tR\vruntimeName\x12'\n" +

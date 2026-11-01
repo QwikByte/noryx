@@ -191,7 +191,7 @@ func (f *Datastores) Browse(ctx context.Context, id string, req *noryxv1.BrowseT
 	content, _ := f.Content(id, req.GetDatabase())
 	matches := filter == nil || content == filter.GetValue() ||
 		filter.GetContains() && strings.Contains(strings.ToLower(content), strings.ToLower(filter.GetValue()))
-	res := &noryxv1.BrowseTableResponse{Columns: []*noryxv1.TableColumn{{Name: "content", Type: "text"}}, SortedAndFiltered: true}
+	res := &noryxv1.BrowseTableResponse{Columns: []*noryxv1.TableColumn{{Name: "content", Type: "text"}}}
 	if req.GetOffset() == 0 && req.GetLimit() > 0 && matches {
 		res.Rows = []*noryxv1.TableRow{{Values: []*noryxv1.TableValue{{Text: content}}}}
 	}
@@ -201,7 +201,11 @@ func (f *Datastores) Browse(ctx context.Context, id string, req *noryxv1.BrowseT
 // DatastoreUsage reports 256 MiB of memory and a connection for each database.
 func (f *Datastores) DatastoreUsage(_ context.Context, id string) (u runtime.DatastoreUsage, err error) {
 	return u, f.with(id, true, func(ds *datastore) error {
-		u = runtime.DatastoreUsage{Usage: runtime.Usage{MemoryBytes: 256 << 20, MemoryLimit: uint64(ds.MemoryMB) << 20}, Connections: len(ds.databases)}
+		connections := uint32(0)
+		for range ds.databases {
+			connections++
+		}
+		u = runtime.DatastoreUsage{Usage: runtime.Usage{MemoryBytes: 256 << 20, MemoryLimit: uint64(ds.MemoryMB) << 20}, Connections: &connections}
 		return nil
 	})
 }

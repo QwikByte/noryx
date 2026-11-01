@@ -17,7 +17,7 @@ message GetStatsResponse {
   int64 time_unix = 1;
   NodeStats node = 2;
   repeated ServerStats servers = 3;
-  // The datastores of the node. Agents of older versions send none.
+  // The datastores of the node.
   repeated DatastoreStats datastores = 4;
 }
 

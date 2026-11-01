@@ -357,13 +357,9 @@ function Sessions({ idleHours }: { idleHours?: number }) {
             </>
           )}
           {[
-            session.current
-              ? t("Active now")
-              : session.lastUsedAt && t("Last active {{time}}", { time: formatAgo(session.lastUsedAt) }),
-            session.createdAt ? t("Signed in {{time}}", { time: formatDateTime(session.createdAt) }) : t("Sign-in time not recorded"),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+            session.current ? t("Active now") : t("Last active {{time}}", { time: formatAgo(session.lastUsedAt) }),
+            t("Signed in {{time}}", { time: formatDateTime(session.createdAt) }),
+          ].join(" · ")}
         </AccountRow>
       ))}
       {data.length > 1 && (

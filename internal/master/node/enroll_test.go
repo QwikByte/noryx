@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -66,7 +67,7 @@ func TestEnrollConsumesToken(t *testing.T) {
 	if n.Name != "node-1" || n.Address != "203.0.113.10:7443" || n.Agent != agentOf(noryxv1.DefaultNodeSettings()) || n.DefaultStorage != "default" {
 		t.Errorf("created %+v", n)
 	}
-	if token.NodeID != n.ID || token.Master != "master.example.com:7444" || token.CAFingerprint != pki.Fingerprint(s.ca.Cert) ||
+	if token.NodeID != n.ID || token.Master != "master.example.com:7444" || !bytes.Equal(token.CA, s.ca.Cert.Raw) ||
 		time.Until(token.ExpiresAt) < 59*time.Minute || !strings.HasSuffix(token.InstallCommand(), "--join "+token.String()) {
 		t.Errorf("token %+v, command %q", token, token.InstallCommand())
 	}
@@ -104,7 +105,7 @@ func TestEnrollConsumesToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	cert, err := x509.ParseCertificate(res.GetCertificateDer())
-	if err != nil || !slices.Contains(cert.DNSNames, pki.NodeName(n.ID)) || !slices.Equal(res.GetCaCertificateDer(), s.ca.Cert.Raw) {
+	if err != nil || !slices.Contains(cert.DNSNames, pki.NodeName(n.ID)) {
 		t.Fatalf("certificate for %v, %v", cert.DNSNames, err)
 	}
 	if !enrolled(t, s, n.ID) || enrolled(t, s, other.ID) {

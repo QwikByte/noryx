@@ -57,22 +57,20 @@ type FileServiceClient interface {
 	// DeleteFile deletes a file, or a directory with everything in it.
 	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*DeleteFileResponse, error)
 	// HashFiles tells the SHA-512 hashes of files, e.g. so that the master learns which files
-	// of a modpack changed since it wrote them. Agents of older versions answer UNIMPLEMENTED.
+	// of a modpack changed since it wrote them.
 	HashFiles(ctx context.Context, in *HashFilesRequest, opts ...grpc.CallOption) (*HashFilesResponse, error)
 	// ExtractArchive extracts a ZIP or .tar.gz archive of the server into a folder, as the
 	// server's user. The archive is untrusted: links, special files and paths that leave the
 	// folder, the files that hold secrets of the server or that Noryx writes itself, too many
 	// entries, too much data and a too high compression ratio refuse it before anything is
-	// written. Agents of older versions answer UNIMPLEMENTED.
+	// written.
 	ExtractArchive(ctx context.Context, in *ExtractArchiveRequest, opts ...grpc.CallOption) (*ExtractArchiveResponse, error)
 	// CopyFile copies a file or folder within the server's data, like MoveFile moves it: files
-	// with secrets of the server can't be copied, and the copy never replaces anything. Agents
-	// of older versions answer UNIMPLEMENTED.
+	// with secrets of the server can't be copied, and the copy never replaces anything.
 	CopyFile(ctx context.Context, in *CopyFileRequest, opts ...grpc.CallOption) (*CopyFileResponse, error)
 	// SearchFiles searches the text files of a folder and the folders in it for a text, as the
 	// panel shows them: files that only hold secrets are left out, and others show them as
-	// "<hidden>". It stops after a while, at large files and after many matches. Agents of
-	// older versions answer UNIMPLEMENTED.
+	// "<hidden>". It stops after a while, at large files and after many matches.
 	SearchFiles(ctx context.Context, in *SearchFilesRequest, opts ...grpc.CallOption) (*SearchFilesResponse, error)
 }
 
@@ -240,22 +238,20 @@ type FileServiceServer interface {
 	// DeleteFile deletes a file, or a directory with everything in it.
 	DeleteFile(context.Context, *DeleteFileRequest) (*DeleteFileResponse, error)
 	// HashFiles tells the SHA-512 hashes of files, e.g. so that the master learns which files
-	// of a modpack changed since it wrote them. Agents of older versions answer UNIMPLEMENTED.
+	// of a modpack changed since it wrote them.
 	HashFiles(context.Context, *HashFilesRequest) (*HashFilesResponse, error)
 	// ExtractArchive extracts a ZIP or .tar.gz archive of the server into a folder, as the
 	// server's user. The archive is untrusted: links, special files and paths that leave the
 	// folder, the files that hold secrets of the server or that Noryx writes itself, too many
 	// entries, too much data and a too high compression ratio refuse it before anything is
-	// written. Agents of older versions answer UNIMPLEMENTED.
+	// written.
 	ExtractArchive(context.Context, *ExtractArchiveRequest) (*ExtractArchiveResponse, error)
 	// CopyFile copies a file or folder within the server's data, like MoveFile moves it: files
-	// with secrets of the server can't be copied, and the copy never replaces anything. Agents
-	// of older versions answer UNIMPLEMENTED.
+	// with secrets of the server can't be copied, and the copy never replaces anything.
 	CopyFile(context.Context, *CopyFileRequest) (*CopyFileResponse, error)
 	// SearchFiles searches the text files of a folder and the folders in it for a text, as the
 	// panel shows them: files that only hold secrets are left out, and others show them as
-	// "<hidden>". It stops after a while, at large files and after many matches. Agents of
-	// older versions answer UNIMPLEMENTED.
+	// "<hidden>". It stops after a while, at large files and after many matches.
 	SearchFiles(context.Context, *SearchFilesRequest) (*SearchFilesResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
 }

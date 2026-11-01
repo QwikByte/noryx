@@ -62,15 +62,6 @@ func (h *Handler) checkExtraPorts(ctx context.Context, nodeID string, servers []
 	return nil
 }
 
-// extraPortsWarning returns a warning if a node's agent answered without the extra ports it was
-// asked to publish, as agents of earlier versions don't know them.
-func extraPortsWarning(want int, got *noryxv1.Server) string {
-	if len(got.GetExtraPorts()) == want {
-		return ""
-	}
-	return "The agent of the node is too old for extra ports, so the server publishes none. Update the agent first, then add them in the server's settings."
-}
-
 // usedBy returns the first of servers that uses a port from first to last, and that port; nil
 // if none does.
 func usedBy(servers []*noryxv1.Server, first, last uint32) (*noryxv1.Server, uint32) {
@@ -82,8 +73,8 @@ func usedBy(servers []*noryxv1.Server, first, last uint32) (*noryxv1.Server, uin
 	return nil, 0
 }
 
-// checkType fails unless the agent of a node creates servers of the type, which agents of
-// older versions don't for Bedrock servers.
+// checkType fails unless the agent of a node creates servers of the type, e.g. one of a type
+// newer than the agent.
 func (h *Handler) checkType(ctx context.Context, nodeID string, typ noryxv1.ServerType) error {
 	conn, err := h.nodes.Conn(ctx, nodeID)
 	if err != nil {

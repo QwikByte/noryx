@@ -25,22 +25,20 @@ service FileService {
   // DeleteFile deletes a file, or a directory with everything in it.
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
   // HashFiles tells the SHA-512 hashes of files, e.g. so that the master learns which files
-  // of a modpack changed since it wrote them. Agents of older versions answer UNIMPLEMENTED.
+  // of a modpack changed since it wrote them.
   rpc HashFiles(HashFilesRequest) returns (HashFilesResponse);
   // ExtractArchive extracts a ZIP or .tar.gz archive of the server into a folder, as the
   // server's user. The archive is untrusted: links, special files and paths that leave the
   // folder, the files that hold secrets of the server or that Noryx writes itself, too many
   // entries, too much data and a too high compression ratio refuse it before anything is
-  // written. Agents of older versions answer UNIMPLEMENTED.
+  // written.
   rpc ExtractArchive(ExtractArchiveRequest) returns (ExtractArchiveResponse);
   // CopyFile copies a file or folder within the server's data, like MoveFile moves it: files
-  // with secrets of the server can't be copied, and the copy never replaces anything. Agents
-  // of older versions answer UNIMPLEMENTED.
+  // with secrets of the server can't be copied, and the copy never replaces anything.
   rpc CopyFile(CopyFileRequest) returns (CopyFileResponse);
   // SearchFiles searches the text files of a folder and the folders in it for a text, as the
   // panel shows them: files that only hold secrets are left out, and others show them as
-  // "<hidden>". It stops after a while, at large files and after many matches. Agents of
-  // older versions answer UNIMPLEMENTED.
+  // "<hidden>". It stops after a while, at large files and after many matches.
   rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse);
 }
 
@@ -70,8 +68,7 @@ message ReadFileRequest {
   string path = 2;
   // Reads only part of the file, e.g. the end of a large log: from offset, or with a negative
   // offset from that many bytes before the end, and at most limit bytes; 0 reads to the end.
-  // Offsets count in the file as the panel sees it, with hidden secrets. Agents of older
-  // versions send the whole file and leave out file_size.
+  // Offsets count in the file as the panel sees it, with hidden secrets.
   int64 offset = 3;
   int64 limit = 4;
 }
@@ -127,14 +124,12 @@ message ArchiveDirectoryRequest {
   // the secrets in others, as for the panel's users. Moves need all of it.
   bool hide_secrets = 3;
   // Files and folders in path to archive instead of all of it, by their paths relative to
-  // path, which name them in the archive. Agents of older versions archive all of path.
+  // path, which name them in the archive.
   repeated string paths = 4;
 }
 
 message ArchiveDirectoryResponse {
   bytes data = 1;
-  // Set in the first message if the archive holds only the paths of the request.
-  bool paths_only = 2;
 }
 
 message CreateDirectoryRequest {

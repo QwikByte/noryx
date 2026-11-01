@@ -163,8 +163,6 @@ export interface Maintenance {
   /** When maintenance of the whole network ends, if the plugin keeps its end timer; it keeps other timers to itself. */
   endsAt?: string
   proxyRunning: boolean
-  /** The agent of the proxy's node starts timers and changes the maintenance of single servers. */
-  serversAndTimers: boolean
 }
 
 /** Turns maintenance on or off, for the whole network or one of its servers, now or later, and for how long. */

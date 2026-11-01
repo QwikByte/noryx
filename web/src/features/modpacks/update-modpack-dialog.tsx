@@ -62,7 +62,7 @@ function UpdateForm({ nodeId, server, target, older, action, onUpdate, onClose }
   const [location, setLocation] = useState("")
   const [confirmed, setConfirmed] = useState(false)
   const invalid = backUp
-    ? choose && (nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude ?? []))
+    ? choose && (nothingSelected(selection) || !!pathsError(selection.paths) || !!pathsError(selection.exclude))
     : !confirmed
 
   function submit(event: FormEvent) {

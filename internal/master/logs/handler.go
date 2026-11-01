@@ -20,7 +20,6 @@ import (
 const (
 	pageSize  = 100
 	maxPage   = 500
-	maxHours  = 7 * 24
 	maxExport = 100_000
 	keepAlive = 25 * time.Second // shorter than the timeouts of common reverse proxies
 	// A stream ends after maxStream; the browser connects again right away, which checks
@@ -67,7 +66,7 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request) {
 	f, err := FilterFrom(r)
 	hours := 24
 	if err == nil {
-		hours, err = number(r, "hours", hours, maxHours)
+		hours, err = number(r, "hours", hours, MaxStatsHours)
 	}
 	var buckets []Bucket
 	if err == nil {

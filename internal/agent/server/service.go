@@ -530,8 +530,6 @@ func (s *Service) SendCommand(ctx context.Context, req *noryxv1.SendCommandReque
 	}
 	output, err := s.rt.SendCommand(ctx, req.GetId(), command)
 	switch {
-	case errors.Is(err, runtime.ErrUnsupported):
-		return nil, status.Error(codes.FailedPrecondition, "This proxy was created by an older agent. It accepts console commands once its settings were saved or its network applied again.")
 	case errors.Is(err, runtime.ErrNoSend):
 		return nil, status.Error(codes.FailedPrecondition, "The proxy has no send command, as it couldn't download its module cmd_send. Waterfall can't anymore, as it reached its end of life: use Velocity or BungeeCord instead.")
 	case errors.Is(err, runtime.ErrNotSent):
@@ -590,9 +588,9 @@ func (s *Service) checkBedrock(ctx context.Context, id string, port uint32) (rel
 }
 
 // networkOf validates a network configuration, which ends up in configuration files.
-// publish lets the client of a backend, the peer with key if one is given, reach its port in
-// the private network of the nodes, and returns the node's address there; without a client,
-// it closes the port there.
+// publish lets the client of a backend, the peer with key, reach its port in the private
+// network of the nodes, and returns the node's address there; without a client, it closes the
+// port there.
 func (s *Service) publish(ctx context.Context, id, client, key string) (string, error) {
 	if client == "" {
 		return "", toStatus(s.overlay.Dismiss(id))
@@ -604,11 +602,7 @@ func (s *Service) publish(ctx context.Context, id, client, key string) (string, 
 	if srv.Type.Proxy() {
 		return "", status.Error(codes.InvalidArgument, "Players reach a proxy at all of the node's addresses.")
 	}
-	var keys []string
-	if key != "" {
-		keys = []string{key}
-	}
-	addr, err := s.overlay.Admit(id, srv.Port, []string{client}, keys)
+	addr, err := s.overlay.Admit(id, srv.Port, []string{client}, []string{key})
 	if status.Code(err) == codes.Unknown {
 		err = status.Error(codes.FailedPrecondition, err.Error())
 	}
@@ -618,11 +612,6 @@ func (s *Service) publish(ctx context.Context, id, client, key string) (string, 
 func networkOf(req *noryxv1.ConfigureNetworkRequest) (runtime.Network, string) {
 	network := runtime.Network{ForwardingSecret: req.GetForwardingSecret(), Try: req.GetTry(), BedrockPort: req.GetBedrockPort()}
 	switch req.GetForwarding() {
-	case noryxv1.Forwarding_FORWARDING_UNSPECIFIED: // sent by older masters
-		network.Forwarding = runtime.ForwardingNone
-		if network.ForwardingSecret != "" {
-			network.Forwarding = runtime.ForwardingModern
-		}
 	case noryxv1.Forwarding_FORWARDING_NONE:
 	case noryxv1.Forwarding_FORWARDING_MODERN:
 		network.Forwarding = runtime.ForwardingModern
@@ -662,9 +651,6 @@ func networkOf(req *noryxv1.ConfigureNetworkRequest) (runtime.Network, string) {
 		}
 		names[backend.Name] = true
 		network.Backends = append(network.Backends, backend)
-	}
-	if len(network.Try) == 0 && len(network.Backends) > 0 && req.GetForwarding() == noryxv1.Forwarding_FORWARDING_UNSPECIFIED {
-		network.Try = []string{network.Backends[0].Name} // older masters let players join the first
 	}
 	if msg := checkNames(network.Try, names); msg != "" {
 		return network, "invalid list of servers to try: " + msg

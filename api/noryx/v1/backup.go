@@ -35,16 +35,7 @@ const MaxBackupPaths = 20
 // MaxRetention limits each count of a BackupRetention.
 const MaxRetention = 1000
 
-// Retention returns which backups of a job a request with keep and retention keeps:
-// retention if it is set, otherwise the newest keep.
-func Retention(keep uint32, retention *BackupRetention) *BackupRetention {
-	if retention != nil {
-		return retention
-	}
-	return &BackupRetention{Last: keep}
-}
-
-// KeepsAll reports whether a retention keeps every backup.
+// KeepsAll reports whether a retention keeps every backup; none keeps all.
 func (r *BackupRetention) KeepsAll() bool {
 	return r.GetLast() == 0 && r.GetDays() == 0 && r.GetWeeks() == 0 && r.GetMonths() == 0
 }

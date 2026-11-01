@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to release, e.g. v1.2.0, or v1.3.0-rc.1 for a pre-release
+        description: Version to release, e.g. v1.2.0, or v1.3.0-rc.1 (also -alpha.N, -beta.N) for a pre-release
         required: true
         type: string
 
@@ -37,13 +37,19 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: go test -race ./...
       # Tags pushed with the workflow's token start no further workflow, so this run releases it.
+      # Releases are vX.Y.Z, pre-releases vX.Y.Z-alpha.N, -beta.N or -rc.N, as the installer and
+      # the programs accept them (internal/buildinfo).
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || { echo "::error::Invalid version: $VERSION"; exit 1; }
       # A run that failed after pushing the tag can be repeated for the same commit.
       - name: Tag the release
         if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::Invalid version: $VERSION"; exit 1; }
           if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
             [ "$(git rev-list -n 1 "$VERSION")" = "$(git rev-parse HEAD)" ] || { echo "::error::$VERSION already tags another commit"; exit 1; }
           else

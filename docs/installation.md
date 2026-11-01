@@ -48,6 +48,8 @@ panel.example.com {
 Then add `--trusted-proxy 127.0.0.1` to `NORYX_MASTER_OPTS` in `/etc/noryx/master.env`, so that the master takes the
 address of each client from the proxy's `X-Forwarded-For` header. Otherwise all clients share the proxy's address, and
 with it the budget of the sign-in rate limit, and the log and the sessions of users show only the proxy's address.
+A master that serves the panel over plain HTTP at an address other than loopback, with neither HTTPS nor a trusted
+proxy, warns about it in its log at every start.
 
 ## Nodes
 
@@ -156,7 +158,8 @@ after updating it on its host, a release can be tried on one node first. The che
 e.g. for a master without internet access. While GitHub's API limits the requests of the master's IP address (60 an
 hour, shared with everything behind the same address), the master reads only the version from the release page, and the
 panel links to the release notes on GitHub. On the command line, `… | sudo bash -s -- update` updates what is
-installed; update the master first, then the nodes.
+installed; update the master first, then the nodes. The installer never replaces a master with an older version, which
+couldn't open the database once a newer one changed it.
 
 ### Pre-releases
 

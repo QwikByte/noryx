@@ -561,112 +561,6 @@ func (x *PlayerChangeResult) GetError() string {
 	return ""
 }
 
-type ChangePlayerRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	Change        *PlayerChange          `protobuf:"bytes,2,opt,name=change,proto3" json:"change,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ChangePlayerRequest) Reset() {
-	*x = ChangePlayerRequest{}
-	mi := &file_noryx_v1_player_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ChangePlayerRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ChangePlayerRequest) ProtoMessage() {}
-
-func (x *ChangePlayerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_player_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ChangePlayerRequest.ProtoReflect.Descriptor instead.
-func (*ChangePlayerRequest) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_player_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ChangePlayerRequest) GetServerId() string {
-	if x != nil {
-		return x.ServerId
-	}
-	return ""
-}
-
-func (x *ChangePlayerRequest) GetChange() *PlayerChange {
-	if x != nil {
-		return x.Change
-	}
-	return nil
-}
-
-type ChangePlayerResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The server doesn't run and runs the command once it does.
-	Pending bool `protobuf:"varint,1,opt,name=pending,proto3" json:"pending,omitempty"`
-	// What the server answered, without formatting.
-	Output        string `protobuf:"bytes,2,opt,name=output,proto3" json:"output,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ChangePlayerResponse) Reset() {
-	*x = ChangePlayerResponse{}
-	mi := &file_noryx_v1_player_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ChangePlayerResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ChangePlayerResponse) ProtoMessage() {}
-
-func (x *ChangePlayerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_noryx_v1_player_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ChangePlayerResponse.ProtoReflect.Descriptor instead.
-func (*ChangePlayerResponse) Descriptor() ([]byte, []int) {
-	return file_noryx_v1_player_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ChangePlayerResponse) GetPending() bool {
-	if x != nil {
-		return x.Pending
-	}
-	return false
-}
-
-func (x *ChangePlayerResponse) GetOutput() string {
-	if x != nil {
-		return x.Output
-	}
-	return ""
-}
-
 var File_noryx_v1_player_proto protoreflect.FileDescriptor
 
 const file_noryx_v1_player_proto_rawDesc = "" +
@@ -703,13 +597,7 @@ const file_noryx_v1_player_proto_rawDesc = "" +
 	"\x12PlayerChangeResult\x12\x18\n" +
 	"\apending\x18\x01 \x01(\bR\apending\x12\x16\n" +
 	"\x06output\x18\x02 \x01(\tR\x06output\x12\x14\n" +
-	"\x05error\x18\x03 \x01(\tR\x05error\"b\n" +
-	"\x13ChangePlayerRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12.\n" +
-	"\x06change\x18\x02 \x01(\v2\x16.noryx.v1.PlayerChangeR\x06change\"H\n" +
-	"\x14ChangePlayerResponse\x12\x18\n" +
-	"\apending\x18\x01 \x01(\bR\apending\x12\x16\n" +
-	"\x06output\x18\x02 \x01(\tR\x06output*\xaa\x02\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error*\xaa\x02\n" +
 	"\fPlayerAction\x12\x1d\n" +
 	"\x19PLAYER_ACTION_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12PLAYER_ACTION_KICK\x10\x01\x12\x15\n" +
@@ -720,10 +608,9 @@ const file_noryx_v1_player_proto_rawDesc = "" +
 	"\x10PLAYER_ACTION_OP\x10\x06\x12\x16\n" +
 	"\x12PLAYER_ACTION_DEOP\x10\a\x12\x1e\n" +
 	"\x1aPLAYER_ACTION_WHITELIST_ON\x10\b\x12\x1f\n" +
-	"\x1bPLAYER_ACTION_WHITELIST_OFF\x10\t2\x85\x02\n" +
+	"\x1bPLAYER_ACTION_WHITELIST_OFF\x10\t2\xb6\x01\n" +
 	"\rPlayerService\x12S\n" +
-	"\x0eGetPlayerLists\x12\x1f.noryx.v1.GetPlayerListsRequest\x1a .noryx.v1.GetPlayerListsResponse\x12M\n" +
-	"\fChangePlayer\x12\x1d.noryx.v1.ChangePlayerRequest\x1a\x1e.noryx.v1.ChangePlayerResponse\x12P\n" +
+	"\x0eGetPlayerLists\x12\x1f.noryx.v1.GetPlayerListsRequest\x1a .noryx.v1.GetPlayerListsResponse\x12P\n" +
 	"\rChangePlayers\x12\x1e.noryx.v1.ChangePlayersRequest\x1a\x1f.noryx.v1.ChangePlayersResponseB0Z.github.com/QwikByte/noryx/api/noryx/v1;noryxv1b\x06proto3"
 
 var (
@@ -739,7 +626,7 @@ func file_noryx_v1_player_proto_rawDescGZIP() []byte {
 }
 
 var file_noryx_v1_player_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_noryx_v1_player_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_noryx_v1_player_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_noryx_v1_player_proto_goTypes = []any{
 	(PlayerAction)(0),              // 0: noryx.v1.PlayerAction
 	(*GetPlayerListsRequest)(nil),  // 1: noryx.v1.GetPlayerListsRequest
@@ -749,8 +636,6 @@ var file_noryx_v1_player_proto_goTypes = []any{
 	(*ChangePlayersRequest)(nil),   // 5: noryx.v1.ChangePlayersRequest
 	(*ChangePlayersResponse)(nil),  // 6: noryx.v1.ChangePlayersResponse
 	(*PlayerChangeResult)(nil),     // 7: noryx.v1.PlayerChangeResult
-	(*ChangePlayerRequest)(nil),    // 8: noryx.v1.ChangePlayerRequest
-	(*ChangePlayerResponse)(nil),   // 9: noryx.v1.ChangePlayerResponse
 }
 var file_noryx_v1_player_proto_depIdxs = []int32{
 	3,  // 0: noryx.v1.GetPlayerListsResponse.banned:type_name -> noryx.v1.ListedPlayer
@@ -761,18 +646,15 @@ var file_noryx_v1_player_proto_depIdxs = []int32{
 	0,  // 5: noryx.v1.PlayerChange.action:type_name -> noryx.v1.PlayerAction
 	4,  // 6: noryx.v1.ChangePlayersRequest.changes:type_name -> noryx.v1.PlayerChange
 	7,  // 7: noryx.v1.ChangePlayersResponse.results:type_name -> noryx.v1.PlayerChangeResult
-	4,  // 8: noryx.v1.ChangePlayerRequest.change:type_name -> noryx.v1.PlayerChange
-	1,  // 9: noryx.v1.PlayerService.GetPlayerLists:input_type -> noryx.v1.GetPlayerListsRequest
-	8,  // 10: noryx.v1.PlayerService.ChangePlayer:input_type -> noryx.v1.ChangePlayerRequest
-	5,  // 11: noryx.v1.PlayerService.ChangePlayers:input_type -> noryx.v1.ChangePlayersRequest
-	2,  // 12: noryx.v1.PlayerService.GetPlayerLists:output_type -> noryx.v1.GetPlayerListsResponse
-	9,  // 13: noryx.v1.PlayerService.ChangePlayer:output_type -> noryx.v1.ChangePlayerResponse
-	6,  // 14: noryx.v1.PlayerService.ChangePlayers:output_type -> noryx.v1.ChangePlayersResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	1,  // 8: noryx.v1.PlayerService.GetPlayerLists:input_type -> noryx.v1.GetPlayerListsRequest
+	5,  // 9: noryx.v1.PlayerService.ChangePlayers:input_type -> noryx.v1.ChangePlayersRequest
+	2,  // 10: noryx.v1.PlayerService.GetPlayerLists:output_type -> noryx.v1.GetPlayerListsResponse
+	6,  // 11: noryx.v1.PlayerService.ChangePlayers:output_type -> noryx.v1.ChangePlayersResponse
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_noryx_v1_player_proto_init() }
@@ -786,7 +668,7 @@ func file_noryx_v1_player_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_noryx_v1_player_proto_rawDesc), len(file_noryx_v1_player_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

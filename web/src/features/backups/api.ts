@@ -18,8 +18,8 @@ export interface Selection {
   config: boolean
   /** Further files or folders, relative to the server's folder. */
   paths: string[]
-  /** Files and folders inside the others that are left out, e.g. the tiles of a map plugin; jobs from before have none. */
-  exclude?: string[]
+  /** Files and folders inside the others that are left out, e.g. the tiles of a map plugin. */
+  exclude: string[]
 }
 
 export interface Backup {
@@ -37,22 +37,22 @@ export interface Backup {
   jobId?: string
   /** Kept backups are never deleted by their job. */
   kept: boolean
-  /** The backup came from elsewhere, e.g. an upload, so restoring it trusts nothing in its archive. Older masters don't tell. */
-  untrusted?: boolean
+  /** The backup came from elsewhere, e.g. an upload, so restoring it trusts nothing in its archive. */
+  untrusted: boolean
 }
 
 export interface JobSettings {
   selection: Selection
-  /** Datastores backed up with all their databases; jobs from before datastores have none. */
-  datastores?: string[]
+  /** Datastores backed up with all their databases. */
+  datastores: string[]
   /** Storage location on each node; empty means the default one. */
   location: string
   /** The newest backups of the job kept per server; 0, like the others, keeps all. */
   keep: number
-  /** The newest backup of each of the last days, weeks and months with backups is kept too; jobs from before have none. */
-  keepDays?: number
-  keepWeeks?: number
-  keepMonths?: number
+  /** The newest backup of each of the last days, weeks and months with backups is kept too. */
+  keepDays: number
+  keepWeeks: number
+  keepMonths: number
   /** Where the job copies its backups of servers to, away from their nodes; none for nowhere. */
   copy?: CopyTo
 }
@@ -113,7 +113,7 @@ export const nothingSelected = (s: Selection) => !s.everything && !s.worlds && !
 const and = (parts: string[]) => new Intl.ListFormat(locale, { type: "conjunction" }).format(parts)
 
 /** Adds what is left out to a description of what is backed up. */
-const without = (text: string, exclude: string[] = []) =>
+const without = (text: string, exclude: string[]) =>
   exclude.length > 0 ? t("{{content}} without {{paths}}", { content: text, paths: and(exclude) }) : text
 
 /** Describes a selection, e.g. "Worlds, plugins and configuration". */

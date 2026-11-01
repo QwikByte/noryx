@@ -43,8 +43,7 @@ service ServerService {
   // server, the data that follows is the archive. Unlike ImportServer, the archive is
   // untrusted: the agent checks it like an archive of the file manager, leaves out the files
   // with secrets and those it writes itself, and replaces the secrets and the forwarding
-  // settings in the others. Nothing of the server remains if that fails. Agents of older
-  // versions answer UNIMPLEMENTED.
+  // settings in the others. Nothing of the server remains if that fails.
   rpc CreateServerFromArchive(stream CreateServerFromArchiveRequest) returns (CreateServerFromArchiveResponse);
 }
 
@@ -68,8 +67,7 @@ enum ServerType {
   SERVER_TYPE_QUILT = 12;
   // Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
   // without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
-  // then play over UDP ports of their own; see max_players. Agents of older versions refuse it
-  // as unknown.
+  // then play over UDP ports of their own; see max_players.
   SERVER_TYPE_BEDROCK = 13;
 }
 
@@ -136,25 +134,23 @@ message Server {
   // running server.
   bool unhealthy = 20;
   // Seconds the server gets to stop gracefully, e.g. to save its worlds, before it is killed; 0
-  // for the default of 60, as older agents report it.
+  // for the default of 60.
   uint32 stop_timeout_seconds = 21;
   // IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
   string time_zone = 22;
-  // Ports of plugins that the node publishes, e.g. of a web map; agents of older versions have none.
+  // Ports of plugins that the node publishes, e.g. of a web map.
   repeated ExtraPort extra_ports = 23;
   // Minutes a game server gets to start before its failed health checks count, e.g. as a large
-  // modpack loads; 0 for the default of 2, as older agents report it.
+  // modpack loads; 0 for the default of 2.
   uint32 health_start_minutes = 24;
-  // Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
-  // agents report it.
+  // Crashes in a row after which the agent stops the server; 0 for the default of 5.
   uint32 crash_limit = 25;
   // Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
   uint32 stable_after_minutes = 26;
   // Minutes after which the agent restarts a running server that stays unhealthy, which counts as
   // a crash; 0 for never.
   uint32 unhealthy_restart_minutes = 27;
-  // Processes and threads the server's container may run; 0 for the default of 1024, as older
-  // agents report it.
+  // Processes and threads the server's container may run; 0 for the default of 1024.
   uint32 process_limit = 28;
   // Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
   uint32 init_memory_mb = 29;
@@ -246,32 +242,31 @@ message UpdateServerRequest {
   repeated string jvm_options = 9;
   uint32 cpu_millis = 10;
   string loader_version = 11;
-  // Seconds the server gets to stop gracefully, from 30 to 600; 0, as older masters send it,
-  // means 60.
+  // Seconds the server gets to stop gracefully, from 30 to 600; 0 means 60.
   uint32 stop_timeout_seconds = 12;
   // IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
   // for UTC.
   string time_zone = 13;
   // Up to 5 ports of plugins to publish; changing them creates the container again.
   repeated ExtraPort extra_ports = 14;
-  // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
-  // as older masters send it, means 2. Proxies keep the start period of their image.
+  // Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0
+  // means 2. Proxies keep the start period of their image.
   uint32 health_start_minutes = 15;
   // Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
-  // the server, from 1 to 20; 0, as older masters send it, means 5.
+  // the server, from 1 to 20; 0 means 5.
   uint32 crash_limit = 16;
-  // Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
-  // means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+  // Minutes a run must last to end a row of crashes, from 1 to 120; 0 means 10. For a restart of
+  // an unhealthy server, the run is how long it was healthy.
   uint32 stable_after_minutes = 17;
   // Minutes, from 1 to 60, after which the agent restarts a running server whose health check
   // keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
-  // of them. 0, as older masters send it, for never.
+  // of them. 0 for never.
   uint32 unhealthy_restart_minutes = 18;
-  // Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
-  // send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+  // Processes and threads the server's container may run, from 1024 to 8192; 0 means 1024. The
+  // limit keeps a server from exhausting the node, e.g. with a fork bomb.
   uint32 process_limit = 19;
   // Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
-  // 0, as older masters send it, for the same as memory_mb.
+  // 0 for the same as memory_mb.
   uint32 init_memory_mb = 20;
   // How many players a Bedrock server lets join at once, from 1 to 100; 0 for 10. Each plays
   // over a UDP port of their own, which the node publishes: the server's port and the ones
@@ -345,11 +340,10 @@ message ConfigureNetworkRequest {
   // For a backend: its proxy runs on the same node and reaches it over a Docker network,
   // so its port isn't published.
   bool proxy_on_node = 4;
-  // How the proxy forwards players to its backends. Unspecified means modern forwarding
-  // if a secret is set, and otherwise FORWARDING_NONE, as older masters sent it.
+  // How the proxy forwards players to its backends; FORWARDING_NONE outside of a network. The
+  // agent refuses FORWARDING_UNSPECIFIED.
   Forwarding forwarding = 5;
-  // For a proxy: the backends players join and fall back to, in this order. Empty means
-  // the first backend, as older masters sent it.
+  // For a proxy: the backends players join and fall back to, in this order.
   repeated string try = 6;
   // For a proxy: the backends players join when they connect through a host name.
   repeated ForcedHost forced_hosts = 7;
@@ -368,7 +362,7 @@ message ConfigureNetworkRequest {
   repeated string datastores = 11;
   // The public key of the proxy's node in the private network. The node publishes the port
   // only for its peer at overlay_client with this key, and closes it once that address has
-  // another key. Older masters send none: then the key the peer has now.
+  // another key.
   string overlay_client_key = 12;
 }
 

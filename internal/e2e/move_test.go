@@ -115,6 +115,15 @@ func TestMoveServer(t *testing.T) {
 		t.Fatalf("notes = %q", notes)
 	}
 
+	// A Bedrock server keeps how many players may join, whose ports it takes.
+	bedrock := must(noryxv1.NewServerServiceClient(must(m.nodes.Conn(t.Context(), a1.node.ID))).CreateServer(t.Context(), &noryxv1.CreateServerRequest{
+		Name: "Pocket", Type: noryxv1.ServerType_SERVER_TYPE_BEDROCK, MemoryMb: 1024, Port: 25600, AcceptEula: true, MaxPlayers: 5,
+	}))
+	api.do("POST", "/api/nodes/"+a1.node.ID+"/servers/"+bedrock.GetServer().GetId()+"/move", map[string]any{"node": a2.node.ID}, http.StatusAccepted, nil)
+	if mv, spec := waitForMove(t, api, bedrock.GetServer().GetId()), a2.runtime.spec(bedrock.GetServer().GetId()); mv.Phase != "done" || spec.MaxPlayers != 5 {
+		t.Fatalf("move of a Bedrock server = %+v, spec = %+v", mv, spec)
+	}
+
 	// If the new node fails, the server stays where it was and runs again.
 	a1.runtime.mu.Lock()
 	a1.runtime.createErr = errors.New("no space left on device")

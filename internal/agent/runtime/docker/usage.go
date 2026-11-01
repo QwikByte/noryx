@@ -37,11 +37,13 @@ func (d *Docker) DatastoreUsage(ctx context.Context, id string) (runtime.Datasto
 	if err != nil {
 		return runtime.DatastoreUsage{}, err
 	}
-	res := runtime.DatastoreUsage{Usage: u, Connections: -1}
+	res := runtime.DatastoreUsage{Usage: u}
 	if c.State.Health != nil && c.State.Health.Status == container.Healthy {
-		if res.Connections, err = d.connections(ctx, id); err != nil {
+		n, err := d.connections(ctx, id)
+		if err != nil {
 			slog.DebugContext(ctx, "Can't count the connections of a datastore", logging.Databases, "datastore", id, "err", err)
-			res.Connections = -1
+		} else {
+			res.Connections = &n
 		}
 	}
 	return res, nil

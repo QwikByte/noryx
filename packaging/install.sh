@@ -107,7 +107,7 @@ check_system() {
     local releases
     releases=$(fetch "$RELEASES_API?per_page=10") ||
       die "GitHub's API doesn't answer, e.g. as it limits the requests of this machine. Try again later."
-    version=$(grep -oE '"tag_name": *"v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?"' <<<"$releases" |
+    version=$(grep -oE '"tag_name": *"v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?"' <<<"$releases" |
       cut -d '"' -f 4 | tr - '~' | sort -V | tail -n 1 | tr '~' -) || version=""
     [ -n "$version" ] || die "No release found, see $REPO/releases"
   elif [ "$version" = latest ]; then
@@ -116,7 +116,7 @@ check_system() {
     [[ "$version" == */releases/tag/* ]] || die "No release found, see $REPO/releases"
     version=${version##*/}
   fi
-  [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "Invalid version: $version"
+  [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || die "Invalid version: $version"
   tmp=$(mktemp -d)
   chmod 755 "$tmp" # apt reads local packages as its own user
   trap 'rm -rf "$tmp"' EXIT
@@ -143,9 +143,22 @@ wait_for_packages() {
   ((i == 0)) || printf '\n'
 }
 
+# keep_master_newer dies before an installed master would be replaced by an older version, which
+# can't open the database once a newer one changed it. Package managers differ here: apt and
+# pacman would go back.
+keep_master_newer() {
+  local current
+  current=$(noryx-master --version 2>/dev/null) || return 0
+  current=${current##* }
+  [[ "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || return 0
+  [ "$(printf '%s\n' "$current" "$version" | tr - '~' | sort -V | tail -n 1 | tr '~' -)" = "$version" ] ||
+    die "noryx-master $current is installed, which is newer than $version. The master can't go back to an older version, as the newer one may have changed its database."
+}
+
 # install_package downloads a package of the release, verifies its checksum and installs or updates it.
 install_package() {
   local file="$1_${version#v}_linux_${arch}.$format"
+  [ "$1" != noryx-master ] || keep_master_newer
   log "Installing $1 $version"
   fetch -o "$tmp/$file" "$REPO/releases/download/$version/$file"
   (cd "$tmp" && grep -E "^[0-9a-f]{64}  $file\$" checksums.txt | sha256sum -c --strict --quiet) ||
@@ -180,7 +193,7 @@ wait_for_port() {
 # ask_panel_addr asks where the panel listens, unless --panel-addr tells, and checks the answer:
 # an IPv4 address or an IPv6 address in brackets, with a port the master may use without root.
 ask_panel_addr() {
-  [ -n "$panel_addr" ] || panel_addr=$(ask "IP address and port the panel listens at, 0.0.0.0:<port> for all interfaces [$PANEL_ADDR]:" "")
+  [ -n "$panel_addr" ] || panel_addr=$(ask "IP address and port the panel listens at, 0.0.0.0:<port> for all interfaces once you turn on HTTPS in its settings [$PANEL_ADDR]:" "")
   panel_addr=${panel_addr:-$PANEL_ADDR}
   local port=${panel_addr##*:}
   if ! [[ "$panel_addr" =~ ^([0-9]{1,3}(\.[0-9]{1,3}){3}|\[[0-9A-Fa-f:.]+\]):[0-9]{1,5}$ ]] || ((10#$port < 1024 || 10#$port > 65535)); then

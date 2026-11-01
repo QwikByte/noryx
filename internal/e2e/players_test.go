@@ -166,7 +166,7 @@ func TestMaintenance(t *testing.T) {
 	// that it is, and keeps the timer that ends it to itself.
 	check(t, os.WriteFile(filepath.Join(a.runtime.dir, proxy.ServerID, "velocity.toml"), []byte("[servers]\nlobby = \"lobby:25565\"\ntry = [\"lobby\"]\n"), 0o600))
 	api.do("POST", path, map[string]any{"enabled": true, "server": "lobby", "duration": 60}, http.StatusOK, &got)
-	if got.Enabled || !slices.Equal(got.Servers, []string{"lobby"}) || !got.ServersAndTimers {
+	if got.Enabled || !slices.Equal(got.Servers, []string{"lobby"}) {
 		t.Fatalf("maintenance of lobby = %+v", got)
 	}
 	// The whole network goes into maintenance in 5 minutes, and a timer is aborted.

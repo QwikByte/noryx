@@ -120,8 +120,8 @@ type Settings struct {
 	UpdateAgents     string `json:"updateAgents"`
 
 	// MinPasswordLength is how many characters new passwords need, and SetupLinkHours how long
-	// setup links are valid. MaxTokenDays is how long new API tokens may last, and sessions end
-	// after SessionIdleHours without use; 0 means no limit for both. MinPasswordLength and
+	// setup links are valid. MaxTokenDays is how long new API tokens may last, a year by default,
+	// and sessions end after SessionIdleHours without use; 0 means no limit for both. MinPasswordLength and
 	// SetupLinkHours are public, as the page of setup links shows them.
 	MinPasswordLength int `json:"minPasswordLength"`
 	SetupLinkHours    int `json:"setupLinkHours"`
@@ -180,8 +180,8 @@ func defaults() Settings {
 		NewServers:   server.DefaultNewServers(),
 		Warnings:     server.DefaultWarnings(),
 		UpdateAgents: allAgents, UpdateCheckHours: 6,
-		MinPasswordLength: minPasswordLength, SetupLinkHours: 72,
-		Retention: Retention{UsageDays: 30, SeenPlayers: true, OperationHours: 1}, // SeenDays are the log's, see Load
+		MinPasswordLength: minPasswordLength, SetupLinkHours: 72, MaxTokenDays: 365,
+		Retention: Retention{UsageDays: 30, SeenPlayers: true, SeenDays: 30, OperationHours: 1},
 	}
 }
 
@@ -238,8 +238,6 @@ func Load(ctx context.Context, db *sql.DB, master Master, cert *pki.Holder) (*Se
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
-	// Players seen were kept as long as the log before they had a retention of their own.
-	current.Retention.SeenDays = cmp.Or(current.Retention.SeenDays, current.LogDays)
 	s := &Service{db: db, master: master, cert: cert}
 	s.current.Store(&current)
 	return s, nil

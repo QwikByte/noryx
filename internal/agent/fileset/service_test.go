@@ -245,11 +245,6 @@ func TestBinaryFilesAndPasswords(t *testing.T) {
 	if hidden := Read(data).Secrets(); !hidden.Hidden(filepath.FromSlash(lp.Path)) || hidden.Hidden(icon.Path) {
 		t.Error("the file with the password isn't hidden, or the icon is")
 	}
-	res, err := s.ListFileSets(t.Context(), &noryxv1.ListFileSetsRequest{})
-	check(t, err)
-	if !res.GetBinaryFiles() || !res.GetDatabasePasswords() {
-		t.Error("the agent doesn't tell what it can do")
-	}
 
 	for name, bad := range map[string]*noryxv1.FileSetFile{
 		"text and binary": {Path: "a.png", Content: "x", Data: []byte("y")},

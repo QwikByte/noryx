@@ -325,7 +325,7 @@ func (d *Docker) Load(ctx context.Context, id, name string, r io.Reader) (err er
 }
 
 // connections counts the clients of a ready datastore.
-func (d *Docker) connections(ctx context.Context, id string) (int, error) {
+func (d *Docker) connections(ctx context.Context, id string) (uint32, error) {
 	s, err := d.session(ctx, id)
 	if err != nil {
 		return 0, err
@@ -337,7 +337,8 @@ func (d *Docker) connections(ctx context.Context, id string) (int, error) {
 	if len(words) != 1 {
 		return 0, fmt.Errorf("unexpected output %q", words)
 	}
-	return strconv.Atoi(words[0])
+	n, err := strconv.ParseUint(words[0], 10, 32)
+	return uint32(n), err
 }
 
 var _ runtime.Datastores = (*Docker)(nil)

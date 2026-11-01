@@ -15,7 +15,8 @@ builds:
     id: noryx-master
     main: ./cmd/noryx-master
     binary: noryx-master
-    tags: [ui]
+    # grpcnotrace leaves out golang.org/x/net/trace, whose debug pages nothing serves.
+    tags: [ui, grpcnotrace]
     goos: [linux]
     goarch: [amd64, arm64]
     env: [CGO_ENABLED=0]
@@ -25,7 +26,7 @@ builds:
     id: noryx-agent
     main: ./cmd/noryx-agent
     binary: noryx-agent
-    tags: []
+    tags: [grpcnotrace]
 
 archives:
   - &archive

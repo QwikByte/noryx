@@ -63,7 +63,7 @@ type GetStatsResponse struct {
 	TimeUnix int64          `protobuf:"varint,1,opt,name=time_unix,json=timeUnix,proto3" json:"time_unix,omitempty"`
 	Node     *NodeStats     `protobuf:"bytes,2,opt,name=node,proto3" json:"node,omitempty"`
 	Servers  []*ServerStats `protobuf:"bytes,3,rep,name=servers,proto3" json:"servers,omitempty"`
-	// The datastores of the node. Agents of older versions send none.
+	// The datastores of the node.
 	Datastores    []*DatastoreStats `protobuf:"bytes,4,rep,name=datastores,proto3" json:"datastores,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

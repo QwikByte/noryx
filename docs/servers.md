@@ -38,7 +38,7 @@ the console password (`.rcon-cli.env`, `.rcon-cli.yaml`), a proxy's `forwarding.
 sign-ins, the manifest of file sets and other files of the agent are left out, which the panel names, and the console
 password and other secrets in `server.properties` and the configuration of plugins are emptied. It trusts no proxy: its
 forwarding settings are removed and it runs in online mode until it joins a [network](networks.md). Creating a server
-from an archive needs the permission to create servers on the node and an up-to-date agent.
+from an archive needs the permission to create servers on the node.
 
 The page of a server shows the address players join at, with a button to copy it: the host of its node's address with
 the server's port, or its proxy's for a server of a network. Without the permissions to see that node and the networks,
@@ -49,8 +49,7 @@ it shows only the port.
 Each server has a live console in the panel: its output streams in as it happens, and commands go to game servers
 through their console port (RCON), and to proxies through their own console, whose answer follows in the output. The
 agent keeps one console connection per game server for all its commands, so the server doesn't log a new one for each.
-Commands typed in quick succession run one after the other, in their order. Proxies created by earlier versions accept
-commands once they were created again, e.g. by saving their settings.
+Commands typed in quick succession run one after the other, in their order.
 
 The output keeps the colours of the server and its plugins, and warnings and errors stand out. It can be searched,
 narrowed down to warnings and errors, which the console remembers, cleared and downloaded as a text file of what is
@@ -66,8 +65,7 @@ user](panel.md#settings-of-each-user)). **Fill the window** gives the console th
 The prompt keeps the commands of each server while the browser tab is open, and the arrow keys walk through them. While
 typing, it suggests Minecraft's commands (or the proxy's), their arguments, the names of the players online and earlier
 commands; **Tab** takes a suggestion. Commands that may carry a password, such as `authme register <player> <password>`
-or `login <password>`, are neither kept nor logged in full (see [Security](security.md#console)). Agents of older
-versions send the output without colours.
+or `login <password>`, are neither kept nor logged in full (see [Security](security.md#console)).
 
 ## File manager
 
@@ -77,8 +75,7 @@ backups), creates files and folders, edits configuration files in the browser an
 ZIP archives. A folder can be filtered by name and sorted by name, the largest or the newest first; the browser keeps
 the order for every folder. **Move to…** in the menu of a file or folder moves it into another folder, and **Copy to…**
 copies it there, or into the same folder under a new name, e.g. `world copy`, as long as 1 GB stays free on the node.
-Selected files and folders are downloaded as one ZIP archive, moved, copied or deleted together; agents of older
-versions can't download several of them at once.
+Selected files and folders are downloaded as one ZIP archive, moved, copied or deleted together.
 
 **Extract…** in the menu of a ZIP or `.tar.gz` archive extracts it into its folder or into a new folder in it, e.g. a
 world, a modpack's overrides or the configuration of plugins that were uploaded as one archive. Existing files are only
@@ -91,20 +88,18 @@ can be extracted into another folder, or uploaded and edited on their own.
 **Search** finds text in the text files of the shown folder and the folders in it, regardless of case, and opens a file
 of a match in the editor. Files that only hold secrets are left out and others show them as `<hidden>`, so a search
 never finds a secret. Files larger than 4 MB and binary files are left out, and a search stops after 500 matches or 10
-seconds. Extracting, copying and searching need an up-to-date agent on the node.
+seconds.
 
 If something changed or deleted a file while it was open in the editor, e.g. a plugin, a file set or another user,
 saving shows the difference to the file on the server and offers to load that version or to overwrite it. Agents tell
-the editor the version of a file by when it was modified and its size; with agents of older versions, saving
-overwrites the file as before. Saving a JSON or YAML file with a syntax error, which servers and plugins may fail to
-read, asks first and names the line. The editor highlights JSON, JSON5, YAML, properties, TOML, INI-like files
-(`.conf`, `.cfg`, `.ini`), shell scripts, JavaScript and XML. Each user chooses whether it wraps long lines, whether it
-indents with 2 or 4 spaces or tabs (YAML always with spaces), whether it takes Vim's keys, the size of its text and
-whether it is light in the light theme; **View** next to **Download** has some of these.
+the editor the version of a file by when it was modified and its size. Saving a JSON or YAML file with a syntax error,
+which servers and plugins may fail to read, asks first and names the line. The editor highlights JSON, JSON5, YAML,
+properties, TOML, INI-like files (`.conf`, `.cfg`, `.ini`), shell scripts, JavaScript and XML. Each user chooses whether
+it wraps long lines, whether it indents with 2 or 4 spaces or tabs (YAML always with spaces), whether it takes Vim's
+keys, the size of its text and whether it is light in the light theme; **View** next to **Download** has some of these.
 
 Logs (`.log` files) open read only in a viewer that highlights warnings and errors. Of a large log, it shows the last
-2 MB and loads earlier parts on request; with agents of older versions, large logs can only be downloaded. Archived logs
-(`.log.gz`) are unpacked in the browser, up to their first 16 MB.
+2 MB and loads earlier parts on request. Archived logs (`.log.gz`) are unpacked in the browser, up to their first 16 MB.
 
 Secrets such as the RCON password and the forwarding secret of a network never reach the panel. The file manager hides
 files that only hold secrets (`.rcon-cli.env`, `.rcon-cli.yaml`, `forwarding.secret`, Floodgate's `key.pem`) and shows
@@ -169,15 +164,13 @@ since. Deleting servers keeps their images. Servers created from a modpack show 
 The **stop timeout** is how long a server may take to save its worlds when it stops or restarts before it is killed:
 from 30 seconds to 10 minutes, 1 minute unless changed, e.g. longer for a large modded world. The **time zone**, one of
 the IANA time zones such as `Europe/Berlin` chosen from a searchable list, sets the time of the server's log and of
-plugins that work with times; servers run in UTC unless one is chosen. Agents of earlier versions keep 1 minute and UTC,
-which saving the settings, creating a server and moving one to their node tell.
+plugins that work with times; servers run in UTC unless one is chosen.
 
 The **start period** of a game server's [health check](#crashes-and-health) is how long it may take to start before a
 failing check counts: from 2 to 30 minutes, 2 unless changed, e.g. longer for a large modpack, which would show as
 unhealthy while it loads. Servers created from a [modpack](library.md#modpacks) get 10 minutes. Changing it creates the
 container again, as other settings do. Docker and Podman give the server the same check, that of its image, so that both
-behave the same; proxies keep the check of their image, which starts after 10 seconds. Agents of earlier versions keep 2
-minutes, which saving the settings, creating a server and moving one to their node tell.
+behave the same; proxies keep the check of their image, which starts after 10 seconds.
 
 **Processes and heap** under **Resources** limits how many processes and threads a server's container may run: 1,024
 unless changed, up to 8,192. Java runs threads for each CPU core, e.g. to collect garbage, compile code and serve
@@ -185,9 +178,7 @@ players, and large modded servers, e.g. with C2ME, many worlds or mods that rend
 reaches the limit can't start threads and crashes. The limit keeps a compromised server from exhausting the node, e.g.
 with a fork bomb. The **initial heap** is the memory Java starts with, from 512 MB up to the server's memory, which the
 heap grows to as needed. Without it, and always with Aikar's flags, which want both the same, Java starts with all of
-it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way. Agents of
-earlier versions keep 1,024 processes and all of the memory, which saving the settings, creating a server and moving one
-to their node tell.
+it. JVM options set neither (`-Xms` and `-Xmx` are refused), and the node counts the memory either way.
 
 Stopping and restarting a server run as [operations](panel.md#operations), as they may take as long as its stop
 timeout: the panel follows them in a notification, and a reverse proxy in front of the master, e.g. nginx, which gives
@@ -241,8 +232,7 @@ out. Other nodes don't reach them through the [private network](networks.md#priv
 
 Templates keep extra ports, which **Create server** shows to change, e.g. as another server of the node uses them
 already. A copy gets none, as the original keeps its own. A server that moves takes them along, which needs them to be
-free and in the port range on the new node; the move checks that before it stops the server. Agents of earlier versions
-publish no extra ports, which saving the settings, creating a server and moving one to their node tell.
+free and in the port range on the new node; the move checks that before it stops the server.
 
 ## Crashes and health
 
@@ -261,17 +251,14 @@ unhealthy and healthy again. It still counts as running: its console, restarts, 
 **Restart when unhealthy**, also under **Crashes** and off unless chosen, has the agent restart a running server whose
 health check has failed for 1 to 60 minutes, so never during its start period. The restart is a warning in the log and
 counts as a crash, so a server that keeps hanging is stopped after its crashes in a row; a restart after the server was
-healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds. Agents of earlier versions
-keep 5 crashes in a row, 10 minutes and no restarts, which saving the settings, creating a server and moving one to their
-node tell.
+healthy for a stable run starts a new row. The agent looks for such servers every 30 seconds.
 
 ## Bedrock servers
 
 **Bedrock** under **Bedrock Edition** is Bedrock Dedicated Server, for players of Minecraft on phones, consoles and
 Windows, without a Java server or [Geyser](networks.md#bedrock-players). Its version is one of Bedrock Dedicated
 Server, e.g. `1.26.61.1`, `PREVIEW` for the newest preview, or empty for the latest, which the image downloads from
-Mojang on every start; players' games only join servers of their own version, so the latest suits most. Agents of
-earlier versions don't know Bedrock servers: **Create server** offers them once the node's agent is updated.
+Mojang on every start; players' games only join servers of their own version, so the latest suits most.
 
 Players join at the server's port, 19132 unless chosen, over TCP (Bedrock's NetherNet, the only way from Bedrock
 Dedicated Server 1.26.60 on), and then each plays over a UDP port of their own: the server's port and the ones after it,
@@ -374,6 +361,3 @@ reports others, e.g. as it was offline when they changed:
 - **Interval of measurements:** how often the agent measures what the node, its servers and datastores use (see
   [Usage](monitoring.md#current-values)), from every 5 to every 60 seconds, every 5 unless changed. Longer intervals ask
   the servers less often for their players and ticks per second, while the panel shows changes later.
-
-Agents of older versions don't take these settings, which the panel says as they are saved; they get them once they
-are updated.

@@ -59,7 +59,8 @@ type BackupServiceClient interface {
 	// DownloadBackup sends the archive in chunks. The first message carries its size, if known.
 	DownloadBackup(ctx context.Context, in *DownloadBackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DownloadBackupResponse], error)
 	// ImportBackup adds a backup of a server that came from another node. The header
-	// describes it, the data that follows is its archive.
+	// describes it, the data that follows is its archive. The agent checks it and keeps it as
+	// untrusted like an uploaded backup, whatever the header tells.
 	ImportBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ImportBackupRequest, ImportBackupResponse], error)
 	// ImportCopy keeps a copy of a backup of a server of another node, apart from the backups
 	// of the servers of this node, so that the server can be restored if its node is lost. The
@@ -73,13 +74,13 @@ type BackupServiceClient interface {
 	// downloaded before. The header describes it, the data that follows is the archive. The
 	// agent checks it like an archive of the file manager and keeps it as untrusted, so that
 	// restoring it checks it again and trusts nothing it tells. Its paths are the files and
-	// folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
+	// folders at the top of the archive.
 	UploadBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadBackupRequest, UploadBackupResponse], error)
 	// ImportMasterBackup keeps an archive of the master, with its database and certificate
 	// authority, in the folder master of the backups of a storage location, apart from the
 	// backups of the servers. The agent neither reads nor restores it: the master's
 	// administrator does, with noryx-master restore. The header names it, the data that follows
-	// is the archive. Agents of older versions answer UNIMPLEMENTED.
+	// is the archive.
 	ImportMasterBackup(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ImportMasterBackupRequest, ImportMasterBackupResponse], error)
 	// DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
 	DeleteMasterBackup(ctx context.Context, in *DeleteMasterBackupRequest, opts ...grpc.CallOption) (*DeleteMasterBackupResponse, error)
@@ -287,7 +288,8 @@ type BackupServiceServer interface {
 	// DownloadBackup sends the archive in chunks. The first message carries its size, if known.
 	DownloadBackup(*DownloadBackupRequest, grpc.ServerStreamingServer[DownloadBackupResponse]) error
 	// ImportBackup adds a backup of a server that came from another node. The header
-	// describes it, the data that follows is its archive.
+	// describes it, the data that follows is its archive. The agent checks it and keeps it as
+	// untrusted like an uploaded backup, whatever the header tells.
 	ImportBackup(grpc.ClientStreamingServer[ImportBackupRequest, ImportBackupResponse]) error
 	// ImportCopy keeps a copy of a backup of a server of another node, apart from the backups
 	// of the servers of this node, so that the server can be restored if its node is lost. The
@@ -301,13 +303,13 @@ type BackupServiceServer interface {
 	// downloaded before. The header describes it, the data that follows is the archive. The
 	// agent checks it like an archive of the file manager and keeps it as untrusted, so that
 	// restoring it checks it again and trusts nothing it tells. Its paths are the files and
-	// folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
+	// folders at the top of the archive.
 	UploadBackup(grpc.ClientStreamingServer[UploadBackupRequest, UploadBackupResponse]) error
 	// ImportMasterBackup keeps an archive of the master, with its database and certificate
 	// authority, in the folder master of the backups of a storage location, apart from the
 	// backups of the servers. The agent neither reads nor restores it: the master's
 	// administrator does, with noryx-master restore. The header names it, the data that follows
-	// is the archive. Agents of older versions answer UNIMPLEMENTED.
+	// is the archive.
 	ImportMasterBackup(grpc.ClientStreamingServer[ImportMasterBackupRequest, ImportMasterBackupResponse]) error
 	// DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
 	DeleteMasterBackup(context.Context, *DeleteMasterBackupRequest) (*DeleteMasterBackupResponse, error)

@@ -21,12 +21,13 @@ A compromised node can't make its certificate seem to expire sooner or later tha
 ## Enrollment
 
 Adding a node creates a single-use join token (valid for one hour unless the settings say otherwise, stored only as a
-hash). It contains the master address, the node ID, the secret and the CA fingerprint. The agent creates its key pair
-locally, sends a CSR and pins the CA fingerprint, so the exchange can't be intercepted. Private keys never leave the
-node. The master checks the token before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds. As
-the port of enrollment is open to the internet and serves nothing else, its connections are bounded: 10 seconds for the
-TLS handshake, 4 calls at once of up to 64 KiB each, a minute without calls and 5 minutes in all, and a client that
-doesn't answer the master's pings for 20 seconds, or pings more often than every 5 minutes, is cut off.
+hash). It contains the master address, the node ID, the secret and the master's CA certificate. The agent creates its
+key pair locally, sends a CSR and only trusts a master certificate issued by that CA, checked by Go's standard
+verification, so the exchange can't be intercepted. Private keys never leave the node. The master checks the token
+before it signs the CSR, and a client gets 5 attempts, then one every 12 seconds. As the port of enrollment is open to
+the internet and serves nothing else, its connections are bounded: 10 seconds for the TLS handshake, 4 calls at once of
+up to 64 KiB each, a minute without calls and 5 minutes in all, and a client that doesn't answer the master's pings for
+20 seconds, or pings more often than every 5 minutes, is cut off.
 
 ## Agents only obey the master
 
@@ -41,7 +42,8 @@ Argon2id password hashes, session tokens stored as SHA-256 hashes, `__Host-` coo
 attempts are rate limited per client address (IPv6 per /64 network) and per username, changes that need the password per
 user. A username has a larger budget than a client, so that a single client can't keep a user out. Client addresses come
 from the `X-Forwarded-For` or `X-Real-IP` header only for the reverse proxies named with `--trusted-proxy`, also those
-that sessions show. The panel names a session by a random ID of its own, never by its token or the token's hash, and
+that sessions show. Clients send the headers of a request within 10 seconds and the body of a JSON request or a webhook
+within 2 minutes, so that slow clients can't hold connections. The panel names a session by a random ID of its own, never by its token or the token's hash, and
 users only see and end their own sessions, which needs no password, as it only takes rights away. A session notes the
 address, browser and time of its last use at most once a minute; the browser and operating system are only names from
 fixed lists that the master recognises in the User-Agent, which are shown but never trusted. The CSV
@@ -100,16 +102,16 @@ covers until they set it up. Tokens only work on the routes that state their per
 the user's own account (`/api/auth/` and `/api/preferences`) refuse them, so a token can't sign in to the panel, change
 the password or two-factor authentication, end sessions or create and revoke tokens. Besides the API, tokens sign in to
 [SFTP](#sftp), with the same checks. A wrong token takes an attempt from the client's budget of sign-ins, and a client
-without attempts left can't use tokens either. Pages of other sites can't
-use a token in a browser: the master allows no cross-origin requests, so browsers don't send the header, and the
-cross-origin request protection still refuses their changes; that of the session cookie stays as it is. Operations that
-a token started are the token's, so that a token with fewer permissions can't cancel those of its user or of other
-tokens without the permission they need. The log names the token besides the user in the entries of what it did, and a
-token notes the address and time of its last use at most once a minute. The settings can limit how long new tokens last,
-up to 10 years: the master then refuses tokens that don't expire or expire later; one asked to expire up to a day
-later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their expiry, and the
-settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for being unused
-like sessions, as they have a lifetime of their own.
+without attempts left can't use tokens either. Pages of other sites can't use a token in a browser: the master allows no
+cross-origin requests, so browsers don't send the header, and the cross-origin request protection still refuses their
+changes; that of the session cookie stays as it is. Operations that a token started are the token's, so that a token
+with fewer permissions can't cancel those of its user or of other tokens without the permission they need. The log names
+the token besides the user in the entries of what it did, and a token notes the address and time of its last use at most
+once a minute. New tokens last a year at most, so that forgotten ones stop working; the settings can change the limit to
+1 day to 10 years, or lift it. The master refuses tokens that don't expire or expire later than the limit; one asked to
+expire up to a day later, as the browser's clock may be ahead, expires at the limit. Tokens created before keep their
+expiry, and the settings show how many tokens of all users expire later or never, only as a number. Tokens don't end for
+being unused like sessions, as they have a lifetime of their own.
 
 ## Networks
 
@@ -167,7 +169,7 @@ network, and the agent drops in nftables tables of its own whatever this bridge 
 another (`bridge noryx`) and whatever the node would route from one of these bridges to another (`inet
 noryx-networks`): when it starts, before each start of a server, and at boot with `noryx-isolate.service`, without
 which Podman doesn't start the servers. An agent that can't set up the tables, e.g. as the kernel lacks
-`nft_meta_bridge`, doesn't run. A network of the agent without such a bridge, e.g. of an older agent, is created again
+`nft_meta_bridge`, doesn't run. A network of the agent without such a bridge, e.g. one created by hand, is created again
 once no container uses it, and no server or datastore starts in it until then. The agent checks every answer of the
 runtime's socket and refuses one at which the other runtime answers, e.g. Podman behind Docker's socket, or a Podman
 older than 4.9 or rootless, as it relies on how each one keeps servers apart; whether Podman runs rootless, which
@@ -258,7 +260,8 @@ doesn't hold it, so a master restored elsewhere creates a new one, which clients
 The master downloads only from Modrinth's CDN, up to 256 MB, and only uses a file whose SHA-512 hash matches the one
 Modrinth's API lists; from Hangar, only from its CDN and with the SHA-256 hash its API lists, and versions that only
 link elsewhere can't be installed. Floodgate only comes from GeyserMC's download server, with the SHA-256 hash its API
-lists. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
+lists. A call of these APIs gets 2 minutes, a download 2 minutes and a second for each 256 KiB of the size the API
+announces, so that a stalled download ends too. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
 alpha, which the master checks) or where a project has nothing else for it, are checked like releases.
 A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
 elsewhere than on Modrinth's CDN or with paths that leave the server's folder are refused before a server is created or
@@ -312,8 +315,7 @@ their placeholders, which the master fills in for the databases of a server's ow
 password or changes a file with one, and applying a set that puts passwords on servers, need the permission to manage
 datastores, and the log records which passwords a set uses, so that nobody who may not see a password gets it onto a
 server they control and reads it there. The master sends them in the field of secrets, and the agent only accepts
-passwords of the form the master generates and hides the files like those with secrets. Agents tell the master that they
-write binary files and fill in passwords; older ones, which would write binary files empty, get neither.
+passwords of the form the master generates and hides the files like those with secrets.
 
 ## Templates
 
@@ -409,8 +411,7 @@ network's secret and forwarding settings. It needs the permission to see the bac
 backups of the other server, and only goes between game servers or between proxies. Like moving a server, it brings
 whatever the backup holds, e.g. plugins, which a compromised node could have changed like the data of its servers.
 Marking a backup to keep needs the permission to back up the server, and letting its job delete it again the one to
-delete backups. The master refuses restoring chosen paths, into another server or with a backup first on nodes whose
-agent would ignore that, e.g. restore all of a backup instead.
+delete backups.
 
 An uploaded backup is untrusted. The agent receives it outside the server's data, keeps it only once it checked it like
 an archive of the file manager (see [File manager](#file-manager)), and marks it as untrusted in its details, which only
@@ -418,15 +419,14 @@ the agent writes. Restoring an untrusted backup checks it again, with limits for
 1 TB), and extracts it confined like an archive of the file manager, without the files that only hold secrets, the
 manifest of file sets and the files of the agent, whose versions on the server stay as they are, e.g. the pardons that
 wait for the end of temporary bans; it replaces every secret in the other files with the server's own, not only
-placeholders, and keeps the server's network settings like any restore. A backup from another node, moved
-with its server, copied there or a copy restored into a server, is untrusted too: the agent keeps it once it checked it
-like an uploaded one, with the limits for backups, and refuses it once it is larger than the master announced or less
-than 1 GB would stay free, also when the data of a moving server arrive. Listing, downloading and restoring an
-untrusted backup read the directory of its archive within the limits for backups too. The mark moves with the backup to
-another node, and copies for restoring into another server keep it; the master refuses both with agents that would
-drop it. Uploading needs the permissions to back up and to restore the server, and to change its files: an uploaded
-backup can bring any file, e.g. a plugin, which runs with the server and can read its secrets once it is restored, such
-as the forwarding secret of its network, like a plugin uploaded with the file manager.
+placeholders, and keeps the server's network settings like any restore. A backup from another node, moved with its
+server, copied there or a copy restored into a server, is untrusted too: the agent keeps it once it checked it like an
+uploaded one, with the limits for backups, and refuses it once it is larger than the master announced or less than 1 GB
+would stay free, also when the data of a moving server arrive. The agent marks every backup it imports as untrusted
+itself, whatever the master tells. Listing, downloading and restoring an untrusted backup read the directory of its
+archive within the limits for backups too. Uploading needs the permissions to back up and to restore the server, and to
+change its files: an uploaded backup can bring any file, e.g. a plugin, which runs with the server and can read its
+secrets once it is restored, such as the forwarding secret of its network, like a plugin uploaded with the file manager.
 
 ## Copies of backups
 
@@ -454,12 +454,11 @@ and never restores them itself: the master relays them, as agents never connect 
 read them there, like the backups of the servers on their own node. Agents mark every backup that came from elsewhere, a
 copy or one of another node, as untrusted, and restore it like an uploaded backup (see [Backups](#backups)): checked
 again with the limits for backups, extracted confined like an archive of the file manager, and with every secret
-replaced by the server's own; the master refuses to restore a copy with an agent that would trust it. So a compromised
-node or storage can change the data of the servers restored from its
+replaced by the server's own. So a compromised node or storage can change the data of the servers restored from its
 copies, like a node can change the backups of its own servers, but nothing beyond them. A copy belongs to its server on
 the node it was copied from, and follows the server when it moves: nodes tell the IDs of their servers themselves, so a
-compromised node that claims the ID of another node's server only gets copies of its own, and a job neither replaces
-nor deletes that server's copies for it.
+compromised node that claims the ID of another node's server only gets copies of its own, and a job neither replaces nor
+deletes that server's copies for it.
 
 Copies take the backups of all servers away from their nodes, so adding, changing and deleting storages, and saving a
 job that copies, need the permissions to manage backup jobs and to see and download the backups of all servers; each run
@@ -718,9 +717,10 @@ next to the iptables and nftables rules of Docker and Podman, drops packets for 
 through the tunnel, new connections from the tunnel to the node itself, e.g. to SSH or the agent, and forwarded
 connections from the tunnel except those of a proxy's node to the ports of its servers. WireGuard accepts from a peer
 only its own address and doesn't answer unauthenticated packets. The agent binds each address it lets reach a port to
-the public key the peer at that address had then, which the master sends along, and drops the address once a peer has it
-with another key: a node that gets the address of a removed one, even while a member was offline and never saw the
-removal, reaches none of the ports published for the removed one. A compromised node reaches only the ports of its own
+the public key the peer at that address had then, which the master must send along and the agent refuses unless its own
+configuration gives that peer this key, and drops the address once a peer has it with another key: a node that gets the
+address of a removed one, even while a member was offline and never saw the removal, reaches none of the ports
+published for the removed one. A compromised node reaches only the ports of its own
 servers on other nodes; removing it removes it everywhere. A rotated key is let in again as the master applies the
 node's networks again; a key that changes otherwise, e.g. as a node lost its data, needs its networks applied again in
 the panel. A compromised master could add a peer of its own, but it can already reconfigure every server. If the
@@ -780,6 +780,6 @@ Pre-releases are only installed on machines whose administrator allows them with
 `/etc/noryx/master.env` or `/etc/noryx/agent.env`. These files belong to root, so neither the master nor the panel can
 change them; the panel only shows the master's option. `noryx-master-update` reads it from `master.env` itself and then
 installs the highest version among the newest releases, pre-releases included, with the same checks of the signature and
-the checksums. Agents refuse pre-releases without the option, so a compromised master can't put one on a node; agents
-of earlier versions still accept any newer pre-release. Whether the master updates the agents after itself and how
-often it looks for releases are settings, which only decide when it asks, not what is installed.
+the checksums. Agents refuse pre-releases without the option, so a compromised master can't put one on a node. Whether
+the master updates the agents after itself and how often it looks for releases are settings, which only decide when it
+asks, not what is installed.

@@ -22,10 +22,9 @@ func (s *Service) Configure(ctx context.Context, n Node) error {
 }
 
 // configured gives the agent of a node its settings again if it reports others, e.g. as it was
-// offline when they changed, or was updated from a version that didn't know them. Agents of
-// older versions report none.
+// offline when they changed.
 func (s *Service) configured(ctx context.Context, n Node, info *noryxv1.GetInfoResponse) {
-	if info.GetSettings() == nil || agentOf(info.GetSettings()) == n.Agent {
+	if agentOf(info.GetSettings()) == n.Agent {
 		return
 	}
 	attrs := []any{logging.Nodes, logging.KeyNode, n.ID, logging.KeyNodeName, n.Name}
@@ -38,10 +37,7 @@ func (s *Service) configured(ctx context.Context, n Node, info *noryxv1.GetInfoR
 
 // configureWarning tells why the agent of a node didn't get its new settings.
 func configureWarning(err error) string {
-	switch status.Code(err) {
-	case codes.Unimplemented:
-		return "The agent of the node is too old for the output of containers, the space kept free and the interval of measurements. Update the agent, which then gets them."
-	case codes.Unavailable, codes.DeadlineExceeded:
+	if code := status.Code(err); code == codes.Unavailable || code == codes.DeadlineExceeded {
 		return "The agent of the node gets its new settings once the master reaches it again."
 	}
 	return "The agent of the node didn't take its new settings: " + httpapi.Message(err)

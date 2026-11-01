@@ -16,8 +16,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/access"
@@ -38,7 +36,6 @@ type agent struct {
 
 	mu       sync.Mutex
 	settings *noryxv1.NodeSettings
-	older    bool // knows no settings
 	key      ed25519.PrivateKey
 }
 
@@ -46,7 +43,7 @@ func (a *agent) GetInfo(context.Context, *noryxv1.GetInfoRequest) (*noryxv1.GetI
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return &noryxv1.GetInfoResponse{
-		AgentVersion: "v1.4.0", Hostname: "node-1", Os: "Debian GNU/Linux 13", CpuCount: 8, MemoryBytes: 16 << 30, Runtime: "podman 5.6.0",
+		AgentVersion: "v1.4.0", Hostname: "node-1", Os: "Debian GNU/Linux 13", CpuCount: 8, MemoryBytes: 16 << 30,
 		RuntimeName: "podman", RuntimeVersion: "5.6.0", Settings: a.settings,
 		Storage:     []*noryxv1.StorageLocation{{Name: "default", Path: "/var/lib/noryx", FreeBytes: 1 << 30, TotalBytes: 2 << 30}},
 		ServerTypes: []noryxv1.ServerType{noryxv1.ServerType_SERVER_TYPE_VELOCITY, noryxv1.ServerType_SERVER_TYPE_PAPER},
@@ -56,9 +53,6 @@ func (a *agent) GetInfo(context.Context, *noryxv1.GetInfoRequest) (*noryxv1.GetI
 func (a *agent) Configure(_ context.Context, req *noryxv1.ConfigureRequest) (*noryxv1.ConfigureResponse, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.older {
-		return nil, status.Error(codes.Unimplemented, "unknown method Configure")
-	}
 	a.settings = req.GetSettings()
 	return &noryxv1.ConfigureResponse{}, nil
 }
@@ -144,9 +138,9 @@ type view struct {
 	CertificateExpiresAt               *time.Time
 	LogFileMB                          uint32 `json:"logFileMb"`
 	Info                               *struct {
-		AgentVersion, Hostname, OS, Runtime, RuntimeName, RuntimeVersion string
-		ServerTypes                                                      []string
-		Storage                                                          []struct{ Name, Path string }
+		AgentVersion, Hostname, OS, RuntimeName, RuntimeVersion string
+		ServerTypes                                             []string
+		Storage                                                 []struct{ Name, Path string }
 	}
 }
 
@@ -218,7 +212,7 @@ func TestHandler(t *testing.T) {
 	var concealed view
 	if code := serve(admin.Only([]access.Permission{access.ServersView}), "GET", "/api/nodes/n1", "", &concealed); code != http.StatusOK ||
 		concealed.Address != "" || concealed.CertificateExpiresAt != nil || concealed.Info.AgentVersion != "" || concealed.Info.Hostname != "" ||
-		concealed.Info.OS != "" || concealed.Info.Runtime != "" || concealed.Info.Storage[0].Path != "" || concealed.Info.RuntimeName != "podman" {
+		concealed.Info.OS != "" || concealed.Info.RuntimeVersion != "" || concealed.Info.Storage[0].Path != "" || concealed.Info.RuntimeName != "podman" {
 		t.Errorf("concealed n1: status %d, %+v, info %+v", code, concealed, concealed.Info)
 	}
 	if code := serve(admin.Only([]access.Permission{access.NetworksView}), "GET", "/api/nodes", "", &list); code != http.StatusOK || len(list) != 0 {
@@ -253,12 +247,7 @@ func TestHandler(t *testing.T) {
 	if a.settings.GetLogFileMb() != 20 {
 		t.Errorf("the agent applies %v", a.settings)
 	}
-	a.older = true
 	a.mu.Unlock()
-	if code := serve(admin, "PUT", "/api/nodes/n1", strings.Replace(body, `"logFileMb": 20`, `"logFileMb": 30`, 1), &updated); code != http.StatusOK ||
-		!strings.HasPrefix(updated.Warning, "The agent of the node is too old for the output of containers") {
-		t.Errorf("settings for an older agent: status %d, %+v", code, updated)
-	}
 	offline, err := nodes.Get(t.Context(), "n2")
 	if err != nil {
 		t.Fatal(err)

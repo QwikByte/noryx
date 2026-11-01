@@ -94,9 +94,10 @@ type Client struct {
 }
 
 // New returns a client for the download server and the global API at the given base URLs,
-// which keeps the newest builds for the time cache.
+// which keeps the newest builds for the time cache. Calls of the APIs get modrinth.Timeout,
+// downloads modrinth.DownloadTimeout, through their context.
 func New(api, global string, cache time.Duration) *Client {
-	return &Client{api: api, globalAPI: global, http: &http.Client{Timeout: 2 * time.Minute}, cache: cache, builds: map[string]cached{}}
+	return &Client{api: api, globalAPI: global, http: &http.Client{}, cache: cache, builds: map[string]cached{}}
 }
 
 // Latest returns the newest build of a project for the platform of the first loader
@@ -129,6 +130,8 @@ func (c *Client) latest(ctx context.Context, project string) (build, error) {
 		return known.build, nil
 	}
 	var b build
+	ctx, cancel := context.WithTimeout(ctx, modrinth.Timeout)
+	defer cancel()
 	res, err := c.do(ctx, c.api+"/projects/"+project+"/versions/latest/builds/latest")
 	if err != nil {
 		return b, err
@@ -151,6 +154,8 @@ func (c *Client) Download(ctx context.Context, f modrinth.File) ([]byte, error) 
 	if !c.OnServer(f.URL) || len(f.Hashes.SHA256) != sha256.Size*2 {
 		return nil, httpapi.Errorf(http.StatusBadGateway, "%s can't be downloaded: it isn't on GeyserMC's download server.", f.Filename)
 	}
+	ctx, cancel := context.WithTimeout(ctx, modrinth.DownloadTimeout(f.Size))
+	defer cancel()
 	res, err := c.do(ctx, f.URL)
 	if err != nil {
 		return nil, err
@@ -208,6 +213,8 @@ func (c *Client) xuid(ctx context.Context, gamertag string) (uint64, error) {
 // fromGlobal decodes the answer of the global API at path into v, whatever its status: GeyserMC
 // answers players it doesn't know with an error and a message.
 func (c *Client) fromGlobal(ctx context.Context, path string, v any) error {
+	ctx, cancel := context.WithTimeout(ctx, modrinth.Timeout)
+	defer cancel()
 	res, err := c.send(ctx, c.globalAPI+path)
 	if err != nil {
 		return err

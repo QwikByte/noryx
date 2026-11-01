@@ -11,12 +11,13 @@ import (
 const tokenPrefix = "noryx1_"
 
 // Token carries everything an agent needs to enroll securely: where the master is,
-// which CA to trust (pinned by fingerprint) and the single-use secret.
+// which CA to trust and the single-use secret.
 type Token struct {
-	Master        string `json:"m"` // host:port of the master's enrollment endpoint
-	NodeID        string `json:"n"`
-	Secret        string `json:"s"`
-	CAFingerprint string `json:"f"`
+	Master string `json:"m"` // host:port of the master's enrollment endpoint
+	NodeID string `json:"n"`
+	Secret string `json:"s"`
+	// CA is the master's CA certificate (DER), the only one the agent trusts as it enrolls.
+	CA []byte `json:"c"`
 }
 
 func (t Token) String() string {
@@ -28,11 +29,12 @@ func (t Token) String() string {
 func ParseToken(s string) (Token, error) {
 	var t Token
 	invalid := errors.New("invalid join token")
-	data, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(strings.TrimSpace(s), tokenPrefix))
-	if err != nil || json.Unmarshal(data, &t) != nil {
+	encoded, ok := strings.CutPrefix(strings.TrimSpace(s), tokenPrefix)
+	data, err := base64.RawURLEncoding.DecodeString(encoded)
+	if !ok || err != nil || json.Unmarshal(data, &t) != nil {
 		return t, invalid
 	}
-	if t.Master == "" || t.NodeID == "" || t.Secret == "" || t.CAFingerprint == "" {
+	if t.Master == "" || t.NodeID == "" || t.Secret == "" || len(t.CA) == 0 {
 		return t, invalid
 	}
 	return t, nil

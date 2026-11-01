@@ -289,8 +289,8 @@ function CreateServerForm({
       const created = await upload.run((onProgress, signal) => importServer(nodeId, server, archive, { onProgress, signal }))
       if (!created) return
       const leftOut = created.leftOut.length > 0 && t("It didn't take {{files}} from the archive.", { files: created.leftOut.join(", ") })
-      ;(created.warning ? toast.warning : toast.success)(t("Created {{name}} from {{archive}}", { name: created.name, archive: archive.name }), {
-        description: [leftOut, created.warning].filter(Boolean).join(" ") || undefined,
+      toast.success(t("Created {{name}} from {{archive}}", { name: created.name, archive: archive.name }), {
+        description: leftOut || undefined,
       })
       onClose()
       void navigate({ to: "/nodes/$nodeId/servers/$serverId", params: { nodeId, serverId: created.id } })

@@ -20,7 +20,7 @@ import (
 
 // The signature of the example in AWS's documentation of Signature Version 4.
 func TestSignature(t *testing.T) {
-	c := New(Config{Endpoint: "s3.amazonaws.com", Region: "us-east-1", Bucket: "examplebucket", AccessKey: "AKIAIOSFODNN7EXAMPLE", SecretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}, nil)
+	c := newClient(t, Config{Endpoint: "s3.amazonaws.com", Region: "us-east-1", Bucket: "examplebucket", AccessKey: "AKIAIOSFODNN7EXAMPLE", SecretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}, nil)
 	c.now = func() time.Time { return time.Date(2013, 5, 24, 0, 0, 0, 0, time.UTC) }
 	req, err := http.NewRequest(http.MethodGet, c.url("test.txt", nil).String(), nil)
 	if err != nil {
@@ -39,16 +39,64 @@ func TestSignature(t *testing.T) {
 	}
 }
 
-func client(s *s3test.Server, encrypt bool) *Client {
-	c := New(Config{Endpoint: s.Endpoint, Region: "us-east-1", Bucket: s.Bucket, AccessKey: "key", SecretKey: "secret", PathStyle: true, Encrypt: encrypt},
+func newClient(t *testing.T, cfg Config, transport http.RoundTripper) *Client {
+	t.Helper()
+	c, err := New(cfg, transport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func client(t *testing.T, s *s3test.Server, encrypt bool) *Client {
+	c := newClient(t, Config{Endpoint: s.Endpoint, Region: "us-east-1", Bucket: s.Bucket, AccessKey: "key", SecretKey: "secret", PathStyle: true, Encrypt: encrypt},
 		s.Client().Transport)
 	c.wait = 0
 	return c
 }
 
+// Requests only go to the endpoint and stay in the bucket: the client refuses endpoints and
+// buckets that could name another host, and keys that could name another bucket.
+func TestRefusesOtherTargets(t *testing.T) {
+	valid := Config{Endpoint: "s3.example.com", Region: "auto", Bucket: "backups"}
+	for _, cfg := range []Config{
+		{Endpoint: "s3.example.com/x", Bucket: "backups"},
+		{Endpoint: "user@s3.example.com", Bucket: "backups"},
+		{Endpoint: "https://s3.example.com", Bucket: "backups"},
+		{Endpoint: "s3.example.com", Bucket: "a/b"},
+		{Endpoint: "s3.example.com", Bucket: "evil.com#"},
+		{Endpoint: "", Bucket: "backups"},
+	} {
+		if _, err := New(cfg, nil); err == nil {
+			t.Errorf("New accepted endpoint %q and bucket %q", cfg.Endpoint, cfg.Bucket)
+		}
+	}
+	for _, endpoint := range []string{"s3.example.com:0", "s3.example.com:70000", "s3.example.com:", "S3.example.com"} {
+		if ValidEndpoint(endpoint) {
+			t.Errorf("ValidEndpoint(%q)", endpoint)
+		}
+	}
+	if !ValidEndpoint("127.0.0.1:9000") || !ValidEndpoint(valid.Endpoint) || !ValidBucket(valid.Bucket) {
+		t.Error("valid endpoint or bucket refused")
+	}
+	c := newClient(t, valid, roundTripper(func(r *http.Request) (*http.Response, error) {
+		t.Errorf("request to %s", r.URL)
+		return nil, errors.New("unexpected request")
+	}))
+	for _, key := range []string{"", "/a", "a/", "a//b", "../other/a", "a/./b", "a/..", "a b", strings.Repeat("a", 1025)} {
+		if _, err := c.Get(t.Context(), key); err == nil {
+			t.Errorf("Get(%q) succeeded", key)
+		}
+	}
+}
+
+type roundTripper func(*http.Request) (*http.Response, error)
+
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func TestObjects(t *testing.T) {
 	s := s3test.New(t)
-	c := client(s, true)
+	c := client(t, s, true)
 	ctx := t.Context()
 	large := make([]byte, 2*MinPartSize+5)
 	_, _ = rand.Read(large)
@@ -77,14 +125,14 @@ func TestObjects(t *testing.T) {
 	if _, err := c.Get(ctx, "copies/a.zip"); !NotFound(err) {
 		t.Fatalf("Get of a deleted object = %v", err)
 	}
-	if err := client(s, false).Delete(ctx, "copies/a.zip"); err != nil {
+	if err := client(t, s, false).Delete(ctx, "copies/a.zip"); err != nil {
 		t.Fatalf("Delete of a deleted object = %v", err)
 	}
 }
 
 func TestFailures(t *testing.T) {
 	s := s3test.New(t)
-	c := client(s, false)
+	c := client(t, s, false)
 	ctx := t.Context()
 	data := make([]byte, MinPartSize+1)
 
@@ -144,7 +192,7 @@ func TestAddressing(t *testing.T) {
 	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
 	}
-	c := New(Config{Endpoint: "example.com", Region: "auto", Bucket: "backups"}, transport)
+	c := newClient(t, Config{Endpoint: "example.com", Region: "auto", Bucket: "backups"}, transport)
 	err := c.Delete(t.Context(), "copies/a.zip")
 	var e *Error
 	if !errors.As(err, &e) || e.Status != http.StatusMovedPermanently || strings.Join(hosts, " ") != "backups.example.com/copies/a.zip" {

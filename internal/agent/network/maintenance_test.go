@@ -148,7 +148,7 @@ func TestMaintenanceOfServersAndTimers(t *testing.T) {
 	// Version 4 of the plugin lists the servers in maintenance; version 5 maps them to a mode,
 	// and keeps when its end timer ends if it is told to.
 	rt.write("config.yml", "maintenance-enabled: false\nproxied-maintenance-servers:\n  - game\n  - PaperServer1\nconfig-version: 9\n")
-	if m := get(); !m.GetServersAndTimers() || !slices.Equal(m.GetServers(), []string{"game"}) || m.GetEndsAt() != 0 {
+	if m := get(); !slices.Equal(m.GetServers(), []string{"game"}) || m.GetEndsAt() != 0 {
 		t.Fatalf("maintenance of version 4 = %v", m)
 	}
 	end := time.Now().Add(time.Hour).Unix()

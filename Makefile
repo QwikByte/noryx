@@ -12,11 +12,12 @@ build: web master agent
 web:
 	cd web && npm ci && npm run build
 
+# grpcnotrace leaves out golang.org/x/net/trace, whose debug pages nothing serves, as in releases.
 master:
-	$(GOBUILD) -tags ui -o bin/noryx-master ./cmd/noryx-master
+	$(GOBUILD) -tags ui,grpcnotrace -o bin/noryx-master ./cmd/noryx-master
 
 agent:
-	$(GOBUILD) -o bin/noryx-agent ./cmd/noryx-agent
+	$(GOBUILD) -tags grpcnotrace -o bin/noryx-agent ./cmd/noryx-agent
 
 ## generate: regenerate the gRPC code from api/**/*.proto
 generate:

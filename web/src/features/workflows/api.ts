@@ -1,5 +1,4 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
-import type { JobSettings } from "@/features/backups/api"
 import type { Schedule, TaskTarget } from "@/features/schedules/api"
 import { api } from "@/lib/api"
 import { timeZone } from "@/lib/i18n"
@@ -85,8 +84,6 @@ export interface Header {
   /** Its value is never shown again, and is used as it is. */
   secret: boolean
 }
-
-export type BackupStep = Servers & { backup: JobSettings; label?: string }
 
 export interface Definition {
   triggers: Trigger[]

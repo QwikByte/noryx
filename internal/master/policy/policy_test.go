@@ -22,7 +22,7 @@ import (
 )
 
 func TestCheck(t *testing.T) {
-	got, err := Policies{}.Check(json.RawMessage(`{"action":"restart","warnings":[1,10,5,10],"command":"op me"}`))
+	got, err := Policies{}.Check(json.RawMessage(`{"action":"restart","warnings":[1,10,5,10],"commands":["op me"]}`))
 	if want := `{"action":"restart","warnings":[10,5,1],"message":"","commands":[]}`; err != nil || string(got) != want {
 		t.Fatalf("checked settings = %s, %v; want %s", got, err, want)
 	}
@@ -33,9 +33,7 @@ func TestCheck(t *testing.T) {
 		// Only restarts go server by server.
 		{`{"action":"stop","rolling":2,"message":"  Bye in {minutes} min "}`, `{"action":"stop","warnings":[],"message":"Bye in {minutes} min","commands":[]}`},
 		{`{"action":"restart","rolling":2}`, `{"action":"restart","warnings":[],"message":"","commands":[],"rolling":2}`},
-		// A policy saved with one command gets a list of them.
-		{`{"action":"command","command":" say hi "}`, `{"action":"command","warnings":[],"message":"","commands":["say hi"]}`},
-		{`{"action":"command","commands":["say hi","save-all"]}`, `{"action":"command","warnings":[],"message":"","commands":["say hi","save-all"]}`},
+		{`{"action":"command","commands":[" say hi ","save-all"]}`, `{"action":"command","warnings":[],"message":"","commands":["say hi","save-all"]}`},
 		// Conditions warn nobody, and starts have neither conditions nor backups.
 		{`{"action":"restart","warnings":[5],"condition":"wait","wait":30}`, `{"action":"restart","warnings":[],"message":"","commands":[],"condition":"wait","wait":30}`},
 		{`{"action":"image","condition":"empty","wait":30}`, `{"action":"image","warnings":[],"message":"","commands":[],"condition":"empty"}`},
@@ -57,7 +55,7 @@ func TestCheck(t *testing.T) {
 		`{"action":"restart","rolling":-1}`,
 		`{"action":"command","commands":[]}`,
 		`{"action":"command","commands":["say hi",""]}`,
-		`{"action":"command","command":"say hi\nop attacker"}`,
+		`{"action":"command","commands":["say hi\nop attacker"]}`,
 		`{"action":"command","commands":["` + strings.Repeat("a", maxCommand+1) + `"]}`,
 		`{"action":"command","commands":` + strings.Repeat(`["x"`, 1) + strings.Repeat(`,"x"`, maxCommands) + `]}`,
 		`{"action":"restart","condition":"never"}`,

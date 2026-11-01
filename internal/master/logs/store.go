@@ -339,9 +339,15 @@ type Bucket struct {
 	Error int       `json:"error"`
 }
 
+// MaxStatsHours is how many hours Stats counts at most: a week.
+const MaxStatsHours = 7 * 24
+
 // Stats counts the entries that match the filter and the grants of ctx in each of the last
-// hours, the current one included.
+// hours, the current one included, from 1 to MaxStatsHours.
 func (s *Store) Stats(ctx context.Context, f Filter, hours int) ([]Bucket, error) {
+	if hours < 1 || hours > MaxStatsHours {
+		return nil, fmt.Errorf("can't count the entries of %d hours", hours)
+	}
 	start := time.Now().Truncate(time.Hour).Add(-time.Duration(hours-1) * time.Hour)
 	buckets := make([]Bucket, hours)
 	for i := range buckets {

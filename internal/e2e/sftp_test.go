@@ -97,7 +97,7 @@ func TestSFTP(t *testing.T) {
 	root.do("PUT", alicePath, map[string]any{"groups": []string{editors.ID}}, http.StatusNoContent, nil)
 	type apiToken struct{ id, secret string }
 	token := func(userID int64, name string, perms ...string) apiToken {
-		tk, secret, err := svc.Users.CreateToken(ctx, userID, password, "", auth.TokenInput{Name: name, Permissions: perms})
+		tk, secret, err := svc.Users.CreateToken(ctx, userID, password, "", auth.TokenInput{Name: name, Permissions: perms, ExpiresAt: time.Now().Add(time.Hour)})
 		check(t, err)
 		return apiToken{tk.ID, secret}
 	}

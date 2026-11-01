@@ -33,8 +33,6 @@ export function validateLogSearch(search: Record<string, unknown>): LogSearch {
     const ms = Date.parse(text(key) ?? "")
     return Number.isNaN(ms) ? undefined : new Date(ms).toISOString()
   }
-  // Older addresses name the start of an hour chosen in the chart.
-  const hour = time("hour")
   return {
     level: pick("level", levelNames),
     category: text("category"),
@@ -44,8 +42,8 @@ export function validateLogSearch(search: Record<string, unknown>): LogSearch {
     server: text("server"),
     search: text("search"),
     range: pick("range", Object.keys(ranges) as Range[]),
-    from: time("from") ?? hour,
-    to: time("to") ?? (hour && new Date(Date.parse(hour) + 3_600_000).toISOString()),
+    from: time("from"),
+    to: time("to"),
   }
 }
 

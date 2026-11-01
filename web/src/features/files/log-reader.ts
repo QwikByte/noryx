@@ -48,12 +48,8 @@ async function readPart(files: ServerFiles, path: string, end?: number) {
   const range = end === undefined ? `bytes=-${part}` : `bytes=${Math.max(end - part, 0)}-${end - 1}`
   const res = await fetch(contentUrl(files, path), { headers: { Range: range } })
   if (!res.ok) throw await responseError(res, t("The file could not be loaded (status {{status}}).", { status: res.status }))
-  if (res.status !== 206 && Number(res.headers.get("Content-Length")) > part) {
-    await res.body?.cancel()
-    throw new Error(t("The agent of this node can't read the end of large files yet. Update it, or download the file."))
-  }
   const bytes = new Uint8Array(await res.arrayBuffer())
-  // A whole file comes without a range, e.g. from agents of older versions.
+  // An empty file comes whole, without a range.
   const within = /^bytes (\d+)-\d+\/(\d+)$/.exec(res.headers.get("Content-Range") ?? "")
   const [, start = 0, size = bytes.length] = within?.map(Number) ?? []
   return { bytes, start, size }

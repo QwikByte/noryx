@@ -64,7 +64,6 @@ func (r *reader) seek(offset int64) error {
 		r.err = err // the stream before has ended
 		return err
 	}
-	// Agents of older versions send the whole file, from the start.
 	r.stream, r.stop, r.start, r.data, r.err = s, stop, first.GetOffset(), bytes.Clone(first.GetData()), nil
 	return nil
 }

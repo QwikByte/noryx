@@ -42,7 +42,7 @@ message GetOverlayResponse {
   // The ports the node publishes at its address in the network, and for whom.
   repeated OverlayPublished published = 6;
   // Whether the nftables table of the network is in place; unspecified unless the node is a
-  // member, and from older agents.
+  // member.
   OverlayFirewall firewall = 7;
   // What is missing or differs, if the table is incomplete.
   string firewall_problem = 8;
@@ -100,7 +100,7 @@ message OverlayPeer {
   // host:port at which it is reached; the agent resolves host names.
   string endpoint = 3;
   // The TCP ports at which the peer publishes servers or datastores for this node, the only
-  // ones TestOverlayPeer connects to. Older masters send none.
+  // ones TestOverlayPeer connects to.
   repeated uint32 ports = 4;
 }
 

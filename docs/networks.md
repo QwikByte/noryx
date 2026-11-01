@@ -53,8 +53,7 @@ restart, all of them when the forwarding changes. The proxy reloads its configur
 or renaming a server restarts it. If a node is offline, the change is saved and **Apply again** configures its servers
 later; until then, the network's page and the overview tell that its proxy may be out of date. The proxy reaches servers
 on other nodes at the host of their node's address and their port, so changing either configures the network again, as
-does restoring a backup of one of its servers. Proxies created by earlier versions are created again once, to read
-console commands.
+does restoring a backup of one of its servers.
 
 ## Copies of servers
 
@@ -139,8 +138,7 @@ panel shows when maintenance ends only if the plugin keeps its end timer over re
 (`continue-endtimer-after-restart` in its `config.yml`), and otherwise shows the change once the timer ends. **Abort a
 timer** stops the one of the network or of a server. Planning the maintenance of a single server for later needs version
 5 of the plugin, as version 4 swaps its times; update it in the proxy's **Plugins** tab. A server named `global` can't
-go into maintenance alone, as version 5 reads that name as the whole network. Agents of older versions only turn the
-maintenance of the whole network on and off.
+go into maintenance alone, as version 5 reads that name as the whole network.
 
 ## Bedrock players
 
@@ -189,8 +187,8 @@ publishes the server's port only for the proxy's node: no firewall rule and no c
 needed, and the traffic between the nodes is encrypted. Joining restarts nothing: a network shows which of its servers
 move to the private network when it is applied again, which restarts them once for their new port. Leaving applies the
 networks of the node again, which reach the servers at public ports then, and is refused while a network with legacy
-forwarding would reach servers that no firewall protects. Nodes outside, agents of older versions and kernels without
-WireGuard (it is part of Linux since 5.6; RHEL 9 has it only as an unsupported Technology Preview) work as before. The
+forwarding would reach servers that no firewall protects. Nodes outside and kernels without WireGuard (it is part of
+Linux since 5.6; RHEL 9 has it only as an unsupported Technology Preview) work as before. The
 master configures the members every 5 minutes, so those that were offline catch up, and right away after a change, e.g.
 when a node is removed or its address changes. Each node's page shows its address, endpoint, key and peers with their
 latest handshake and traffic, and rotates its key; the overview names members that had no handshake with another one for

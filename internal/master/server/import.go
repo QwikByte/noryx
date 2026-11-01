@@ -8,10 +8,6 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
-	"strings"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -88,12 +84,8 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB, MaxPlayers: req.MaxPlayers,
 		}}, archive)
 	}
-	var tooLarge *http.MaxBytesError
-	switch {
-	case errors.As(err, &tooLarge):
+	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
 		err = httpapi.Errorf(http.StatusRequestEntityTooLarge, "Archives can have up to %d GB.", maxArchive>>30)
-	case status.Code(err) == codes.Unimplemented:
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to create servers from archives.")
 	}
 	if err != nil {
 		httpapi.WriteError(w, r, err)
@@ -105,9 +97,7 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 		view
 		// LeftOut are files of the archive the server didn't get, e.g. those with secrets.
 		LeftOut []string `json:"leftOut"`
-		// Warning tells what the server didn't get from an older agent.
-		Warning string `json:"warning,omitempty"`
-	}{toView(srv), append([]string{}, res.GetLeftOut()...), strings.TrimSpace(olderAgentWarning(req.StopTimeout, req.TimeZone, srv) + " " + olderAgentAdvanced(req.advanced, srv))})
+	}{toView(srv), append([]string{}, res.GetLeftOut()...)})
 }
 
 // readImport reads the settings of an imported server from the part "server" of a request,

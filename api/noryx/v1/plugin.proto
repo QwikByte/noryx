@@ -38,7 +38,7 @@ message PluginFile {
 
 message ListPluginsRequest {
   string server_id = 1;
-  // Lists the turned-off files too, which older masters don't know.
+  // Lists the turned-off files too.
   bool include_disabled = 2;
 }
 

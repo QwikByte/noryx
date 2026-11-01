@@ -107,10 +107,7 @@ memory. While their field is empty, they follow the memory: half of it for Maria
 the system, and a quarter for PostgreSQL, which relies on that cache within the memory too, but at least the 128 MB that
 the images give them.
 
-Changing them creates the container again on the same data, like a change of memory. A datastore whose container an
-earlier version of Noryx created keeps the images' 128 MB until its container is created again, e.g. when its memory,
-connections, buffers, image or version change. The agent of an earlier version ignores them, which the panel warns
-about.
+Changing them creates the container again on the same data, like a change of memory.
 
 The agent passes them to the server as options that it builds from the numbers, `--max-connections` and
 `--innodb-buffer-pool-size` of `mariadbd` or `-c max_connections` and `-c shared_buffers` of `postgres`, and no others

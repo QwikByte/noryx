@@ -34,7 +34,7 @@ type DatastoreSpec struct {
 	// Previous is the version whose data a change of the major version left.
 	Previous string `json:"previous,omitempty"`
 	// MaxConnections and BufferMB tune the engine, each 0 for its default, like the fields of
-	// noryxv1.DatastoreParameters. Datastores of older agents have neither.
+	// noryxv1.DatastoreParameters.
 	MaxConnections uint32 `json:"maxConnections,omitempty"`
 	BufferMB       uint32 `json:"bufferMb,omitempty"`
 }
@@ -50,9 +50,9 @@ type Datastore struct {
 // DatastoreUsage is what a running datastore uses.
 type DatastoreUsage struct {
 	Usage
-	// Connections are the clients connected, without the runtime itself; -1 while the
+	// Connections are the clients connected, without the runtime itself; nil while the
 	// datastore can't tell, e.g. as it starts.
-	Connections int
+	Connections *uint32
 }
 
 // Datastores runs datastores. Each database has a user of the same name with rights on it

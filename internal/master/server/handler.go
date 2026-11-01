@@ -280,7 +280,7 @@ func toView(s *noryxv1.Server) view {
 	}
 }
 
-// stopSeconds is the stop timeout of a server in seconds; 0, as older agents send it, means the default.
+// stopSeconds is the stop timeout of a server in seconds; 0 means the default.
 func stopSeconds(seconds uint32) uint32 {
 	return cmp.Or(seconds, uint32(noryxv1.DefaultStopTimeout/time.Second))
 }
@@ -559,11 +559,9 @@ func (h *Handler) createServer(ctx context.Context, n newServer) (any, error) {
 		view
 		// PluginError tells why the plugins couldn't be installed.
 		PluginError string `json:"pluginError,omitempty"`
-		// Warning tells what the server didn't get, e.g. from an older agent.
+		// Warning tells what the server didn't get, e.g. its tags.
 		Warning string `json:"warning,omitempty"`
-	}{view: toView(res.GetServer()), Warning: olderAgentWarning(n.StopTimeout, n.TimeZone, res.GetServer())}
-	created.Warning = strings.TrimSpace(created.Warning + " " + olderAgentAdvanced(n.advanced, res.GetServer()))
-	created.Warning = strings.TrimSpace(created.Warning + " " + extraPortsWarning(len(n.ExtraPorts), res.GetServer()))
+	}{view: toView(res.GetServer())}
 	if len(n.tags) > 0 {
 		logging.Note(ctx, slog.Any("tags", n.tags))
 		if err := h.tags.Change(ctx, []tag.Server{{NodeID: n.nodeID, ServerID: id}}, n.tags, nil); err != nil {
@@ -769,9 +767,6 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 				updated.Warning = httpapi.Message(err)
 			}
 		}
-		updated.Warning = strings.TrimSpace(updated.Warning + " " + olderAgentWarning(req.StopTimeout, req.TimeZone, res.GetServer()))
-		updated.Warning = strings.TrimSpace(updated.Warning + " " + olderAgentAdvanced(req.advanced, res.GetServer()))
-		updated.Warning = strings.TrimSpace(updated.Warning + " " + extraPortsWarning(len(req.ExtraPorts), res.GetServer()))
 		return updated, nil
 	})
 }
@@ -916,15 +911,6 @@ func (h *Handler) power(action string) http.HandlerFunc {
 			})
 		})
 	}
-}
-
-// olderAgentWarning returns a warning if a node's agent answered without the stop timeout or
-// time zone it was asked to give a server, as agents of earlier versions don't know them.
-func olderAgentWarning(stopTimeout uint32, timeZone string, got *noryxv1.Server) string {
-	if stopSeconds(got.GetStopTimeoutSeconds()) == stopSeconds(stopTimeout) && got.GetTimeZone() == timeZone {
-		return ""
-	}
-	return "The agent of the node is too old for a stop timeout and a time zone, so the server keeps 60 seconds and UTC. Update the agent first, then set them in the server's settings."
 }
 
 // agent calls the agent of a node within an operation, which follows the call's progress.

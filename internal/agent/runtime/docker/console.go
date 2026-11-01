@@ -48,8 +48,6 @@ func (d *Docker) SendCommand(ctx context.Context, id, command string) (string, e
 		return "", err
 	case !c.State.Running:
 		return "", runtime.ErrNotRunning
-	case spec.Type.Proxy() && !c.Config.OpenStdin:
-		return "", runtime.ErrUnsupported // created by an older agent, until it is created again
 	case spec.Type.Proxy():
 		return "", d.command(ctx, id, spec.Type, command)
 	case spec.Type.Bedrock():
@@ -97,7 +95,7 @@ func hostOf(c container.InspectResponse) string {
 }
 
 // Reload sends the reload command of a running proxy to its console and waits for its
-// answer. A proxy created by an older agent can't read commands, so it is created again.
+// answer.
 func (d *Docker) Reload(ctx context.Context, id string) error {
 	c, spec, err := d.inspect(ctx, id)
 	if err != nil {
@@ -109,8 +107,6 @@ func (d *Docker) Reload(ctx context.Context, id string) error {
 		return runtime.ErrUnsupported
 	case !c.State.Running:
 		return runtime.ErrNotRunning
-	case !c.Config.OpenStdin:
-		return d.recreate(ctx, c, spec, true)
 	}
 	ctx, cancel := context.WithTimeout(ctx, reloadTimeout)
 	defer cancel()

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -120,3 +122,45 @@ type wrapper struct{ err error }
 
 func (w wrapper) Error() string { return "something else" }
 func (w wrapper) Unwrap() error { return w.err }
+
+// A client gets bodyTime to send the body of a JSON request; one that sends it slowly is cut
+// off, while a request whose body arrived in time keeps running after the deadline.
+func TestBodyTime(t *testing.T) {
+	defer func(d time.Duration) { bodyTime = d }(bodyTime)
+	bodyTime = 200 * time.Millisecond
+	handled := make(chan error, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var v map[string]any
+		err := ReadJSON(w, r, &v)
+		if err == nil {
+			time.Sleep(2 * bodyTime) // handling outlasts the deadline
+			err = r.Context().Err()
+		}
+		handled <- err
+	}))
+	defer srv.Close()
+
+	res, err := http.Post(srv.URL, "application/json", strings.NewReader(`{"a": 1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if err := <-handled; err != nil {
+		t.Fatalf("a body sent in time: %v", err)
+	}
+
+	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprint(conn, "POST / HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{")
+	select {
+	case err := <-handled:
+		if err == nil {
+			t.Fatal("a body that never ended was read")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a slow body held the request")
+	}
+}

@@ -172,11 +172,7 @@ function Membership({ nodeId, overlay, manage }: { nodeId: string; overlay: Node
       ) : (
         <PeerTable nodeId={nodeId} peers={overlay.peers} manage={manage} />
       )}
-      {firewall ? (
-        <PublishedPorts nodeId={nodeId} published={overlay.published} />
-      ) : (
-        <p className="text-sm text-muted-foreground">{t("Update the agent of this node to see its firewall and the ports it publishes.")}</p>
-      )}
+      <PublishedPorts nodeId={nodeId} published={overlay.published} />
     </div>
   )
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -28,19 +27,6 @@ func (f *fakeRuntime) limit() [2]uint32 {
 	return f.logLimit
 }
 
-// beforeSettings makes an agent answer like one from before the settings of nodes that agents
-// apply themselves: it reports none and can't take them.
-var beforeSettings = grpc.ChainUnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	if info.FullMethod == noryxv1.NodeService_Configure_FullMethodName {
-		return nil, status.Error(codes.Unimplemented, "unknown method Configure")
-	}
-	res, err := handler(ctx, req)
-	if info, ok := res.(*noryxv1.GetInfoResponse); ok {
-		info.Settings = nil
-	}
-	return res, err
-})
-
 // The agent of a node gets the limit of the output of containers, the space kept free and the
 // interval of measurements as they change, and again whenever it reports others. It checks
 // their bounds itself, also against the master.
@@ -48,7 +34,6 @@ func TestNodeAgentSettings(t *testing.T) {
 	t.Cleanup(func() { storage.KeepFree(storage.MinFree) })
 	m := startMaster(t)
 	a := m.startAgent(t, "node-1")
-	older := m.startAgent(t, "node-2", beforeSettings)
 	srv := m.createServer(t, a, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
 	api := apiClient{t: t, url: m.panel(t).URL}
 	path := "/api/nodes/" + a.node.ID
@@ -127,11 +112,5 @@ func TestNodeAgentSettings(t *testing.T) {
 			t.Fatalf("the agent reports %v", info.GetSettings())
 		}
 		time.Sleep(50 * time.Millisecond)
-	}
-
-	// An older agent can't take them, which the panel tells.
-	got = put("/api/nodes/"+older.node.ID, map[string]any{"name": "node-2", "address": older.node.Address, "defaultStorage": "default", "keepFreeGb": 5}, http.StatusOK)
-	if got.KeepFreeGB != 5 || !strings.Contains(got.Warning, "The agent of the node is too old") {
-		t.Fatalf("node of an older agent = %+v", got)
 	}
 }

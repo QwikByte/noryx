@@ -221,7 +221,7 @@ export interface Followed {
 /**
  * Creates a server, with the projects of Modrinth or Hangar to install on it, e.g. the plugins of a
  * template. pluginError tells why they couldn't be installed, and warning what else the server didn't
- * get, e.g. a stop timeout from an older agent; the server exists anyway.
+ * get, e.g. its tags; the server exists anyway.
  */
 export function useCreateServer() {
   const queryClient = useQueryClient()
@@ -254,7 +254,7 @@ export function useImportServer() {
     form.append("server", JSON.stringify(settings))
     form.append("archive", archive)
     try {
-      return await send<Server & { leftOut: string[]; warning?: string }>("POST", `/nodes/${nodeId}/servers/import`, form, { onProgress, signal })
+      return await send<Server & { leftOut: string[] }>("POST", `/nodes/${nodeId}/servers/import`, form, { onProgress, signal })
     } finally {
       void refreshServers(queryClient, nodeId)
     }

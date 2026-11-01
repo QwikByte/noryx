@@ -45,9 +45,8 @@ type Client struct {
 	Port    uint16       `json:"port"`
 	Address netip.Addr   `json:"address"`
 	Others  []netip.Addr `json:"others,omitempty"`
-	// Keys are the public keys of the peers at Address and Others, in this order. Older
-	// agents kept none.
-	Keys []string `json:"keys,omitempty"`
+	// Keys are the public keys of the peers at Address and Others, in this order.
+	Keys []string `json:"keys"`
 }
 
 // newClient returns the client of a port with its addresses and their keys, of which there
@@ -182,19 +181,4 @@ func (st State) peerClients(clients map[string]Client) map[string]Client {
 		}
 	}
 	return kept
-}
-
-// bindClients binds the addresses of clients that older agents kept without keys to the keys
-// of their peers in this state, which is the one these agents saved, and drops those of no
-// peer.
-func (st *State) bindClients() {
-	for id, c := range st.Clients {
-		if len(c.Keys) == 0 {
-			for _, a := range c.addresses() {
-				c.Keys = append(c.Keys, st.key(a))
-			}
-			st.Clients[id] = c
-		}
-	}
-	st.Clients = st.peerClients(st.Clients)
 }

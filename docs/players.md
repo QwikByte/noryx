@@ -77,9 +77,7 @@ once and then one every 2 seconds, so a long list fills in over a few minutes.
 Stopped servers get a change once they run again, so that a ban also reaches the servers of a network that are stopped.
 The agent keeps the waiting changes in `noryx-pending-players.json` in the server's data, also the pardons at the end of
 temporary bans, with their time. It tries them every 5 seconds once they are due; a server that doesn't answer a change
-within 15 seconds keeps it for the next try, and holds up neither the other servers of its node nor their lists. Agents
-of older versions change one player per call and know no temporary bans: a temporary ban on their servers fails with a
-note to update the agent, rather than ban for good.
+within 15 seconds keeps it for the next try, and holds up neither the other servers of its node nor their lists.
 
 ## How it works
 

@@ -26,7 +26,8 @@ service BackupService {
   // DownloadBackup sends the archive in chunks. The first message carries its size, if known.
   rpc DownloadBackup(DownloadBackupRequest) returns (stream DownloadBackupResponse);
   // ImportBackup adds a backup of a server that came from another node. The header
-  // describes it, the data that follows is its archive.
+  // describes it, the data that follows is its archive. The agent checks it and keeps it as
+  // untrusted like an uploaded backup, whatever the header tells.
   rpc ImportBackup(stream ImportBackupRequest) returns (ImportBackupResponse);
   // ImportCopy keeps a copy of a backup of a server of another node, apart from the backups
   // of the servers of this node, so that the server can be restored if its node is lost. The
@@ -40,13 +41,13 @@ service BackupService {
   // downloaded before. The header describes it, the data that follows is the archive. The
   // agent checks it like an archive of the file manager and keeps it as untrusted, so that
   // restoring it checks it again and trusts nothing it tells. Its paths are the files and
-  // folders at the top of the archive. Agents of older versions answer UNIMPLEMENTED.
+  // folders at the top of the archive.
   rpc UploadBackup(stream UploadBackupRequest) returns (UploadBackupResponse);
   // ImportMasterBackup keeps an archive of the master, with its database and certificate
   // authority, in the folder master of the backups of a storage location, apart from the
   // backups of the servers. The agent neither reads nor restores it: the master's
   // administrator does, with noryx-master restore. The header names it, the data that follows
-  // is the archive. Agents of older versions answer UNIMPLEMENTED.
+  // is the archive.
   rpc ImportMasterBackup(stream ImportMasterBackupRequest) returns (ImportMasterBackupResponse);
   // DeleteMasterBackup deletes an archive of the master that ImportMasterBackup keeps.
   rpc DeleteMasterBackup(DeleteMasterBackupRequest) returns (DeleteMasterBackupResponse);
@@ -65,7 +66,7 @@ message BackupSelection {
   // Further files or folders, relative to the data directory. Missing ones are skipped.
   repeated string paths = 5;
   // Files or folders inside the others that are left out, e.g. the tiles of a map plugin.
-  // Restoring the backup leaves them as they are. Agents of older versions archive them.
+  // Restoring the backup leaves them as they are.
   repeated string exclude = 6;
 }
 
@@ -117,14 +118,11 @@ message CreateBackupRequest {
   // Storage location for the backup; empty means the default location.
   string location = 4;
   string job_id = 5;
-  // Backups of the job to keep for the server, 0 for all. Older ones are deleted once the
-  // new backup exists. Backups made by hand, and kept ones, are never deleted this way.
-  // Ignored if retention is set, which agents of older versions ignore.
-  uint32 keep = 6;
   // Whether a server without any of the selected data, e.g. one that never started, is
   // skipped: the response has no backup then. Otherwise that is an error.
   bool skip_without_data = 7;
-  // Which backups of the job are kept, instead of keep.
+  // Which backups of the job are kept for the server; none keeps all. The others are deleted
+  // once the new backup exists. Backups made by hand, and kept ones, are never deleted this way.
   BackupRetention retention = 8;
 }
 
@@ -136,7 +134,7 @@ message RestoreBackupRequest {
   string server_id = 1;
   string backup_id = 2;
   // Files and folders of the backup to restore, relative to the data directory; empty for
-  // all it holds. Each must be in the backup. Agents of older versions restore all.
+  // all it holds. Each must be in the backup.
   repeated string paths = 3;
   // Backs up what the restore replaces first, as a backup made by hand in the storage
   // location of the restored one.

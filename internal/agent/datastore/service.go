@@ -284,7 +284,7 @@ func (s *Service) DropDatabase(ctx context.Context, req *noryxv1.DropDatabaseReq
 // datastore keeps running, and each dump is consistent in itself.
 func (s *Service) CreateDump(ctx context.Context, req *noryxv1.CreateDumpRequest) (*noryxv1.CreateDumpResponse, error) {
 	label := strings.TrimSpace(req.GetLabel())
-	retention := noryxv1.Retention(req.GetKeep(), req.GetRetention())
+	retention := req.GetRetention()
 	if err := backup.CheckDetails(label, req.GetJobId(), retention); err != nil {
 		return nil, err
 	}

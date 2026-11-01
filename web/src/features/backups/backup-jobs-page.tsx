@@ -46,7 +46,7 @@ export function BackupJobsPage() {
   const summary = (job: Task<JobSettings>) =>
     [
       !nothingSelected(job.settings.selection) && describeSelection(job.settings.selection),
-      job.settings.datastores?.length &&
+      job.settings.datastores.length > 0 &&
         t("{{count}} datastores", { count: job.settings.datastores.length, defaultValue_one: "{{count}} datastore" }),
       describeRetention(job.settings),
       job.settings.copy && copiesTo(job.settings.copy),

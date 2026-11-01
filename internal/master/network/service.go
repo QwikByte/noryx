@@ -807,8 +807,6 @@ func (s *Service) configureServers(ctx context.Context, n Network, m members, re
 	switch {
 	case err != nil:
 		return applyFailed("the proxy", err)
-	case proxy.GetBedrockPort() != n.BedrockPort: // agents of older versions don't know it
-		return applyFailed("the proxy", httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the proxy's node to let Bedrock players join."))
 	case plugins && !res.GetRestarted() && proxy.GetState() == noryxv1.ServerState_SERVER_STATE_RUNNING:
 		operation.Step(ctx, "proxy-restart")
 		if err := s.restart(ctx, []Backend{{Ref: n.Proxy, Name: "The proxy"}}); err != nil {

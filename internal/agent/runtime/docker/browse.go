@@ -268,7 +268,7 @@ func (d *Docker) Browse(ctx context.Context, id string, req *noryxv1.BrowseTable
 			return nil, fmt.Errorf("%w: %q", runtime.ErrNoColumn, name)
 		}
 	}
-	res := &noryxv1.BrowseTableResponse{SortedAndFiltered: true}
+	res := &noryxv1.BrowseTableResponse{}
 	for _, c := range columns {
 		res.Columns = append(res.Columns, &noryxv1.TableColumn{Name: c.Name, Type: c.Type, PrimaryKey: c.Key == "PRI"})
 	}

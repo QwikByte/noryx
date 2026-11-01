@@ -47,7 +47,7 @@ func TestPlacement(t *testing.T) {
 }
 
 // On Podman, the bridges of the agent's networks have names that its tables match. A network
-// with another, e.g. of an older agent, is created again while no container uses it, and
+// with another, e.g. one created by hand, is created again while no container uses it, and
 // refused while one does; Docker's networks stay as they are.
 func TestPodmanNetworks(t *testing.T) {
 	names := map[string]bool{}

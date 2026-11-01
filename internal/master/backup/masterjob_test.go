@@ -30,9 +30,13 @@ func TestMasterJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	client, err := stored.client(c.transport)
+	if err != nil {
+		t.Fatal(err)
+	}
 	others := []string{"noryx/master/notes.txt", "noryx/srvsrvsrvsrvsrvsrvsrvsrv/20261002-040000-abcdef.zip", "elsewhere/master.tar.gz"}
 	for _, key := range others {
-		if _, err := stored.client(c.transport).Put(ctx, key, strings.NewReader("not the job's"), 0); err != nil {
+		if _, err := client.Put(ctx, key, strings.NewReader("not the job's"), 0); err != nil {
 			t.Fatal(err)
 		}
 	}

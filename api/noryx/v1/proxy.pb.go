@@ -403,7 +403,7 @@ type ChangeMaintenanceRequest struct {
 	Player string `protobuf:"bytes,3,opt,name=player,proto3" json:"player,omitempty"`
 	// The game server of the network that maintenance is turned on or off for, or that a
 	// timer is about, by its name in the configuration of the proxy; empty for the whole
-	// network. Agents that don't tell servers_and_timers in Maintenance ignore it.
+	// network.
 	Server string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
 	// Minutes until a timer starts or ends maintenance, from 1 to MaxMaintenanceMinutes.
 	Minutes uint32 `protobuf:"varint,5,opt,name=minutes,proto3" json:"minutes,omitempty"`
@@ -541,12 +541,9 @@ type Maintenance struct {
 	// When the plugin ends the maintenance of the whole network, in Unix seconds, if it keeps
 	// its end timer over restarts (continue-endtimer-after-restart); 0 otherwise. The plugin
 	// keeps its other timers to itself.
-	EndsAt int64 `protobuf:"varint,5,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`
-	// The agent changes the maintenance of single servers and starts timers. Older agents
-	// ignore the fields of ChangeMaintenanceRequest for them.
-	ServersAndTimers bool `protobuf:"varint,6,opt,name=servers_and_timers,json=serversAndTimers,proto3" json:"servers_and_timers,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	EndsAt        int64 `protobuf:"varint,5,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Maintenance) Reset() {
@@ -612,13 +609,6 @@ func (x *Maintenance) GetEndsAt() int64 {
 		return x.EndsAt
 	}
 	return 0
-}
-
-func (x *Maintenance) GetServersAndTimers() bool {
-	if x != nil {
-		return x.ServersAndTimers
-	}
-	return false
 }
 
 type MaintenancePlayer struct {
@@ -708,14 +698,13 @@ const file_noryx_v1_proxy_proto_rawDesc = "" +
 	"\aminutes\x18\x05 \x01(\rR\aminutes\x12)\n" +
 	"\x10duration_minutes\x18\x06 \x01(\rR\x0fdurationMinutes\"T\n" +
 	"\x19ChangeMaintenanceResponse\x127\n" +
-	"\vmaintenance\x18\x01 \x01(\v2\x15.noryx.v1.MaintenanceR\vmaintenance\"\xdd\x01\n" +
+	"\vmaintenance\x18\x01 \x01(\v2\x15.noryx.v1.MaintenanceR\vmaintenance\"\xaf\x01\n" +
 	"\vMaintenance\x12\x1c\n" +
 	"\tinstalled\x18\x01 \x01(\bR\tinstalled\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x125\n" +
 	"\aplayers\x18\x03 \x03(\v2\x1b.noryx.v1.MaintenancePlayerR\aplayers\x12\x18\n" +
 	"\aservers\x18\x04 \x03(\tR\aservers\x12\x17\n" +
-	"\aends_at\x18\x05 \x01(\x03R\x06endsAt\x12,\n" +
-	"\x12servers_and_timers\x18\x06 \x01(\bR\x10serversAndTimers\";\n" +
+	"\aends_at\x18\x05 \x01(\x03R\x06endsAt\";\n" +
 	"\x11MaintenancePlayer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid*\xb4\x02\n" +

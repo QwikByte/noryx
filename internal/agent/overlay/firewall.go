@@ -134,10 +134,8 @@ func checkFirewall(st State) error {
 		if len(comments) != len(want.rules) {
 			return fmt.Errorf("the chain %s has %d rules instead of %d", want.name, len(comments), len(want.rules))
 		}
-		// Older agents wrote no comments; they rewrite the table when the master configures them.
-		older := !slices.ContainsFunc(comments, func(c string) bool { return c != "" })
 		for j, r := range want.rules {
-			if comments[j] != r.comment && !older {
+			if comments[j] != r.comment {
 				return fmt.Errorf("the chain %s lacks the rule %q", want.name, r.comment)
 			}
 		}

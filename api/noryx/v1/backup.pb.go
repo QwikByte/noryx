@@ -35,7 +35,7 @@ type BackupSelection struct {
 	// Further files or folders, relative to the data directory. Missing ones are skipped.
 	Paths []string `protobuf:"bytes,5,rep,name=paths,proto3" json:"paths,omitempty"`
 	// Files or folders inside the others that are left out, e.g. the tiles of a map plugin.
-	// Restoring the backup leaves them as they are. Agents of older versions archive them.
+	// Restoring the backup leaves them as they are.
 	Exclude       []string `protobuf:"bytes,6,rep,name=exclude,proto3" json:"exclude,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -413,14 +413,11 @@ type CreateBackupRequest struct {
 	// Storage location for the backup; empty means the default location.
 	Location string `protobuf:"bytes,4,opt,name=location,proto3" json:"location,omitempty"`
 	JobId    string `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Backups of the job to keep for the server, 0 for all. Older ones are deleted once the
-	// new backup exists. Backups made by hand, and kept ones, are never deleted this way.
-	// Ignored if retention is set, which agents of older versions ignore.
-	Keep uint32 `protobuf:"varint,6,opt,name=keep,proto3" json:"keep,omitempty"`
 	// Whether a server without any of the selected data, e.g. one that never started, is
 	// skipped: the response has no backup then. Otherwise that is an error.
 	SkipWithoutData bool `protobuf:"varint,7,opt,name=skip_without_data,json=skipWithoutData,proto3" json:"skip_without_data,omitempty"`
-	// Which backups of the job are kept, instead of keep.
+	// Which backups of the job are kept for the server; none keeps all. The others are deleted
+	// once the new backup exists. Backups made by hand, and kept ones, are never deleted this way.
 	Retention     *BackupRetention `protobuf:"bytes,8,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -491,13 +488,6 @@ func (x *CreateBackupRequest) GetJobId() string {
 	return ""
 }
 
-func (x *CreateBackupRequest) GetKeep() uint32 {
-	if x != nil {
-		return x.Keep
-	}
-	return 0
-}
-
 func (x *CreateBackupRequest) GetSkipWithoutData() bool {
 	if x != nil {
 		return x.SkipWithoutData
@@ -561,7 +551,7 @@ type RestoreBackupRequest struct {
 	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	BackupId string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
 	// Files and folders of the backup to restore, relative to the data directory; empty for
-	// all it holds. Each must be in the backup. Agents of older versions restore all.
+	// all it holds. Each must be in the backup.
 	Paths []string `protobuf:"bytes,3,rep,name=paths,proto3" json:"paths,omitempty"`
 	// Backs up what the restore replaces first, as a backup made by hand in the storage
 	// location of the restored one.
@@ -2098,14 +2088,13 @@ const file_noryx_v1_backup_proto_rawDesc = "" +
 	"\x12ListBackupsRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"A\n" +
 	"\x13ListBackupsResponse\x12*\n" +
-	"\abackups\x18\x01 \x03(\v2\x10.noryx.v1.BackupR\abackups\"\xad\x02\n" +
+	"\abackups\x18\x01 \x03(\v2\x10.noryx.v1.BackupR\abackups\"\x99\x02\n" +
 	"\x13CreateBackupRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x127\n" +
 	"\tselection\x18\x03 \x01(\v2\x19.noryx.v1.BackupSelectionR\tselection\x12\x1a\n" +
 	"\blocation\x18\x04 \x01(\tR\blocation\x12\x15\n" +
-	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12\x12\n" +
-	"\x04keep\x18\x06 \x01(\rR\x04keep\x12*\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12*\n" +
 	"\x11skip_without_data\x18\a \x01(\bR\x0fskipWithoutData\x127\n" +
 	"\tretention\x18\b \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\"@\n" +
 	"\x14CreateBackupResponse\x12(\n" +

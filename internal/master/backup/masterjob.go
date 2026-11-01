@@ -178,9 +178,6 @@ func (j MasterJob) put(ctx context.Context, p place, name string, r io.Reader) (
 		func(data []byte) *noryxv1.ImportMasterBackupRequest {
 			return &noryxv1.ImportMasterBackupRequest{Content: &noryxv1.ImportMasterBackupRequest_Data{Data: data}}
 		}, r, func(int64) {})
-	if status.Code(err) == codes.Unimplemented {
-		return 0, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of %s to keep backups of the master.", p.name)
-	}
 	return res.GetSize(), err
 }
 

@@ -83,8 +83,6 @@ type View struct {
 	Problem string   `json:"problem,omitempty"`
 	// Endpoints are where the servers of the network reach it.
 	Endpoints []Endpoint `json:"endpoints"`
-	// Warning tells what a creation or change left out, e.g. on an agent of an older version.
-	Warning string `json:"warning,omitempty"`
 }
 
 // Endpoint is where servers reach a datastore: those on its node by the name of its
@@ -275,9 +273,6 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 		return View{}, httpapi.Errorf(http.StatusConflict, "A network has at most %d datastores.", noryxv1.MaxNetworkDatastores)
 	}
 	res, err := s.ask(ctx, n.ID)
-	if status.Code(err) == codes.Unimplemented {
-		return View{}, httpapi.Errorf(http.StatusNotImplemented, "Update the agent of %s to run datastores.", n.Name)
-	}
 	if err != nil {
 		return View{}, err
 	}
@@ -304,22 +299,14 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 		return View{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
-	var created *noryxv1.Datastore
 	err = s.agent(ctx, ds.NodeID, func(ctx context.Context, c noryxv1.DatastoreServiceClient) error {
-		res, err := c.CreateDatastore(ctx, &noryxv1.CreateDatastoreRequest{
+		_, err := c.CreateDatastore(ctx, &noryxv1.CreateDatastoreRequest{
 			Id: ds.ID, Engine: engine, Version: ds.Version, MemoryMb: ds.MemoryMB, CpuMillis: ds.CPUMillis, Storage: ds.Storage, Parameters: ds.parameters(),
 		})
-		created = res.GetDatastore()
 		return err
 	})
 	if err != nil {
 		return View{}, undone(err, s.store.delete(ctx, ds.ID))
-	}
-	ds, warning := taken(ds, created)
-	if warning != "" {
-		if err := s.store.update(ctx, ds); err != nil {
-			return View{}, err
-		}
 	}
 	operation.Step(ctx, "start")
 	if err := s.call(ctx, ds.NodeID, func(ctx context.Context, c noryxv1.DatastoreServiceClient) error {
@@ -332,19 +319,7 @@ func (s *Service) Create(ctx context.Context, networkID string, in Input) (View,
 	if err := s.networks.Configure(ctx, networkID); err != nil {
 		return View{}, err
 	}
-	v, err := s.one(ctx, ds.ID)
-	v.Warning = warning
-	return v, err
-}
-
-// taken returns a datastore with the parameters that its agent took: none if the agent is of an
-// earlier version, which doesn't know them, with a warning if it was asked for some.
-func taken(ds Datastore, got *noryxv1.Datastore) (Datastore, string) {
-	if got.GetParameters() != nil || ds.MaxConnections == 0 && ds.BufferMB == 0 {
-		return ds, ""
-	}
-	ds.MaxConnections, ds.BufferMB = 0, 0
-	return ds, "The agent of the node is too old for the connections and buffers of datastores, so the datastore keeps the defaults of its image. Update the agent first, then set them in the datastore's settings."
+	return s.one(ctx, ds.ID)
 }
 
 // one returns a datastore as its agent reports it.
@@ -435,25 +410,20 @@ func (s *Service) Update(ctx context.Context, id string, c Change) (View, error)
 		return View{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
-	var updated *noryxv1.Datastore
 	err = s.agent(ctx, ds.NodeID, func(ctx context.Context, client noryxv1.DatastoreServiceClient) error {
-		res, err := client.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{
+		_, err := client.UpdateDatastore(ctx, &noryxv1.UpdateDatastoreRequest{
 			Id: ds.ID, MemoryMb: next.MemoryMB, CpuMillis: next.CPUMillis, UpdateImage: c.UpdateImage, Version: c.Version, RemovePrevious: c.RemovePrevious,
 			Parameters: next.parameters(),
 		})
-		updated = res.GetDatastore()
 		return err
 	})
 	if err != nil {
 		return View{}, err
 	}
-	next, warning := taken(next, updated)
 	if err := s.store.update(ctx, next); err != nil {
 		return View{}, err
 	}
-	v, err := s.one(ctx, id)
-	v.Warning = warning
-	return v, err
+	return s.one(ctx, id)
 }
 
 // Start starts a datastore, or stops it.

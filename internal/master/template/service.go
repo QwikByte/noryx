@@ -385,9 +385,7 @@ func scan(row database.Scanner) (Template, error) {
 		return t, err
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
-	t.StopTimeout = stopSeconds(t.StopTimeout) // templates saved before they had one
 	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
-	t.advancedDefaults()
 	return t, nil
 }
 
@@ -396,8 +394,8 @@ func stopSeconds(seconds uint32) uint32 {
 	return cmp.Or(seconds, uint32(noryxv1.DefaultStopTimeout/time.Second))
 }
 
-// advancedDefaults gives the advanced settings their defaults where they have none, e.g. as the
-// template was saved before it had them. Proxies keep the start period of their image.
+// advancedDefaults gives the advanced settings their defaults where they are 0. Proxies keep the
+// start period of their image.
 func (s *Settings) advancedDefaults() {
 	if noryxv1.ParseServerType(s.Type).Proxy() {
 		s.HealthStart = 0

@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PlayerService_GetPlayerLists_FullMethodName = "/noryx.v1.PlayerService/GetPlayerLists"
-	PlayerService_ChangePlayer_FullMethodName   = "/noryx.v1.PlayerService/ChangePlayer"
 	PlayerService_ChangePlayers_FullMethodName  = "/noryx.v1.PlayerService/ChangePlayers"
 )
 
@@ -34,11 +33,9 @@ type PlayerServiceClient interface {
 	// GetPlayerLists returns who is banned, whitelisted and operator on a game server, as its
 	// files tell, and the changes that wait for it to run.
 	GetPlayerLists(ctx context.Context, in *GetPlayerListsRequest, opts ...grpc.CallOption) (*GetPlayerListsResponse, error)
-	// ChangePlayer runs the command of a change on a running game server. A server that
-	// doesn't run runs it once it does; only a kick fails then.
-	ChangePlayer(ctx context.Context, in *ChangePlayerRequest, opts ...grpc.CallOption) (*ChangePlayerResponse, error)
-	// ChangePlayers makes changes one after the other, e.g. bans several players, each like
-	// ChangePlayer, and tells how each ended. Agents without it know no temporary bans.
+	// ChangePlayers makes changes one after the other, e.g. bans several players, and tells how
+	// each ended. A running game server runs the command of a change at once; one that doesn't
+	// run runs it once it does, and only a kick fails then.
 	ChangePlayers(ctx context.Context, in *ChangePlayersRequest, opts ...grpc.CallOption) (*ChangePlayersResponse, error)
 }
 
@@ -54,16 +51,6 @@ func (c *playerServiceClient) GetPlayerLists(ctx context.Context, in *GetPlayerL
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlayerListsResponse)
 	err := c.cc.Invoke(ctx, PlayerService_GetPlayerLists_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *playerServiceClient) ChangePlayer(ctx context.Context, in *ChangePlayerRequest, opts ...grpc.CallOption) (*ChangePlayerResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ChangePlayerResponse)
-	err := c.cc.Invoke(ctx, PlayerService_ChangePlayer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +77,9 @@ type PlayerServiceServer interface {
 	// GetPlayerLists returns who is banned, whitelisted and operator on a game server, as its
 	// files tell, and the changes that wait for it to run.
 	GetPlayerLists(context.Context, *GetPlayerListsRequest) (*GetPlayerListsResponse, error)
-	// ChangePlayer runs the command of a change on a running game server. A server that
-	// doesn't run runs it once it does; only a kick fails then.
-	ChangePlayer(context.Context, *ChangePlayerRequest) (*ChangePlayerResponse, error)
-	// ChangePlayers makes changes one after the other, e.g. bans several players, each like
-	// ChangePlayer, and tells how each ended. Agents without it know no temporary bans.
+	// ChangePlayers makes changes one after the other, e.g. bans several players, and tells how
+	// each ended. A running game server runs the command of a change at once; one that doesn't
+	// run runs it once it does, and only a kick fails then.
 	ChangePlayers(context.Context, *ChangePlayersRequest) (*ChangePlayersResponse, error)
 	mustEmbedUnimplementedPlayerServiceServer()
 }
@@ -108,9 +93,6 @@ type UnimplementedPlayerServiceServer struct{}
 
 func (UnimplementedPlayerServiceServer) GetPlayerLists(context.Context, *GetPlayerListsRequest) (*GetPlayerListsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlayerLists not implemented")
-}
-func (UnimplementedPlayerServiceServer) ChangePlayer(context.Context, *ChangePlayerRequest) (*ChangePlayerResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ChangePlayer not implemented")
 }
 func (UnimplementedPlayerServiceServer) ChangePlayers(context.Context, *ChangePlayersRequest) (*ChangePlayersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangePlayers not implemented")
@@ -154,24 +136,6 @@ func _PlayerService_GetPlayerLists_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PlayerService_ChangePlayer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangePlayerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PlayerServiceServer).ChangePlayer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PlayerService_ChangePlayer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PlayerServiceServer).ChangePlayer(ctx, req.(*ChangePlayerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _PlayerService_ChangePlayers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ChangePlayersRequest)
 	if err := dec(in); err != nil {
@@ -200,10 +164,6 @@ var PlayerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlayerLists",
 			Handler:    _PlayerService_GetPlayerLists_Handler,
-		},
-		{
-			MethodName: "ChangePlayer",
-			Handler:    _PlayerService_ChangePlayer_Handler,
 		},
 		{
 			MethodName: "ChangePlayers",

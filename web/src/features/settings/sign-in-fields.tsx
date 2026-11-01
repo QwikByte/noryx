@@ -86,7 +86,7 @@ export function SignInFields({ value, onChange, errorAt }: { value: Limits; onCh
           checked={tokens}
           onCheckedChange={(on) => {
             setTokens(on)
-            onChange({ maxTokenDays: on ? 90 : 0 })
+            onChange({ maxTokenDays: on ? 365 : 0 })
           }}
         />
         <FieldContent>

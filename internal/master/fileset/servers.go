@@ -3,7 +3,6 @@ package fileset
 import (
 	"cmp"
 	"context"
-	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -54,8 +53,7 @@ type survey struct {
 	nodes    map[string]string // names by ID
 	servers  map[tag.Server]*noryxv1.Server
 	applied  map[tag.Server][]*noryxv1.AppliedFileSet
-	agents   map[string]*noryxv1.ListFileSetsResponse // what the agents told, by node
-	down     map[string]error                         // nodes that couldn't be asked
+	down     map[string]error // nodes that couldn't be asked
 	tags     map[tag.Server][]string
 	networks []network.Network
 	reach    datastore.Connections
@@ -65,7 +63,7 @@ type survey struct {
 func (s *Service) survey(ctx context.Context) (*survey, error) {
 	sv := &survey{
 		nodes: map[string]string{}, servers: map[tag.Server]*noryxv1.Server{}, applied: map[tag.Server][]*noryxv1.AppliedFileSet{},
-		agents: map[string]*noryxv1.ListFileSetsResponse{}, down: map[string]error{},
+		down: map[string]error{},
 	}
 	nodes, err := s.nodes.List(ctx)
 	if err == nil {
@@ -95,7 +93,6 @@ func (s *Service) survey(ctx context.Context) (*survey, error) {
 			for _, srv := range servers {
 				sv.servers[tag.Server{NodeID: n.ID, ServerID: srv.GetId()}] = srv
 			}
-			sv.agents[n.ID] = sets
 			for _, srv := range sets.GetServers() {
 				sv.applied[tag.Server{NodeID: n.ID, ServerID: srv.GetServerId()}] = srv.GetSets()
 			}
@@ -196,19 +193,6 @@ func (sv *survey) member(ref tag.Server) member {
 	return m
 }
 
-// unable returns why the agent of a node can't write a set as it is for a server, or nil:
-// older agents know neither binary files nor the passwords of databases.
-func (sv *survey) unable(nodeID string, r rendered) error {
-	agent := sv.agents[nodeID]
-	switch {
-	case slices.ContainsFunc(r.files, func(f *noryxv1.FileSetFile) bool { return len(f.GetData()) > 0 }) && !agent.GetBinaryFiles():
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of %s to put binary files of sets on its servers.", sv.nodes[nodeID])
-	case r.passwords() && !agent.GetDatabasePasswords():
-		return httpapi.Errorf(http.StatusNotImplemented, "Update the agent of %s to put passwords of databases on its servers.", sv.nodes[nodeID])
-	}
-	return nil
-}
-
 func compareServers(a, b tag.Server) int {
 	return cmp.Or(cmp.Compare(a.NodeID, b.NodeID), cmp.Compare(a.ServerID, b.ServerID))
 }
@@ -260,9 +244,6 @@ func (sv *survey) status(set Set, values map[string]string) []ServerStatus {
 			}
 		}
 		r, err := render(set, set.Files, values, sv.member(ref))
-		if err == nil && sv.down[ref.NodeID] == nil {
-			err = sv.unable(ref.NodeID, r)
-		}
 		if err != nil {
 			st.Problem = httpapi.Message(err)
 		}

@@ -9,8 +9,8 @@ export function useNetworkUsage(networks: Network[] = []) {
 
 /**
  * The players online in a network: those on its servers, as the Players page counts them, or
- * else those its proxy counts, e.g. as agents of older versions can't count the players of
- * servers behind a proxy. BungeeCord doesn't answer the panel's status requests.
+ * else those its proxy counts, e.g. while none of its servers could be counted. BungeeCord
+ * doesn't answer the panel's status requests.
  */
 export function playersOnline(network: Network, usage: (ref: ServerRef) => ServerUsage | undefined) {
   const counts = network.backends.map((b) => usage(b)?.players?.online)

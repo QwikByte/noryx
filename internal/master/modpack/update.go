@@ -26,8 +26,6 @@ import (
 // creating the server's container again.
 const updateTimeout = 3 * time.Hour
 
-var errOlderAgent = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of the node to update the modpacks of its servers.")
-
 // defaultBackup is what an update backs up unless the request chooses: the worlds, plugins
 // and mods and the configuration, as the panel suggests, in the default storage location.
 var defaultBackup = backup.JobSettings{Selection: backup.Selection{Worlds: true, Plugins: true, Config: true}}
@@ -66,7 +64,7 @@ func (s *Service) prepare(ctx context.Context, nodeID, serverID, version string,
 	case err != nil:
 		return update{}, err
 	case !ok:
-		return update{}, httpapi.Errorf(http.StatusNotFound, "The server wasn't created from a modpack, or before Noryx remembered modpacks.")
+		return update{}, httpapi.Errorf(http.StatusNotFound, "The server wasn't created from a modpack.")
 	case !modrinth.ValidProjectID(version):
 		return update{}, httpapi.Errorf(http.StatusBadRequest, "Choose a version of the modpack.")
 	case version == from.version:
@@ -316,9 +314,6 @@ func hashes(ctx context.Context, c noryxv1.FileServiceClient, serverID string, p
 	all := map[string]string{}
 	for chunk := range slices.Chunk(paths, noryxv1.MaxHashPaths) {
 		res, err := c.HashFiles(ctx, &noryxv1.HashFilesRequest{ServerId: serverID, Paths: chunk})
-		if status.Code(err) == codes.Unimplemented {
-			return nil, errOlderAgent
-		}
 		if err != nil {
 			return nil, err
 		}

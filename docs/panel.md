@@ -160,7 +160,7 @@ button next to the warnings. The master runs them in the background:
 an answer comes right away if the action ends within a second, otherwise `202 Accepted` with the operation, which
 `GET /api/operations/{id}` follows, so that neither a closed browser nor a proxy in front of the master cuts it off. The
 master can't restart while one runs. Agents tell the progress of their part, e.g. the bytes of a download, through
-`ProgressService`; agents of older versions only let the panel show the steps.
+`ProgressService`.
 
 Operations whose steps can stop safely show **Cancel** in their dialog, notification and list: creating and copying
 servers, backing up, installing plugins, applying file sets, updating a modpack until the server stops for it, and the

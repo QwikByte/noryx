@@ -105,12 +105,12 @@ function JobForm({
       error={save.error}
       onSubmit={(input) => save.mutate(input, { onSuccess: onSaved })}
       // A job that only backs up datastores needs no servers.
-      targetsOptional={(settings) => (settings.datastores?.length ?? 0) > 0}
+      targetsOptional={(settings) => settings.datastores.length > 0}
     >
       {(settings, set) => (
         <FormSection title={t("Backups")}>
           <SelectionField value={settings.selection} onChange={(selection) => set({ selection })} />
-          <DatastoresField value={settings.datastores ?? []} onChange={(datastores) => set({ datastores })} />
+          <DatastoresField value={settings.datastores} onChange={(datastores) => set({ datastores })} />
           <LocationField locations={locations} value={settings.location} onChange={(location) => set({ location })} />
           <RetentionField value={settings} onChange={set} />
           <CopyField value={settings.copy} onChange={(copy) => set({ copy })} />

@@ -77,7 +77,7 @@ func (s *Service) ListBackups(ctx context.Context, req *noryxv1.ListBackupsReque
 
 func (s *Service) CreateBackup(ctx context.Context, req *noryxv1.CreateBackupRequest) (*noryxv1.CreateBackupResponse, error) {
 	label := strings.TrimSpace(req.GetLabel())
-	retention := noryxv1.Retention(req.GetKeep(), req.GetRetention())
+	retention := req.GetRetention()
 	if err := CheckDetails(label, req.GetJobId(), retention); err != nil {
 		return nil, err
 	}
@@ -556,7 +556,7 @@ func uploadedPaths(f *os.File) ([]string, error) {
 
 // importedDetails validates a backup from another node like those made here.
 func importedDetails(b *noryxv1.Backup) (Details, error) {
-	d := Details{Label: b.GetLabel(), Created: time.Unix(b.GetCreatedUnix(), 0), JobID: b.GetJobId(), Kept: b.GetKept(), Untrusted: b.GetUntrusted()}
+	d := Details{Label: b.GetLabel(), Created: time.Unix(b.GetCreatedUnix(), 0), JobID: b.GetJobId(), Kept: b.GetKept()}
 	for _, p := range b.GetPaths() {
 		name, ok := datadir.Name(p)
 		if !ok {

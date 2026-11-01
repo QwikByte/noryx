@@ -43,8 +43,7 @@ const (
 	ServerType_SERVER_TYPE_QUILT ServerType = 12
 	// Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
 	// without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
-	// then play over UDP ports of their own; see max_players. Agents of older versions refuse it
-	// as unknown.
+	// then play over UDP ports of their own; see max_players.
 	ServerType_SERVER_TYPE_BEDROCK ServerType = 13
 )
 
@@ -323,25 +322,23 @@ type Server struct {
 	// running server.
 	Unhealthy bool `protobuf:"varint,20,opt,name=unhealthy,proto3" json:"unhealthy,omitempty"`
 	// Seconds the server gets to stop gracefully, e.g. to save its worlds, before it is killed; 0
-	// for the default of 60, as older agents report it.
+	// for the default of 60.
 	StopTimeoutSeconds uint32 `protobuf:"varint,21,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin"; empty for UTC.
 	TimeZone string `protobuf:"bytes,22,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	// Ports of plugins that the node publishes, e.g. of a web map; agents of older versions have none.
+	// Ports of plugins that the node publishes, e.g. of a web map.
 	ExtraPorts []*ExtraPort `protobuf:"bytes,23,rep,name=extra_ports,json=extraPorts,proto3" json:"extra_ports,omitempty"`
 	// Minutes a game server gets to start before its failed health checks count, e.g. as a large
-	// modpack loads; 0 for the default of 2, as older agents report it.
+	// modpack loads; 0 for the default of 2.
 	HealthStartMinutes uint32 `protobuf:"varint,24,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
-	// Crashes in a row after which the agent stops the server; 0 for the default of 5, as older
-	// agents report it.
+	// Crashes in a row after which the agent stops the server; 0 for the default of 5.
 	CrashLimit uint32 `protobuf:"varint,25,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
 	// Minutes a run of the server must last to end a row of crashes; 0 for the default of 10.
 	StableAfterMinutes uint32 `protobuf:"varint,26,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
 	// Minutes after which the agent restarts a running server that stays unhealthy, which counts as
 	// a crash; 0 for never.
 	UnhealthyRestartMinutes uint32 `protobuf:"varint,27,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
-	// Processes and threads the server's container may run; 0 for the default of 1024, as older
-	// agents report it.
+	// Processes and threads the server's container may run; 0 for the default of 1024.
 	ProcessLimit uint32 `protobuf:"varint,28,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
 	// Initial heap in MB, below memory_mb; 0 for the same as memory_mb.
 	InitMemoryMb uint32 `protobuf:"varint,29,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
@@ -1267,32 +1264,31 @@ type UpdateServerRequest struct {
 	JvmOptions    []string               `protobuf:"bytes,9,rep,name=jvm_options,json=jvmOptions,proto3" json:"jvm_options,omitempty"`
 	CpuMillis     uint32                 `protobuf:"varint,10,opt,name=cpu_millis,json=cpuMillis,proto3" json:"cpu_millis,omitempty"`
 	LoaderVersion string                 `protobuf:"bytes,11,opt,name=loader_version,json=loaderVersion,proto3" json:"loader_version,omitempty"`
-	// Seconds the server gets to stop gracefully, from 30 to 600; 0, as older masters send it,
-	// means 60.
+	// Seconds the server gets to stop gracefully, from 30 to 600; 0 means 60.
 	StopTimeoutSeconds uint32 `protobuf:"varint,12,opt,name=stop_timeout_seconds,json=stopTimeoutSeconds,proto3" json:"stop_timeout_seconds,omitempty"`
 	// IANA time zone of the server, e.g. "Europe/Berlin", which its container gets as TZ; empty
 	// for UTC.
 	TimeZone string `protobuf:"bytes,13,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	// Up to 5 ports of plugins to publish; changing them creates the container again.
 	ExtraPorts []*ExtraPort `protobuf:"bytes,14,rep,name=extra_ports,json=extraPorts,proto3" json:"extra_ports,omitempty"`
-	// Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0,
-	// as older masters send it, means 2. Proxies keep the start period of their image.
+	// Minutes a game server gets to start before its failed health checks count, from 2 to 30; 0
+	// means 2. Proxies keep the start period of their image.
 	HealthStartMinutes uint32 `protobuf:"varint,15,opt,name=health_start_minutes,json=healthStartMinutes,proto3" json:"health_start_minutes,omitempty"`
 	// Crashes in a row, each within stable_after_minutes of its start, after which the agent stops
-	// the server, from 1 to 20; 0, as older masters send it, means 5.
+	// the server, from 1 to 20; 0 means 5.
 	CrashLimit uint32 `protobuf:"varint,16,opt,name=crash_limit,json=crashLimit,proto3" json:"crash_limit,omitempty"`
-	// Minutes a run must last to end a row of crashes, from 1 to 120; 0, as older masters send it,
-	// means 10. For a restart of an unhealthy server, the run is how long it was healthy.
+	// Minutes a run must last to end a row of crashes, from 1 to 120; 0 means 10. For a restart of
+	// an unhealthy server, the run is how long it was healthy.
 	StableAfterMinutes uint32 `protobuf:"varint,17,opt,name=stable_after_minutes,json=stableAfterMinutes,proto3" json:"stable_after_minutes,omitempty"`
 	// Minutes, from 1 to 60, after which the agent restarts a running server whose health check
 	// keeps failing. It counts as a crash, so a server that keeps hanging stops after crash_limit
-	// of them. 0, as older masters send it, for never.
+	// of them. 0 for never.
 	UnhealthyRestartMinutes uint32 `protobuf:"varint,18,opt,name=unhealthy_restart_minutes,json=unhealthyRestartMinutes,proto3" json:"unhealthy_restart_minutes,omitempty"`
-	// Processes and threads the server's container may run, from 1024 to 8192; 0, as older masters
-	// send it, means 1024. The limit keeps a server from exhausting the node, e.g. with a fork bomb.
+	// Processes and threads the server's container may run, from 1024 to 8192; 0 means 1024. The
+	// limit keeps a server from exhausting the node, e.g. with a fork bomb.
 	ProcessLimit uint32 `protobuf:"varint,19,opt,name=process_limit,json=processLimit,proto3" json:"process_limit,omitempty"`
 	// Initial heap in MB, from 512 to memory_mb, without Aikar's flags, which want both the same;
-	// 0, as older masters send it, for the same as memory_mb.
+	// 0 for the same as memory_mb.
 	InitMemoryMb uint32 `protobuf:"varint,20,opt,name=init_memory_mb,json=initMemoryMb,proto3" json:"init_memory_mb,omitempty"`
 	// How many players a Bedrock server lets join at once, from 1 to 100; 0 for 10. Each plays
 	// over a UDP port of their own, which the node publishes: the server's port and the ones
@@ -1949,11 +1945,10 @@ type ConfigureNetworkRequest struct {
 	// For a backend: its proxy runs on the same node and reaches it over a Docker network,
 	// so its port isn't published.
 	ProxyOnNode bool `protobuf:"varint,4,opt,name=proxy_on_node,json=proxyOnNode,proto3" json:"proxy_on_node,omitempty"`
-	// How the proxy forwards players to its backends. Unspecified means modern forwarding
-	// if a secret is set, and otherwise FORWARDING_NONE, as older masters sent it.
+	// How the proxy forwards players to its backends; FORWARDING_NONE outside of a network. The
+	// agent refuses FORWARDING_UNSPECIFIED.
 	Forwarding Forwarding `protobuf:"varint,5,opt,name=forwarding,proto3,enum=noryx.v1.Forwarding" json:"forwarding,omitempty"`
-	// For a proxy: the backends players join and fall back to, in this order. Empty means
-	// the first backend, as older masters sent it.
+	// For a proxy: the backends players join and fall back to, in this order.
 	Try []string `protobuf:"bytes,6,rep,name=try,proto3" json:"try,omitempty"`
 	// For a proxy: the backends players join when they connect through a host name.
 	ForcedHosts []*ForcedHost `protobuf:"bytes,7,rep,name=forced_hosts,json=forcedHosts,proto3" json:"forced_hosts,omitempty"`
@@ -1972,7 +1967,7 @@ type ConfigureNetworkRequest struct {
 	Datastores []string `protobuf:"bytes,11,rep,name=datastores,proto3" json:"datastores,omitempty"`
 	// The public key of the proxy's node in the private network. The node publishes the port
 	// only for its peer at overlay_client with this key, and closes it once that address has
-	// another key. Older masters send none: then the key the peer has now.
+	// another key.
 	OverlayClientKey string `protobuf:"bytes,12,opt,name=overlay_client_key,json=overlayClientKey,proto3" json:"overlay_client_key,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache

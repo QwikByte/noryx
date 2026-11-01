@@ -57,7 +57,7 @@ func (p RestartPolicy) Slug() string {
 }
 
 // Slug returns the short lower-case name, e.g. "in_place" for OVERLAY_FIREWALL_IN_PLACE, or
-// "" if older agents didn't tell it.
+// "" if the agent didn't tell it, as the node is no member.
 func (f OverlayFirewall) Slug() string {
 	if f == OverlayFirewall_OVERLAY_FIREWALL_UNSPECIFIED {
 		return ""

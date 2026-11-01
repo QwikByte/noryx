@@ -17,6 +17,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +31,28 @@ const (
 	maxAnswer   = 64 << 10 // bytes read of an answer other than an object
 	attempts    = 3        // of a request that failed on the way or that the storage couldn't serve
 )
+
+var (
+	// endpointPattern and bucketPattern admit a host with an optional port and the name of a
+	// bucket, nothing that could send a request to another host.
+	endpointPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$`)
+	bucketPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,61}[A-Za-z0-9]$`)
+	// keyPattern admits keys of segments that are neither empty nor dots alone, which a storage
+	// may resolve to another bucket when it addresses buckets in the path.
+	keyPattern = regexp.MustCompile(`^` + segment + `(/` + segment + `)*$`)
+)
+
+const segment = `[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`
+
+// ValidEndpoint reports whether endpoint is a host, with a port from 1 to 65535 unless it is 443.
+func ValidEndpoint(endpoint string) bool {
+	_, port, ok := strings.Cut(endpoint, ":")
+	n, err := strconv.Atoi(port)
+	return endpointPattern.MatchString(endpoint) && (!ok || err == nil && n >= 1 && n <= 65535)
+}
+
+// ValidBucket reports whether bucket is the name of a bucket.
+func ValidBucket(bucket string) bool { return bucketPattern.MatchString(bucket) }
 
 // Config describes a bucket and how to reach it.
 type Config struct {
@@ -48,19 +71,29 @@ type Config struct {
 
 // Client uploads, downloads and deletes the objects of a bucket.
 type Client struct {
-	cfg  Config
-	http *http.Client
-	now  func() time.Time
-	wait time.Duration // before the first retry, doubled for the next
+	cfg Config
+	// host and root are where the objects of the bucket are: https://host/root<key>.
+	host, root string
+	http       *http.Client
+	now        func() time.Time
+	wait       time.Duration // before the first retry, doubled for the next
 }
 
 // New returns a client of a bucket that sends its requests through transport, or Go's default
-// transport if it is nil.
-func New(cfg Config, transport http.RoundTripper) *Client {
-	return &Client{cfg: cfg, now: time.Now, wait: time.Second, http: &http.Client{
+// transport if it is nil. It refuses an endpoint or bucket of another form than ValidEndpoint
+// and ValidBucket admit, so that requests only go to the endpoint.
+func New(cfg Config, transport http.RoundTripper) (*Client, error) {
+	if !endpointPattern.MatchString(cfg.Endpoint) || !bucketPattern.MatchString(cfg.Bucket) {
+		return nil, errors.New("the endpoint or the name of the bucket is invalid")
+	}
+	host, root := cfg.Bucket+"."+cfg.Endpoint, "/"
+	if cfg.PathStyle {
+		host, root = cfg.Endpoint, "/"+cfg.Bucket+"/"
+	}
+	return &Client{cfg: cfg, host: host, root: root, now: time.Now, wait: time.Second, http: &http.Client{
 		Transport:     transport,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}}
+	}}, nil
 }
 
 // Error is an answer of the storage that isn't a success.
@@ -221,6 +254,9 @@ func (c *Client) call(ctx context.Context, method, key string, query url.Values,
 // do sends a signed request about an object and returns the answer if it is a success. It
 // tries again a few times if the request fails on the way or the storage can't serve it.
 func (c *Client) do(ctx context.Context, method, key string, query url.Values, body []byte, header http.Header) (*http.Response, error) {
+	if len(key) > 1024 || !keyPattern.MatchString(key) {
+		return nil, fmt.Errorf("invalid key %q", key)
+	}
 	u := c.url(key, query)
 	wait := c.wait
 	for attempt := 1; ; attempt++ {
@@ -265,10 +301,7 @@ func answer(res *http.Response) error {
 
 // url returns the URL of an object, with the query in the canonical form that is signed.
 func (c *Client) url(key string, query url.Values) *url.URL {
-	u := &url.URL{Scheme: "https", Host: c.cfg.Bucket + "." + c.cfg.Endpoint, Path: "/" + key}
-	if c.cfg.PathStyle {
-		u.Host, u.Path = c.cfg.Endpoint, "/"+c.cfg.Bucket+"/"+key
-	}
+	u := &url.URL{Scheme: "https", Host: c.host, Path: c.root + key}
 	u.RawPath = encode(u.Path, false)
 	var pairs []string
 	for _, k := range slices.Sorted(maps.Keys(query)) {

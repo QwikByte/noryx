@@ -16,8 +16,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/logging"
@@ -219,11 +217,7 @@ func (s *Store) Latest(ctx context.Context, nodeID string) (*noryxv1.GetStatsRes
 	if err != nil {
 		return nil, err
 	}
-	res, err := noryxv1.NewStatsServiceClient(conn).GetStats(ctx, &noryxv1.GetStatsRequest{})
-	if status.Code(err) == codes.Unimplemented {
-		err = httpapi.Errorf(http.StatusNotImplemented, "Update the agent of this node to see what it uses.")
-	}
-	return res, err
+	return noryxv1.NewStatsServiceClient(conn).GetStats(ctx, &noryxv1.GetStatsRequest{})
 }
 
 // add records the node and its running servers.

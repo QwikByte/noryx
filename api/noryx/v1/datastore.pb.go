@@ -148,7 +148,7 @@ type Datastore struct {
 	Port uint32 `protobuf:"varint,10,opt,name=port,proto3" json:"port,omitempty"`
 	// Databases of a running datastore, sorted.
 	Databases []string `protobuf:"bytes,11,rep,name=databases,proto3" json:"databases,omitempty"`
-	// The parameters of its engine; agents of older versions send none, as they don't know them.
+	// The parameters of its engine.
 	Parameters    *DatastoreParameters `protobuf:"bytes,12,opt,name=parameters,proto3" json:"parameters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -915,7 +915,7 @@ type PublishDatastoreRequest struct {
 	Clients []string `protobuf:"bytes,3,rep,name=clients,proto3" json:"clients,omitempty"`
 	// The public keys of these nodes in the private network, in the order of clients. The node
 	// publishes the port only for its peers with these keys, and closes it to an address once
-	// it has another key. Older masters send none: then the keys the peers have now.
+	// it has another key.
 	ClientKeys    []string `protobuf:"bytes,4,rep,name=client_keys,json=clientKeys,proto3" json:"client_keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1297,9 +1297,7 @@ type CreateDumpRequest struct {
 	Label     string   `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	Location  string   `protobuf:"bytes,4,opt,name=location,proto3" json:"location,omitempty"`
 	JobId     string   `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Dumps of the job kept; 0 keeps all. Ignored if retention is set.
-	Keep uint32 `protobuf:"varint,6,opt,name=keep,proto3" json:"keep,omitempty"`
-	// Which dumps of the job are kept, instead of keep.
+	// Which dumps of the job are kept; none keeps all.
 	Retention     *BackupRetention `protobuf:"bytes,7,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1368,13 +1366,6 @@ func (x *CreateDumpRequest) GetJobId() string {
 		return x.JobId
 	}
 	return ""
-}
-
-func (x *CreateDumpRequest) GetKeep() uint32 {
-	if x != nil {
-		return x.Keep
-	}
-	return 0
 }
 
 func (x *CreateDumpRequest) GetRetention() *BackupRetention {
@@ -2190,7 +2181,7 @@ type BrowseTableRequest struct {
 	Offset uint64 `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
 	// Rows returned at most.
 	Limit uint32 `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
-	// A column to sort the rows by; empty for none. Agents of older versions ignore it.
+	// A column to sort the rows by; empty for none.
 	Sort       string `protobuf:"bytes,7,opt,name=sort,proto3" json:"sort,omitempty"`
 	Descending bool   `protobuf:"varint,8,opt,name=descending,proto3" json:"descending,omitempty"`
 	// Leaves out the rows that don't match; none for all rows.
@@ -2527,11 +2518,9 @@ type BrowseTableResponse struct {
 	Columns []*TableColumn         `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
 	Rows    []*TableRow            `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
 	// The table has more rows after these.
-	More bool `protobuf:"varint,3,opt,name=more,proto3" json:"more,omitempty"`
-	// The agent sorted and filtered the rows as asked; agents of older versions don't.
-	SortedAndFiltered bool `protobuf:"varint,4,opt,name=sorted_and_filtered,json=sortedAndFiltered,proto3" json:"sorted_and_filtered,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	More          bool `protobuf:"varint,3,opt,name=more,proto3" json:"more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BrowseTableResponse) Reset() {
@@ -2581,13 +2570,6 @@ func (x *BrowseTableResponse) GetRows() []*TableRow {
 func (x *BrowseTableResponse) GetMore() bool {
 	if x != nil {
 		return x.More
-	}
-	return false
-}
-
-func (x *BrowseTableResponse) GetSortedAndFiltered() bool {
-	if x != nil {
-		return x.SortedAndFiltered
 	}
 	return false
 }
@@ -2793,14 +2775,13 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x13DropDatabaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\x16\n" +
-	"\x14DropDatabaseResponse\"\xd7\x01\n" +
+	"\x14DropDatabaseResponse\"\xc3\x01\n" +
 	"\x11CreateDumpRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\tdatabases\x18\x02 \x03(\tR\tdatabases\x12\x14\n" +
 	"\x05label\x18\x03 \x01(\tR\x05label\x12\x1a\n" +
 	"\blocation\x18\x04 \x01(\tR\blocation\x12\x15\n" +
-	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12\x12\n" +
-	"\x04keep\x18\x06 \x01(\rR\x04keep\x127\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x127\n" +
 	"\tretention\x18\a \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\":\n" +
 	"\x12CreateDumpResponse\x12$\n" +
 	"\x04dump\x18\x01 \x01(\v2\x10.noryx.v1.BackupR\x04dump\"\"\n" +
@@ -2872,12 +2853,11 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x04null\x18\x02 \x01(\bR\x04null\x12\x1c\n" +
 	"\ttruncated\x18\x03 \x01(\bR\ttruncated\"8\n" +
 	"\bTableRow\x12,\n" +
-	"\x06values\x18\x01 \x03(\v2\x14.noryx.v1.TableValueR\x06values\"\xb2\x01\n" +
+	"\x06values\x18\x01 \x03(\v2\x14.noryx.v1.TableValueR\x06values\"\x82\x01\n" +
 	"\x13BrowseTableResponse\x12/\n" +
 	"\acolumns\x18\x01 \x03(\v2\x15.noryx.v1.TableColumnR\acolumns\x12&\n" +
 	"\x04rows\x18\x02 \x03(\v2\x12.noryx.v1.TableRowR\x04rows\x12\x12\n" +
-	"\x04more\x18\x03 \x01(\bR\x04more\x12.\n" +
-	"\x13sorted_and_filtered\x18\x04 \x01(\bR\x11sortedAndFiltered\"h\n" +
+	"\x04more\x18\x03 \x01(\bR\x04more\"h\n" +
 	"\x1aStreamDatastoreLogsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04tail\x18\x02 \x01(\rR\x04tail\x12&\n" +

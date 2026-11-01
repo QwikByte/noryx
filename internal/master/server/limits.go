@@ -5,9 +5,6 @@ import (
 	"net/http"
 	"sync"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/master/httpapi"
 )
@@ -87,13 +84,13 @@ func (h *Handler) checkLimits(ctx context.Context, nodeID, serverID string, port
 			return noRelease, nil
 		}
 	}
-	// Datastores count with their limits; agents of older versions have none.
-	if datastores, err := noryxv1.NewDatastoreServiceClient(conn).ListDatastores(ctx, &noryxv1.ListDatastoresRequest{}); err == nil {
-		for _, ds := range datastores.GetDatastores() {
-			left -= int64(ds.GetMemoryMb())
-		}
-	} else if status.Code(err) != codes.Unimplemented {
+	// Datastores count with their limits.
+	datastores, err := noryxv1.NewDatastoreServiceClient(conn).ListDatastores(ctx, &noryxv1.ListDatastoresRequest{})
+	if err != nil {
 		return nil, err
+	}
+	for _, ds := range datastores.GetDatastores() {
+		left -= int64(ds.GetMemoryMb())
 	}
 	needed := noryxv1.ContainerMemoryMB(memoryMB)
 	if needed > left {

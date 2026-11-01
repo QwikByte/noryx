@@ -72,9 +72,6 @@ func (d *Docker) Configure(ctx context.Context, id string, network runtime.Netwo
 // this node in the proxy's Docker network, and makes a running proxy reload it. A proxy
 // whose Bedrock port changes is created again to publish it.
 func (d *Docker) configureProxy(ctx context.Context, c container.InspectResponse, spec runtime.Spec, data *datadir.Dir, network runtime.Network) (bool, error) {
-	if err := d.move(ctx, c, proxyNetwork(spec.ID)); err != nil { // proxies of older agents shared a network
-		return false, err
-	}
 	local := network.Backends
 	network.Backends = make([]runtime.NetworkBackend, len(local))
 	for i, b := range local {
@@ -98,9 +95,7 @@ func (d *Docker) configureProxy(ctx context.Context, c container.InspectResponse
 	}
 	running := c.State.Running
 	switch {
-	case network.BedrockPort != spec.BedrockPort || !mounted(c, images[spec.Type].data) || !c.Config.OpenStdin:
-		// A new Bedrock port, or created by an older agent that mounted the data and
-		// published the port wrongly, or that didn't let the proxy read console commands.
+	case network.BedrockPort != spec.BedrockPort:
 		spec.BedrockPort = network.BedrockPort
 		return running, d.recreate(ctx, c, spec, running)
 	case !running || !changed && !geyser:
@@ -128,10 +123,6 @@ func (d *Docker) address(ctx context.Context, proxyID string, b runtime.NetworkB
 		return "", err
 	}
 	return net.JoinHostPort(containerName(b.ServerID), strconv.Itoa(images[spec.Type].port)), nil
-}
-
-func mounted(c container.InspectResponse, dir string) bool {
-	return slices.ContainsFunc(c.Mounts, func(m container.MountPoint) bool { return m.Destination == dir })
 }
 
 const (
@@ -217,8 +208,7 @@ func (d *Docker) release(ctx context.Context, proxyID string, backends []runtime
 // again, in case the tables of the agent were removed, and its networks must have the bridges
 // that the tables match. A proxy or Bedrock server gets its data handed to the user it runs as,
 // and a proxy listens on the port its container publishes, as the default configuration of the
-// Velocity image listens on another one. A stopped proxy of an older agent, which ran it as
-// root, is created again to run as that user.
+// Velocity image listens on another one.
 func (d *Docker) prepare(ctx context.Context, id string) error {
 	if d.podman != nil {
 		if err := Isolate(); err != nil {
@@ -244,13 +234,8 @@ func (d *Docker) prepare(ctx context.Context, id string) error {
 	if err := data.HandOver(imageUID, imageUID); err != nil || !spec.Type.Proxy() {
 		return err
 	}
-	if _, err := mcnet.ProxyBind(data, spec.Type, images[spec.Type].port); err != nil {
-		return err
-	}
-	if c.Config.User != imageUser && !c.State.Running {
-		return d.recreate(ctx, c, spec, false)
-	}
-	return nil
+	_, err = mcnet.ProxyBind(data, spec.Type, images[spec.Type].port)
+	return err
 }
 
 // ensureNetwork creates a network of the agent if it doesn't exist yet. Containers in the
@@ -276,7 +261,7 @@ func (d *Docker) ensureNetwork(ctx context.Context, name string) error {
 
 // networkExists reports whether a network of the agent exists. On Podman, it must have the
 // bridge that the agent keeps apart (see Isolate), which only Podman's own API tells: one with
-// another, e.g. of an older agent, is removed once no container uses it, to be created again,
+// another, e.g. one created by hand, is removed once no container uses it, to be created again,
 // and refused until then.
 func (d *Docker) networkExists(ctx context.Context, name string) (bool, error) {
 	var err error
@@ -305,7 +290,7 @@ func (d *Docker) removeUnused(ctx context.Context, name string) error {
 	}
 	if len(res.Items) > 0 {
 		return fmt.Errorf("the network %s of Podman lacks the bridge by which the agent keeps it apart from its other networks, "+
-			"e.g. as an older agent created it, so nothing starts in it; the agent creates it again once no container uses it, "+
+			"so nothing starts in it; the agent creates it again once no container uses it, "+
 			"e.g. once its servers moved to another node", name)
 	}
 	_, err = d.cli.NetworkRemove(ctx, name, client.NetworkRemoveOptions{})

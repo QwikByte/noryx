@@ -55,7 +55,7 @@ func TestBrowseLive(t *testing.T) {
 				" INSERT INTO notes VALUES (2, NULL, "+tc.bytes+"), (1, 'line\none \"quoted\" "+long+"', NULL);")
 
 			// The agent's own query doesn't count as a connection.
-			if u, err := d.DatastoreUsage(ctx, spec.ID); err != nil || u.Connections < 0 || u.Connections > 1 || u.MemoryBytes == 0 {
+			if u, err := d.DatastoreUsage(ctx, spec.ID); err != nil || u.Connections == nil || *u.Connections > 1 || u.MemoryBytes == 0 {
 				t.Errorf("usage %+v, %v", u, err)
 			}
 
@@ -97,7 +97,7 @@ func TestBrowseLive(t *testing.T) {
 			// Sorted by a column and filtered by its text, with values that would need escaping.
 			sorted, err := browse(&noryxv1.BrowseTableRequest{Sort: "id", Descending: true, Limit: 2})
 			must(t, err)
-			if rows := sorted.GetRows(); !sorted.GetSortedAndFiltered() || len(rows) != 2 || rows[0].GetValues()[0].GetText() != "2" {
+			if rows := sorted.GetRows(); len(rows) != 2 || rows[0].GetValues()[0].GetText() != "2" {
 				t.Errorf("sorted by id %v", sorted)
 			}
 			for filter, want := range map[*noryxv1.TableFilter]int{

@@ -30,7 +30,6 @@ message FileSetFile {
   // Writes the file only if the server has none, for files that plugins rewrite.
   bool only_if_missing = 3;
   // The content of a binary file, e.g. an image, instead of content; nothing is filled in.
-  // Agents that don't report binary_files in ListFileSetsResponse ignore it.
   bytes data = 4;
 }
 
@@ -101,11 +100,6 @@ message ListFileSetsRequest {}
 message ListFileSetsResponse {
   // Only servers that have files of sets.
   repeated ServerFileSets servers = 1;
-  // The agent writes binary files (FileSetFile.data). Older agents would write them empty,
-  // so the master sends them none.
-  bool binary_files = 2;
-  // The agent fills in the passwords of databases. Older agents refuse them.
-  bool database_passwords = 3;
 }
 
 message ServerFileSets {

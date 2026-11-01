@@ -83,8 +83,9 @@ languages; the language menu offers it then.
 The release workflow tests, builds the panel and both programs with [GoReleaser](https://goreleaser.com) and creates a
 draft of a GitHub release with the packages, archives, checksums, attestations and the installer, which installs the
 version it belongs to. A second job signs `checksums.txt` with the secret `RELEASE_SIGNING_KEY` and publishes the
-release. Start the workflow under **Actions → Release → Run workflow** with a version `vX.Y.Z`, or `vX.Y.Z-rc.N` for a
-pre-release: it tags the newest commit of `main`. Pushing such a tag runs it too:
+release. Start the workflow under **Actions → Release → Run workflow** with a version `vX.Y.Z`, or `vX.Y.Z-alpha.N`,
+`vX.Y.Z-beta.N` or `vX.Y.Z-rc.N` for a pre-release: it tags the newest commit of `main`. Other versions, such as those of
+builds after a tag (`v1.2.0-3-gabcdef`), with changes (`-dirty`) or for development (`-dev`), aren't releases. Pushing such a tag runs it too:
 
 ```sh
 git tag v1.2.0 && git push origin v1.2.0
@@ -97,7 +98,8 @@ template](../.github/pull_request_template.md) asks for: one line per change tha
 `New:`, `Improved:`, `Fixed:` or `Security:`. `scripts/release-notes.sh` collects them from the pull requests merged
 since the previous release (for a pre-release, since the previous tag) and groups them by these kinds; lines without a
 kind, pull requests without the section and updates of dependencies end up under **Other changes**, and an empty section
-adds nothing. Edit a pull request's description before releasing to change its lines. To see the notes of a tag, run
+adds nothing. The first release, without a tag before it, gets a short introduction instead. Edit a pull request's
+description before releasing to change its lines. To see the notes of a tag, run
 `scripts/release-notes.sh v1.2.0` with `gh` signed in. The panel shows them in **What's new** of its update notice.
 
 ### Release key

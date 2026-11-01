@@ -160,10 +160,8 @@ export const useNewRecoveryCodes = () =>
 export interface Session {
   /** Names the session; it can't sign in. */
   id: string
-  /** Missing for sessions that started before the master noted it. */
-  createdAt?: string
-  /** Missing for such sessions that weren't used since. */
-  lastUsedAt?: string
+  createdAt: string
+  lastUsedAt: string
   expiresAt: string
   /** The address, browser and operating system it was used from last, as far as the master recognised them. */
   ip?: string

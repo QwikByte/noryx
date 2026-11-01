@@ -39,19 +39,19 @@ func (a typesAgent) Invoke(_ context.Context, _ string, _, reply any, _ ...grpc.
 // The players of a Bedrock server take ports of the node's range too, and only agents that know
 // Bedrock servers create them.
 func TestBedrockLimits(t *testing.T) {
-	h := NewHandler(Deps{Nodes: bedrockNodes{}, Moves: NewMoves()})
+	paper, bedrock := noryxv1.ServerType_SERVER_TYPE_PAPER, noryxv1.ServerType_SERVER_TYPE_BEDROCK
+	h := NewHandler(Deps{Nodes: bedrockNodes{types: []noryxv1.ServerType{paper}}, Moves: NewMoves()})
 	if _, err := h.checkLimits(t.Context(), "n1", "", 19132, 19141, 1024); err != nil {
 		t.Errorf("players within the range: %v", err)
 	}
 	if _, err := h.checkLimits(t.Context(), "n1", "", 19133, 19142, 1024); err == nil || !strings.Contains(err.Error(), "up to 19142") {
 		t.Errorf("players beyond the range: %v", err)
 	}
-	bedrock := noryxv1.ServerType_SERVER_TYPE_BEDROCK
 	if err := h.checkType(t.Context(), "n1", bedrock); err == nil || !strings.Contains(err.Error(), "Bedrock") {
-		t.Errorf("Bedrock on an older agent: %v", err)
+		t.Errorf("Bedrock on an agent that doesn't know it: %v", err)
 	}
-	if err := h.checkType(t.Context(), "n1", noryxv1.ServerType_SERVER_TYPE_PAPER); err != nil {
-		t.Errorf("Paper on an older agent: %v", err)
+	if err := h.checkType(t.Context(), "n1", paper); err != nil {
+		t.Errorf("Paper on an agent that doesn't know Bedrock: %v", err)
 	}
 	h = NewHandler(Deps{Nodes: bedrockNodes{types: []noryxv1.ServerType{bedrock}}, Moves: NewMoves()})
 	if err := h.checkType(t.Context(), "n1", bedrock); err != nil {

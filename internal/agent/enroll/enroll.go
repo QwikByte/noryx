@@ -28,13 +28,17 @@ func Run(ctx context.Context, joinToken, dir string) error {
 	if err != nil {
 		return err
 	}
+	ca, err := x509.ParseCertificate(token.CA)
+	if err != nil {
+		return errors.New("the join token holds no valid CA certificate")
+	}
 	key := pki.NewKey()
 	csr, err := pki.NewCSR(key)
 	if err != nil {
 		return err
 	}
 
-	creds := credentials.NewTLS(pki.PinnedMasterTLS(token.CAFingerprint))
+	creds := credentials.NewTLS(pki.EnrollmentTLS(ca))
 	conn, err := grpc.NewClient(token.Master, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return err
@@ -47,11 +51,6 @@ func Run(ctx context.Context, joinToken, dir string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("enroll at %s: %w", token.Master, err)
-	}
-
-	ca, err := x509.ParseCertificate(res.GetCaCertificateDer())
-	if err != nil || pki.Fingerprint(ca) != token.CAFingerprint {
-		return errors.New("master returned a CA certificate that does not match the join token")
 	}
 	if err := pki.SaveCert(dir, CACert, ca.Raw); err != nil {
 		return err
