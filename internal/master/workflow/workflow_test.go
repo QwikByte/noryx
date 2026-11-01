@@ -76,6 +76,12 @@ func TestCheck(t *testing.T) {
 		"host header": func(d *Draft) {
 			d.Steps[0] = step("h", "http", map[string]any{"url": "https://example.com", "headers": []Header{{Name: "Host", Value: "x"}}})
 		},
+		"secret to any host": func(d *Draft) {
+			d.Steps[0] = step("h", "http", map[string]any{"url": "https://{{inputs.host}}/hook", "headers": []Header{{Name: "Authorization", Value: "x", Secret: true}}})
+		},
+		"secret to a templated host": func(d *Draft) {
+			d.Steps[0] = step("h", "http", map[string]any{"url": "https://api.{{vars.domain}}?q=1", "headers": []Header{{Name: "Authorization", Value: "x", Secret: true}}})
+		},
 		"too deep": func(d *Draft) {
 			s := d.Steps[0]
 			for i := range maxDepth {
@@ -362,5 +368,22 @@ func TestCallsNeedWhatTheyRun(t *testing.T) {
 	s.mu.Unlock()
 	if !slices.Contains(needs, access.ServersRestart) {
 		t.Errorf("the workflow that restarts servers through another one needs %v", needs)
+	}
+}
+
+func TestLiteralHost(t *testing.T) {
+	for url, want := range map[string]bool{
+		"https://example.com":                 true,
+		"https://example.com/{{inputs.path}}": true,
+		"https://example.com:8443?q={{x}}#a":  true,
+		"https://{{inputs.host}}/hook":        false,
+		"https://example.{{vars.tld}}/hook":   false,
+		"https://user@{{inputs.host}}":        false,
+		"{{inputs.url}}":                      false,
+		"https:///path":                       false,
+	} {
+		if got := literalHost(url); got != want {
+			t.Errorf("literalHost(%q) = %t", url, got)
+		}
 	}
 }

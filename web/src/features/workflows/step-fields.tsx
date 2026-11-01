@@ -243,7 +243,7 @@ function Headers({ value, onChange }: { value: Header[]; onChange: (h: Header[])
         <PlusIcon />
         {t("Header")}
       </Button>
-      <FieldDescription>{t("The value of a secret header is never shown again. Changing the URL needs it once more.")}</FieldDescription>
+      <FieldDescription>{t("The value of a secret header is never shown again, and only goes to a URL that names its host itself, not with a template. Changing the URL needs it once more.")}</FieldDescription>
     </FieldSet>
   )
 }

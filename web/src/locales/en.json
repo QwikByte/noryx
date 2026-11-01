@@ -3243,7 +3243,7 @@
   "The user who saved it last was deleted or disabled, so it can't back up or update. Save it again.": "The user who saved it last was deleted or disabled, so it can't back up or update. Save it again.",
   "The user who saved it last was deleted or disabled, so it can't copy backups. Save it again.": "The user who saved it last was deleted or disabled, so it can't copy backups. Save it again.",
   "The user who saved it last was deleted or disabled, so its steps that need permissions fail. Save it again.": "The user who saved it last was deleted or disabled, so its steps that need permissions fail. Save it again.",
-  "The value of a secret header is never shown again. Changing the URL needs it once more.": "The value of a secret header is never shown again. Changing the URL needs it once more.",
+  "The value of a secret header is never shown again, and only goes to a URL that names its host itself, not with a template. Changing the URL needs it once more.": "The value of a secret header is never shown again, and only goes to a URL that names its host itself, not with a template. Changing the URL needs it once more.",
   "The whitelist is off": "The whitelist is off",
   "The whitelist is on": "The whitelist is on",
   "The whole folder of the server, including the server software.": "The whole folder of the server, including the server software.",

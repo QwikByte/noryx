@@ -3243,7 +3243,7 @@
   "The user who saved it last was deleted or disabled, so it can't back up or update. Save it again.": "Der Benutzer, der ihn zuletzt gespeichert hat, wurde gelöscht oder deaktiviert, daher kann er weder sichern noch aktualisieren. Speichere ihn erneut.",
   "The user who saved it last was deleted or disabled, so it can't copy backups. Save it again.": "Der Benutzer, der ihn zuletzt gespeichert hat, wurde gelöscht oder deaktiviert, daher kann er keine Backups kopieren. Speichere ihn erneut.",
   "The user who saved it last was deleted or disabled, so its steps that need permissions fail. Save it again.": "Der Benutzer, der ihn zuletzt gespeichert hat, wurde gelöscht oder deaktiviert, daher schlagen Schritte fehl, die Berechtigungen brauchen. Speichere ihn erneut.",
-  "The value of a secret header is never shown again. Changing the URL needs it once more.": "Der Wert eines geheimen Headers wird nie wieder angezeigt. Wenn du die URL änderst, wird er erneut benötigt.",
+  "The value of a secret header is never shown again, and only goes to a URL that names its host itself, not with a template. Changing the URL needs it once more.": "Der Wert eines geheimen Headers wird nie wieder angezeigt und geht nur an eine URL, die ihren Host selbst nennt, nicht mit einer Vorlage. Wenn du die URL änderst, wird er erneut benötigt.",
   "The whitelist is off": "Die Whitelist ist aus",
   "The whitelist is on": "Die Whitelist ist an",
   "The whole folder of the server, including the server software.": "Der gesamte Serverordner, inklusive der Server-Software.",

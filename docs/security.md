@@ -625,8 +625,9 @@ workflow act on more than before.
 HTTP requests of workflows go through the same connections as [notifications](#notifications): HTTPS to public addresses
 only, checked right before each connection, without redirects or proxies, with a timeout, and answers up to 64 KB. The
 values of secret headers are stored like the URLs of webhooks: the API never returns them, runs never record them and
-they aren't templates. A secret header keeps its value only while its step sends it to the same URL, so that nobody can
-send it elsewhere without knowing it.
+they aren't templates. A step only sends secret headers to a URL that names its host itself rather than with a template,
+which whoever runs the workflow could fill in, and a secret header keeps its value only while its step sends it to the
+same URL, so that nobody can send it elsewhere without knowing it.
 
 The URL of a webhook holds a random token of 260 bits, of which the master keeps only the SHA-256, so that its database
 and backups don't hold it; the panel shows the token once. Calls need no session, only the token, so the protection of
