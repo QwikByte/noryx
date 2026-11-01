@@ -132,10 +132,10 @@ func TestExportImport(t *testing.T) {
 	if !reflect.DeepEqual(imported.Content, tmpl.Content) {
 		t.Fatalf("imported %+v, want %+v", imported.Content, tmpl.Content)
 	}
-	// Files of the first format, whose plugins have no channel, still import.
-	in, err = parseFile([]byte(`{"format": "noryx-template", "version": 1, "template": {"name": "Old", "plugins": [{"id": "luckperms", "version": "lp1"}]}}`))
+	// Plugins without a channel take the default one.
+	in, err = parseFile([]byte(`{"format": "noryx-template", "version": 1, "template": {"name": "Plain", "plugins": [{"id": "luckperms", "version": "lp1"}]}}`))
 	if err != nil || !slices.Equal(in.Plugins, []string{"luckperms"}) || in.Versions["luckperms"] != "lp1" || len(in.Channels) != 0 {
-		t.Fatalf("file of version 1: %+v, %v", in, err)
+		t.Fatalf("file without channels: %+v, %v", in, err)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestImportChecksFile(t *testing.T) {
 		`[]`:       "This isn't a template exported from Noryx.",
 		`{"format": "noryx-fileset", "version": 1, "template": {}}`:                     "This isn't a template exported from Noryx.",
 		`{"format": "noryx-template", "version": 0, "template": {}}`:                    "This isn't a template exported from Noryx.",
-		`{"format": "noryx-template", "version": 4, "template": {"new": true}}`:         "The template comes from a newer version of Noryx. Update Noryx to import it.",
+		`{"format": "noryx-template", "version": 2, "template": {"new": true}}`:         "The template comes from a newer version of Noryx. Update Noryx to import it.",
 		`{"format": "noryx-template", "version": 1, "template": {"id": "x"}}`:           `The template file is invalid: json: unknown field "id"`,
 		`{"format": "noryx-template", "version": 1, "template": {"name": "x"}, "x": 1}`: `The template file is invalid: json: unknown field "x"`,
 	} {

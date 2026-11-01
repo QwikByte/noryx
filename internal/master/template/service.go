@@ -385,7 +385,6 @@ func scan(row database.Scanner) (Template, error) {
 		return t, err
 	}
 	t.Settings, t.Tags, t.Plugins, t.CreatedAt = s.Settings, append([]string{}, s.Tags...), s.Plugins, time.Unix(createdAt, 0)
-	t.ExtraPorts = append([]server.ExtraPort{}, t.ExtraPorts...)
 	return t, nil
 }
 
