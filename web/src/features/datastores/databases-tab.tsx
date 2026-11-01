@@ -192,7 +192,13 @@ function DatastoreCard({ datastore: ds }: { datastore: Datastore }) {
             {manage && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {ds.missing.map((name) => (
-                  <Button key={name} size="xs" variant="outline" disabled={addDatabase.isPending} onClick={() => addDatabase.mutate(name)}>
+                  <Button key={name} size="xs" variant="outline" disabled={addDatabase.isPending} onClick={() =>
+                      addDatabase.mutate(name, {
+                        onSuccess: (db) => toast.success(t("Created the database {{name}}", { name: db.name })),
+                        onError: (e) => toast.error(e.message),
+                      })
+                    }
+                  >
                     {t("Create {{name}} again", { name })}
                   </Button>
                 ))}

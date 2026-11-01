@@ -1,15 +1,20 @@
 import { CheckIcon, CopyIcon } from "@phosphor-icons/react"
 import { t } from "i18next"
 import { useState } from "react"
+import { toast } from "sonner"
 
 /** A value to copy, such as a command or a link, on the console's dark surface. */
 export function CopyField({ value, label, prefix }: { value: string; label: string; prefix?: string }) {
   const [copied, setCopied] = useState(false)
 
   async function copy() {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t("The browser didn't allow copying."))
+    }
   }
 
   return (
