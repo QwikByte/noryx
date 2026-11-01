@@ -28,7 +28,7 @@ import { formatEntryTime, levels } from "./meta"
 
 const problems: LogFilter = { level: "warn" }
 const shown = 8
-const seenKey = "noryx.logs.seen"
+const seenKey = "noryx-logs-seen"
 
 const problemsQuery = queryOptions({
   queryKey: ["logs", "problems"],

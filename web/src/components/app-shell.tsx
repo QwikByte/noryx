@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 // Whether the sidebar shows only its icons; each browser keeps it, as it depends on the screen.
 function readCollapsed() {
   try {
-    return localStorage.getItem("sidebar") === "collapsed"
+    return localStorage.getItem("noryx-sidebar") === "collapsed"
   } catch {
     return false
   }
@@ -39,8 +39,8 @@ function readCollapsed() {
 
 function storeCollapsed(collapsed: boolean) {
   try {
-    if (collapsed) localStorage.setItem("sidebar", "collapsed")
-    else localStorage.removeItem("sidebar")
+    if (collapsed) localStorage.setItem("noryx-sidebar", "collapsed")
+    else localStorage.removeItem("noryx-sidebar")
   } catch {
     // The choice then only lasts until the page is reloaded.
   }

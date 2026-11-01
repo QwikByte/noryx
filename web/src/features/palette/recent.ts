@@ -7,7 +7,7 @@ import { meQuery } from "@/features/auth/api"
 // offers nothing recent. Only addresses are kept, and the palette shows those of them that lead
 // to something the user may still see.
 const limit = 10
-const storageKey = (user: number) => `noryx.recent.${user}`
+const storageKey = (user: number) => `noryx-recent:${user}`
 
 /** The part of an address that names what it shows, e.g. a server for any of its tabs; lists and new ones have none. */
 export const openedPath = (pathname: string) =>

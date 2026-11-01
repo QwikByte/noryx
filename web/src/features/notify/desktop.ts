@@ -6,7 +6,7 @@ import type { LogEntry } from "@/features/logs/api"
  * Notifications of the operating system about new warnings and errors while the panel's tab is in the background.
  * Each browser opts in on its own; the browser only asks for its permission when the user turns them on.
  */
-const key = "noryx.notifications.desktop"
+const key = "noryx-desktop-notifications"
 
 export const desktopSupported = typeof window !== "undefined" && "Notification" in window
 
