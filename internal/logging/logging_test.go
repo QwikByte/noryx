@@ -55,6 +55,33 @@ func TestRotatingFile(t *testing.T) {
 	}
 }
 
+// Logging goes on if another program moved the file away, e.g. logrotate.
+func TestRotatingFileMovedAway(t *testing.T) {
+	name := filepath.Join(t.TempDir(), "noryx.log")
+	f, err := openRotating(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	line := []byte(strings.Repeat("x", maxFileSize/2-1) + "\n")
+	for i := range 3 {
+		if i == 2 {
+			if err := os.Rename(name, name+".moved"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := f.Write(line); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+	}
+	if _, err := f.Write([]byte("still here\n")); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(name); err != nil || !strings.HasSuffix(string(data), "still here\n") {
+		t.Fatalf("log file after it was moved away: %v", err)
+	}
+}
+
 func TestLevelsAndLines(t *testing.T) {
 	if l, err := ParseLevel("WARN"); err != nil || l != slog.LevelWarn {
 		t.Fatalf("ParseLevel(WARN) = %v, %v", l, err)

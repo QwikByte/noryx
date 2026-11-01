@@ -53,17 +53,22 @@ func (r *rotatingFile) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// rotate moves the files up and opens a new one. Logging goes on if they can't be moved, e.g.
+// as another program moved or deleted the file: in the file as it is, which rotates again once
+// it grew by another maxFileSize.
 func (r *rotatingFile) rotate() error {
-	if err := r.f.Close(); err != nil {
-		return err
-	}
+	_ = r.f.Close() // written already, nothing to lose
 	for i := keepFiles - 1; i > 0; i-- {
 		_ = os.Rename(fmt.Sprintf("%s.%d", r.name, i), fmt.Sprintf("%s.%d", r.name, i+1)) // missing files are fine
 	}
-	if err := os.Rename(r.name, r.name+".1"); err != nil {
+	moved := os.Rename(r.name, r.name+".1")
+	if err := r.open(); err != nil {
 		return err
 	}
-	return r.open()
+	if moved != nil {
+		r.size = 0
+	}
+	return nil
 }
 
 func (r *rotatingFile) Close() error {
