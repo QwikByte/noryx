@@ -32,18 +32,18 @@ message GetInfoResponse {
   uint32 cpu_count = 4;
   uint64 memory_bytes = 5;
   // Where servers can keep their data; the default location comes first.
-  repeated StorageLocation storage = 7;
+  repeated StorageLocation storage = 6;
   // When the certificate the agent presents to the master expires.
-  int64 certificate_not_after_unix = 8;
+  int64 certificate_not_after_unix = 7;
   // The container runtime the agent is set to use, "docker" or "podman", also while it
   // can't reach it, and its version, e.g. "29.0.0", empty then; os, cpu_count and
   // memory_bytes are empty then too.
-  string runtime_name = 9;
-  string runtime_version = 10;
+  string runtime_name = 8;
+  string runtime_version = 9;
   // The settings the agent applies.
-  NodeSettings settings = 11;
+  NodeSettings settings = 10;
   // The types of servers the agent creates, e.g. for the panel to offer only those.
-  repeated ServerType server_types = 12;
+  repeated ServerType server_types = 11;
 }
 
 // StorageLocation is a directory the node's administrator allowed for server data.

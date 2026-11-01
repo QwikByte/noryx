@@ -415,10 +415,10 @@ type CreateBackupRequest struct {
 	JobId    string `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	// Whether a server without any of the selected data, e.g. one that never started, is
 	// skipped: the response has no backup then. Otherwise that is an error.
-	SkipWithoutData bool `protobuf:"varint,7,opt,name=skip_without_data,json=skipWithoutData,proto3" json:"skip_without_data,omitempty"`
+	SkipWithoutData bool `protobuf:"varint,6,opt,name=skip_without_data,json=skipWithoutData,proto3" json:"skip_without_data,omitempty"`
 	// Which backups of the job are kept for the server; none keeps all. The others are deleted
 	// once the new backup exists. Backups made by hand, and kept ones, are never deleted this way.
-	Retention     *BackupRetention `protobuf:"bytes,8,opt,name=retention,proto3" json:"retention,omitempty"`
+	Retention     *BackupRetention `protobuf:"bytes,7,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2095,8 +2095,8 @@ const file_noryx_v1_backup_proto_rawDesc = "" +
 	"\tselection\x18\x03 \x01(\v2\x19.noryx.v1.BackupSelectionR\tselection\x12\x1a\n" +
 	"\blocation\x18\x04 \x01(\tR\blocation\x12\x15\n" +
 	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12*\n" +
-	"\x11skip_without_data\x18\a \x01(\bR\x0fskipWithoutData\x127\n" +
-	"\tretention\x18\b \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\"@\n" +
+	"\x11skip_without_data\x18\x06 \x01(\bR\x0fskipWithoutData\x127\n" +
+	"\tretention\x18\a \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\"@\n" +
 	"\x14CreateBackupResponse\x12(\n" +
 	"\x06backup\x18\x01 \x01(\v2\x10.noryx.v1.BackupR\x06backup\"\x8d\x01\n" +
 	"\x14RestoreBackupRequest\x12\x1b\n" +

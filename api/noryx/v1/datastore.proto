@@ -213,7 +213,7 @@ message CreateDumpRequest {
   string location = 4;
   string job_id = 5;
   // Which dumps of the job are kept; none keeps all.
-  BackupRetention retention = 7;
+  BackupRetention retention = 6;
 }
 
 message CreateDumpResponse {

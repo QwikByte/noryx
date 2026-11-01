@@ -65,18 +65,18 @@ type GetInfoResponse struct {
 	CpuCount     uint32                 `protobuf:"varint,4,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`
 	MemoryBytes  uint64                 `protobuf:"varint,5,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
 	// Where servers can keep their data; the default location comes first.
-	Storage []*StorageLocation `protobuf:"bytes,7,rep,name=storage,proto3" json:"storage,omitempty"`
+	Storage []*StorageLocation `protobuf:"bytes,6,rep,name=storage,proto3" json:"storage,omitempty"`
 	// When the certificate the agent presents to the master expires.
-	CertificateNotAfterUnix int64 `protobuf:"varint,8,opt,name=certificate_not_after_unix,json=certificateNotAfterUnix,proto3" json:"certificate_not_after_unix,omitempty"`
+	CertificateNotAfterUnix int64 `protobuf:"varint,7,opt,name=certificate_not_after_unix,json=certificateNotAfterUnix,proto3" json:"certificate_not_after_unix,omitempty"`
 	// The container runtime the agent is set to use, "docker" or "podman", also while it
 	// can't reach it, and its version, e.g. "29.0.0", empty then; os, cpu_count and
 	// memory_bytes are empty then too.
-	RuntimeName    string `protobuf:"bytes,9,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
-	RuntimeVersion string `protobuf:"bytes,10,opt,name=runtime_version,json=runtimeVersion,proto3" json:"runtime_version,omitempty"`
+	RuntimeName    string `protobuf:"bytes,8,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
+	RuntimeVersion string `protobuf:"bytes,9,opt,name=runtime_version,json=runtimeVersion,proto3" json:"runtime_version,omitempty"`
 	// The settings the agent applies.
-	Settings *NodeSettings `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
+	Settings *NodeSettings `protobuf:"bytes,10,opt,name=settings,proto3" json:"settings,omitempty"`
 	// The types of servers the agent creates, e.g. for the panel to offer only those.
-	ServerTypes   []ServerType `protobuf:"varint,12,rep,packed,name=server_types,json=serverTypes,proto3,enum=noryx.v1.ServerType" json:"server_types,omitempty"`
+	ServerTypes   []ServerType `protobuf:"varint,11,rep,packed,name=server_types,json=serverTypes,proto3,enum=noryx.v1.ServerType" json:"server_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -664,13 +664,13 @@ const file_noryx_v1_node_proto_rawDesc = "" +
 	"\x02os\x18\x03 \x01(\tR\x02os\x12\x1b\n" +
 	"\tcpu_count\x18\x04 \x01(\rR\bcpuCount\x12!\n" +
 	"\fmemory_bytes\x18\x05 \x01(\x04R\vmemoryBytes\x123\n" +
-	"\astorage\x18\a \x03(\v2\x19.noryx.v1.StorageLocationR\astorage\x12;\n" +
-	"\x1acertificate_not_after_unix\x18\b \x01(\x03R\x17certificateNotAfterUnix\x12!\n" +
-	"\fruntime_name\x18\t \x01(\tR\vruntimeName\x12'\n" +
-	"\x0fruntime_version\x18\n" +
-	" \x01(\tR\x0eruntimeVersion\x122\n" +
-	"\bsettings\x18\v \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\x127\n" +
-	"\fserver_types\x18\f \x03(\x0e2\x14.noryx.v1.ServerTypeR\vserverTypes\"y\n" +
+	"\astorage\x18\x06 \x03(\v2\x19.noryx.v1.StorageLocationR\astorage\x12;\n" +
+	"\x1acertificate_not_after_unix\x18\a \x01(\x03R\x17certificateNotAfterUnix\x12!\n" +
+	"\fruntime_name\x18\b \x01(\tR\vruntimeName\x12'\n" +
+	"\x0fruntime_version\x18\t \x01(\tR\x0eruntimeVersion\x122\n" +
+	"\bsettings\x18\n" +
+	" \x01(\v2\x16.noryx.v1.NodeSettingsR\bsettings\x127\n" +
+	"\fserver_types\x18\v \x03(\x0e2\x14.noryx.v1.ServerTypeR\vserverTypes\"y\n" +
 	"\x0fStorageLocation\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1d\n" +
