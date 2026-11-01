@@ -142,7 +142,7 @@ func reloaded(p mcnet.Proxy) func(line string) (bool, error) {
 
 // command writes a command to the console of a proxy. Its answer to sending a player tells
 // whether it could, so it is awaited. BungeeCord always answers: without its module cmd_send,
-// which Waterfall can't download anymore, it has no send command. Velocity only answers if it
+// e.g. if it couldn't download it, it has no send command. Velocity only answers if it
 // can't send, so its console is read for a moment, unless runtime.NoWait says not to.
 func (d *Docker) command(ctx context.Context, id string, typ noryxv1.ServerType, command string) error {
 	args := strings.Fields(command)

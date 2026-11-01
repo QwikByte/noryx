@@ -173,7 +173,7 @@ func TestWriteProxyVelocityLegacy(t *testing.T) {
 
 func TestWriteProxyBungee(t *testing.T) {
 	dir := dataDir(t, map[string]string{"config.yml": defaultBungee})
-	changed, removed, err := WriteProxy(dir, noryxv1.ServerType_SERVER_TYPE_WATERFALL, network)
+	changed, removed, err := WriteProxy(dir, noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, network)
 	if err != nil || !changed || removed {
 		t.Fatalf("changed = %v, removed = %v, err = %v", changed, removed, err)
 	}

@@ -177,7 +177,7 @@ func TestNetwork(t *testing.T) {
 func TestBungeeNetwork(t *testing.T) {
 	m := startMaster(t)
 	a := m.startAgent(t, "node-1")
-	proxy := m.createServer(t, a, "Proxy", noryxv1.ServerType_SERVER_TYPE_WATERFALL, 25577)
+	proxy := m.createServer(t, a, "Proxy", noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, 25577)
 	lobby := m.createServer(t, a, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
 	forge := m.createServer(t, a, "Forge", noryxv1.ServerType_SERVER_TYPE_FORGE, 25566)
 	api := apiClient{t: t, url: m.panel(t).URL}
@@ -185,7 +185,7 @@ func TestBungeeNetwork(t *testing.T) {
 	api.do("POST", "/api/networks", map[string]any{"name": "Bungee", "proxy": proxy, "forwarding": "modern", "servers": []network.Ref{lobby}}, http.StatusBadRequest, nil)
 	var n network.Network
 	api.do("POST", "/api/networks", map[string]any{"name": "Bungee", "proxy": proxy, "servers": []network.Ref{lobby}}, http.StatusCreated, &n)
-	if n.Forwarding != network.Legacy || n.ProxyType != "waterfall" {
+	if n.Forwarding != network.Legacy || n.ProxyType != "bungeecord" {
 		t.Fatalf("network = %+v", n)
 	}
 	change := network.Change{
@@ -292,19 +292,19 @@ func TestNetworkFollowsAddresses(t *testing.T) {
 	wantAddress("localhost", "25572")
 }
 
-// A network moves from its Waterfall proxy to BungeeCord, which takes over its configuration
-// and the Maintenance plugin, then to Velocity on another node, which forwards the modern way.
+// A network moves from its BungeeCord proxy to another, which takes over its configuration and
+// the Maintenance plugin, then to Velocity on another node, which forwards the modern way.
 func TestSwapProxy(t *testing.T) {
 	m := startMaster(t)
 	a1, a2 := m.startAgent(t, "node-1"), m.startAgent(t, "node-2")
-	waterfall := m.createServer(t, a1, "Waterfall", noryxv1.ServerType_SERVER_TYPE_WATERFALL, 25577)
+	old := m.createServer(t, a1, "Old BungeeCord", noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, 25577)
 	bungee := m.createServer(t, a1, "BungeeCord", noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, 25578)
 	velocity := m.createServer(t, a2, "Velocity", noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25579)
 	lobby := m.createServer(t, a1, "Lobby", noryxv1.ServerType_SERVER_TYPE_PAPER, 25565)
 	survival := m.createServer(t, a2, "Survival", noryxv1.ServerType_SERVER_TYPE_PAPER, 25570)
 	api := apiClient{t: t, url: m.panel(t).URL}
 	var n network.Network
-	api.do("POST", "/api/networks", map[string]any{"name": "Main", "proxy": waterfall, "firewalled": true, "servers": []network.Ref{lobby, survival}}, http.StatusCreated, &n)
+	api.do("POST", "/api/networks", map[string]any{"name": "Main", "proxy": old, "firewalled": true, "servers": []network.Ref{lobby, survival}}, http.StatusCreated, &n)
 	file := func(a agent, ref network.Ref, name string) string {
 		data, _ := os.ReadFile(filepath.Join(a.runtime.dir, ref.ServerID, name))
 		return string(data)
@@ -315,17 +315,17 @@ func TestSwapProxy(t *testing.T) {
 		check(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	config, players := "motd: '&aWelcome'\nip_forward: true\n", "8667ba71-b85a-4004-af54-457a9734eed7: Steve\n"
-	write(a1, waterfall, "config.yml", config)
-	write(a1, waterfall, "plugins/Maintenance/config.yml", "maintenance-enabled: true\n")
-	write(a1, waterfall, "plugins/Maintenance/WhitelistedPlayers.yml", players)
-	check(t, a1.runtime.Start(t.Context(), waterfall.ServerID))
+	write(a1, old, "config.yml", config)
+	write(a1, old, "plugins/Maintenance/config.yml", "maintenance-enabled: true\n")
+	write(a1, old, "plugins/Maintenance/WhitelistedPlayers.yml", players)
+	check(t, a1.runtime.Start(t.Context(), old.ServerID))
 	swap := func(sw network.Swap, status int) {
 		t.Helper()
 		api.do("POST", "/api/networks/"+n.ID+"/proxy", sw, status, &n)
 	}
 
-	// Waterfall reached its end of life, and the proxy must be one, and free.
-	swap(network.Swap{Proxy: waterfall}, http.StatusBadRequest)
+	// The new proxy must be another one, a proxy, and free.
+	swap(network.Swap{Proxy: old}, http.StatusBadRequest)
 	swap(network.Swap{Proxy: lobby}, http.StatusBadRequest)
 	swap(network.Swap{Proxy: bungee}, http.StatusConflict) // survival on another node needs the firewall
 
@@ -342,8 +342,8 @@ func TestSwapProxy(t *testing.T) {
 	if !maintenance.Enabled || len(maintenance.Players) != 1 || !maintenance.ProxyRunning {
 		t.Fatalf("maintenance = %+v", maintenance)
 	}
-	if got := a1.runtime.network(waterfall.ServerID); got.Forwarding != runtime.ForwardingNone || serverState(t, api, waterfall) != "stopped" {
-		t.Fatalf("Waterfall after the swap: %+v, %s", got, serverState(t, api, waterfall))
+	if got := a1.runtime.network(old.ServerID); got.Forwarding != runtime.ForwardingNone || serverState(t, api, old) != "stopped" {
+		t.Fatalf("the old proxy after the swap: %+v, %s", got, serverState(t, api, old))
 	}
 	if got := a1.runtime.network(bungee.ServerID); got.Forwarding != runtime.ForwardingLegacy || len(got.Backends) != 2 {
 		t.Fatalf("BungeeCord network = %+v", got)

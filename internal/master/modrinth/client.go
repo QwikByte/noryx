@@ -48,7 +48,6 @@ var (
 		noryxv1.ServerType_SERVER_TYPE_LEAF:       {"paper", "spigot", "bukkit"},
 		noryxv1.ServerType_SERVER_TYPE_VELOCITY:   {"velocity"},
 		noryxv1.ServerType_SERVER_TYPE_BUNGEECORD: {"bungeecord", "waterfall"},
-		noryxv1.ServerType_SERVER_TYPE_WATERFALL:  {"waterfall", "bungeecord"},
 		noryxv1.ServerType_SERVER_TYPE_FABRIC:     {"fabric"},
 		noryxv1.ServerType_SERVER_TYPE_QUILT:      {"quilt", "fabric"},
 		noryxv1.ServerType_SERVER_TYPE_FORGE:      {"forge"},

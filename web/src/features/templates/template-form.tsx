@@ -30,7 +30,7 @@ import {
   TimeZoneField,
   VersionField,
 } from "@/features/servers/settings-fields"
-import { EndOfLifeNotice, SoftwareOptions } from "@/features/servers/software"
+import { SoftwareOptions } from "@/features/servers/software"
 import { TagsField } from "@/features/servers/tags"
 import { keptChannels, keptVersions, parseProperties, propertiesText, type TemplateDraft, type TemplateInput, type TemplatePlugin } from "./api"
 
@@ -119,7 +119,6 @@ export function TemplateForm({
             </Select>
           </Field>
         </div>
-        <EndOfLifeNotice type={form.type} />
         <Field>
           <FieldLabel htmlFor="template-description">{t("Description")}</FieldLabel>
           <Textarea

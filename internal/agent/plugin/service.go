@@ -44,7 +44,6 @@ var folders = map[noryxv1.ServerType]string{
 	noryxv1.ServerType_SERVER_TYPE_LEAF:       "plugins",
 	noryxv1.ServerType_SERVER_TYPE_VELOCITY:   "plugins",
 	noryxv1.ServerType_SERVER_TYPE_BUNGEECORD: "plugins",
-	noryxv1.ServerType_SERVER_TYPE_WATERFALL:  "plugins",
 	noryxv1.ServerType_SERVER_TYPE_FABRIC:     "mods",
 	noryxv1.ServerType_SERVER_TYPE_QUILT:      "mods",
 	noryxv1.ServerType_SERVER_TYPE_FORGE:      "mods",

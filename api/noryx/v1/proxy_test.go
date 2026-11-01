@@ -9,7 +9,6 @@ func TestProxyFiles(t *testing.T) {
 	for typ, want := range map[ServerType][2]string{
 		ServerType_SERVER_TYPE_VELOCITY:   {"velocity.toml", "plugins/maintenance"},
 		ServerType_SERVER_TYPE_BUNGEECORD: {"config.yml", "plugins/Maintenance"},
-		ServerType_SERVER_TYPE_WATERFALL:  {"config.yml", "plugins/Maintenance"},
 	} {
 		if got := [2]string{typ.ConfigFile(), typ.MaintenanceFolder()}; got != want {
 			t.Errorf("%v: %v, want %v", typ, got, want)

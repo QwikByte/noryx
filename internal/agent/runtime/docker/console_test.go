@@ -54,7 +54,7 @@ func TestReloaded(t *testing.T) {
 func TestSent(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		lines []string // as Waterfall 615 answered send commands, without and with its modules
+		lines []string // as BungeeCord answers send commands, without and with its modules (here of its fork Waterfall 615)
 		err   error
 		msg   string
 	}{

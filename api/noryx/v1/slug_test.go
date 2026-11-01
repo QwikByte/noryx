@@ -22,7 +22,7 @@ func TestServerTypes(t *testing.T) {
 		{[]ServerType{ServerType_SERVER_TYPE_FABRIC, ServerType_SERVER_TYPE_QUILT}, false, false, false, true, true, false, true, true},
 		{[]ServerType{ServerType_SERVER_TYPE_FORGE, ServerType_SERVER_TYPE_NEOFORGE}, false, false, false, false, true, false, true, true},
 		{[]ServerType{ServerType_SERVER_TYPE_VELOCITY}, true, false, false, false, false, false, true, false},
-		{[]ServerType{ServerType_SERVER_TYPE_BUNGEECORD, ServerType_SERVER_TYPE_WATERFALL}, true, true, false, false, false, false, true, false},
+		{[]ServerType{ServerType_SERVER_TYPE_BUNGEECORD}, true, true, false, false, false, false, true, false},
 		{[]ServerType{ServerType_SERVER_TYPE_BEDROCK}, false, false, false, false, false, true, false, false},
 	} {
 		for _, typ := range tc.types {

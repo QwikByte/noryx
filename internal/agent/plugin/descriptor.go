@@ -29,7 +29,7 @@ func descriptors(t noryxv1.ServerType) []string {
 	switch {
 	case t == noryxv1.ServerType_SERVER_TYPE_VELOCITY:
 		return []string{"velocity-plugin.json"}
-	case t == noryxv1.ServerType_SERVER_TYPE_BUNGEECORD || t == noryxv1.ServerType_SERVER_TYPE_WATERFALL:
+	case t.Bungee():
 		return []string{"bungee.yml", "plugin.yml"}
 	case folders[t] == "plugins":
 		return []string{"paper-plugin.yml", "plugin.yml"}

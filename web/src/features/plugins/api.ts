@@ -33,7 +33,7 @@ export type Sort = "relevance" | "downloads" | "follows" | "newest" | "updated"
 /** What servers load from Modrinth. */
 export type Kind = "plugins" | "mods"
 
-/** Where plugins come from: Modrinth has plugins and mods, Hangar plugins of Paper, Velocity and Waterfall. */
+/** Where plugins come from: Modrinth has plugins and mods, Hangar plugins of Paper, Velocity and BungeeCord (Waterfall there). */
 export type Source = "modrinth" | "hangar"
 
 /** The page of a project on Modrinth or Hangar, whose project IDs start with "hangar-". */

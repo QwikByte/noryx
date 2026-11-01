@@ -57,7 +57,7 @@ import { ExtraPortsField } from "./extra-ports"
 import { lastNode, rememberNode } from "./last-node"
 import { defaultBedrockPlayers, defaults, isBedrock, javaLabel, modpack, serverType, suggestPort, usedPorts } from "./server-types"
 import { JavaField, MemoryField, PlayersField, StopTimeoutField, TimeZoneField, VersionField } from "./settings-fields"
-import { EndOfLifeNotice, SoftwareOptions } from "./software"
+import { SoftwareOptions } from "./software"
 import { TagList } from "./tags"
 import { type World, worldChanges, worldOf } from "./world"
 import { WorldFields } from "./world-fields"
@@ -436,7 +436,6 @@ function CreateServerForm({
             <VersionField id="server-version" value={form.version} onChange={(version) => set({ version })} bedrock={bedrock} errors={errorAt("version")} />
           )}
         </div>
-        <EndOfLifeNotice type={form.type} />
         {fromArchive && (
           <Field>
             <FieldLabel htmlFor="server-archive">{t("Archive")}</FieldLabel>

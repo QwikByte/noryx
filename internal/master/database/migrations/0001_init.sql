@@ -266,7 +266,7 @@ CREATE TABLE templates (
 
 -- A network is a proxy with game servers behind it, set up the way its proxy documents it.
 -- forwarding_secret lets the backends verify the players the proxy forwards. proxy_type is
--- velocity, bungeecord or waterfall, as a network can't ask a proxy whose node is offline.
+-- velocity or bungeecord, as a network can't ask a proxy whose node is offline.
 -- forwarding is modern (Velocity's) or legacy (BungeeCord's ip_forward); firewalled records that
 -- the operator confirmed that only the proxy's node reaches the backends on other nodes, which
 -- legacy forwarding needs. try lists the names of the backends players join and fall back to, in

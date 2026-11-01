@@ -6,16 +6,13 @@ stores the network and configures each server through its agent.
 
 ## Proxies and forwarding
 
-| Proxy                 | Configuration   | Forwarding                                   |
-| --------------------- | --------------- | -------------------------------------------- |
-| Velocity              | `velocity.toml` | modern (recommended) or legacy               |
-| BungeeCord, Waterfall | `config.yml`    | legacy (`ip_forward`), BungeeCord's only way |
+| Proxy      | Configuration   | Forwarding                                   |
+| ---------- | --------------- | -------------------------------------------- |
+| Velocity   | `velocity.toml` | modern (recommended) or legacy               |
+| BungeeCord | `config.yml`    | legacy (`ip_forward`), BungeeCord's only way |
 
-Waterfall reached its [end of life](https://forums.papermc.io/threads/1088/) and can no longer download its command
-modules, whose API PaperMC shut down. A new Waterfall proxy has no `send`, `/server`, `/glist`, `/alert` and `/find`, so
-the panel no longer offers Waterfall for new servers and templates. Existing proxies keep running, and those that
-downloaded their modules before keep them; their pages recommend Velocity with modern forwarding, or BungeeCord, which
-reads the same `config.yml`, and a Waterfall network can [change its proxy](#changing-the-proxy) to one of them.
+Waterfall, PaperMC's fork of BungeeCord, reached its [end of life](https://forums.papermc.io/threads/1088/) and can no
+longer download its command modules, such as `send`, so Noryx doesn't run it; BungeeCord reads the same `config.yml`.
 
 | Game server                | Accepts the players of the proxy through                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -68,8 +65,8 @@ again. It needs the permission to manage networks besides those to copy the serv
 ## Changing the proxy
 
 A network can swap its proxy for a free Velocity or BungeeCord proxy on any node, and keeps its servers, join order,
-host names and Bedrock port. The new proxy takes over the old one's configuration if it reads the same file, as
-BungeeCord reads Waterfall's `config.yml`, and the Maintenance plugin with its state and team; other plugins stay with
+host names and Bedrock port. The new proxy takes over the old one's configuration if it reads the same file, and the
+Maintenance plugin with its state and team; other plugins stay with
 the old proxy. Changing to Velocity can switch to modern forwarding, which restarts the servers once, as does a proxy
 that comes to or leaves the node of a server. The dialog tells all this beforehand and where players join from then on.
 The old proxy leaves the network without its forwarding secret and stops; the new one starts if either ran.
@@ -108,8 +105,8 @@ that all players leave at once. **Message** shows a message to the players of al
 The running game servers restart a few at a time (1, 2, 5 or 10) while the network stays open: the proxy first sends
 their players to another running server with `send`, and the next servers restart once these run again. The servers
 players join first restart last and one at a time; the proxy keeps running, and a server that doesn't start again stops
-the restart. It also stops before servers whose players the proxy can't send, e.g. a BungeeCord or Waterfall proxy
-without its module `cmd_send`. A rolling restart may take as long as its servers need: for each batch the longest
+the restart. It also stops before servers whose players the proxy can't send, e.g. a BungeeCord proxy without its
+module `cmd_send`. A rolling restart may take as long as its servers need: for each batch the longest
 [stop timeout](servers.md#settings-and-images) among them and 8 minutes to start and run again, an hour at least.
 
 The menu of a running server in the network's list of servers restarts that one alone the same way, **Restart safely**:

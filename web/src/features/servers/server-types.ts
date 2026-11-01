@@ -11,8 +11,6 @@ export interface ServerType {
   proxy: boolean
   /** What the server loads from Modrinth, and the loaders those are made for; vanilla servers load nothing. */
   addons?: { kind: "plugins" | "mods"; loaders: string[] }
-  /** Why the software reached its end of life: new servers no longer get it, existing ones keep it. */
-  endOfLife?: string
   /** Bedrock Dedicated Server, without Java, plugins or networks. */
   bedrock?: boolean
 }
@@ -32,15 +30,6 @@ export const serverTypes: ServerType[] = [
   { value: "neoforge", label: "NeoForge", proxy: false, addons: { kind: "mods", loaders: ["neoforge"] } },
   { value: "velocity", label: "Velocity", proxy: true, addons: { kind: "plugins", loaders: ["velocity"] } },
   { value: "bungeecord", label: "BungeeCord", proxy: true, addons: { kind: "plugins", loaders: ["bungeecord", "waterfall"] } },
-  {
-    value: "waterfall",
-    label: "Waterfall",
-    proxy: true,
-    addons: { kind: "plugins", loaders: ["waterfall", "bungeecord"] },
-    endOfLife: msg(
-      "It can't download its command modules anymore. Without them, it has no /send, /server, /glist, /alert and /find, and Noryx can't move players to other servers. Proxies that downloaded them before keep them. Use Velocity with modern forwarding instead, or BungeeCord, which reads the same config.yml.",
-    ),
-  },
   { value: "bedrock", label: "Bedrock", proxy: false, bedrock: true },
 ]
 

@@ -44,7 +44,7 @@ export interface NetworkSettings {
 export interface Network extends NetworkSettings {
   id: string
   proxy: ServerRef
-  /** velocity, bungeecord or waterfall. */
+  /** velocity or bungeecord. */
   proxyType: string
   /** Why its servers were last configured in vain, until they are configured again. */
   applyError?: string

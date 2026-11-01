@@ -5,9 +5,9 @@ import type { NodeServer } from "@/features/servers/api"
 import { isFabric, isPaper } from "@/features/servers/server-types"
 import { type Forwarding, type Network, networksQuery, type ServerRef } from "./api"
 
-export const proxyTypes = ["velocity", "bungeecord", "waterfall"]
-/** BungeeCord and its fork Waterfall share their configuration. */
-export const isBungee = (type: string) => type === "bungeecord" || type === "waterfall"
+export const proxyTypes = ["velocity", "bungeecord"]
+/** BungeeCord's proxies differ from Velocity's: in their configuration, forwarding and commands. */
+export const isBungee = (type: string) => type === "bungeecord"
 
 /**
  * Game servers that can verify the players a proxy forwards: Paper and its forks themselves,

@@ -19,7 +19,7 @@ func TestWriteGeyser(t *testing.T) {
 	// Geyser's own file keeps its other settings and version, and the same port changes nothing.
 	dir = dataDir(t, map[string]string{"plugins/Geyser-BungeeCord/config.yml": "bedrock:\n  port: 19132\n  address: 0.0.0.0\njava:\n  auth-type: online\nconfig-version: 9\n"})
 	for _, want := range []bool{true, false} {
-		if changed, err := WriteGeyser(dir, noryxv1.ServerType_SERVER_TYPE_WATERFALL, 19140); changed != want || err != nil {
+		if changed, err := WriteGeyser(dir, noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, 19140); changed != want || err != nil {
 			t.Fatalf("changed = %v, err = %v, want changed = %v", changed, err, want)
 		}
 	}

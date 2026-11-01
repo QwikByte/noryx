@@ -531,7 +531,7 @@ func (s *Service) SendCommand(ctx context.Context, req *noryxv1.SendCommandReque
 	output, err := s.rt.SendCommand(ctx, req.GetId(), command)
 	switch {
 	case errors.Is(err, runtime.ErrNoSend):
-		return nil, status.Error(codes.FailedPrecondition, "The proxy has no send command, as it couldn't download its module cmd_send. Waterfall can't anymore, as it reached its end of life: use Velocity or BungeeCord instead.")
+		return nil, status.Error(codes.FailedPrecondition, "The proxy has no send command, as it couldn't download its module cmd_send. Restart it to try again.")
 	case errors.Is(err, runtime.ErrNotSent):
 		return nil, status.Error(codes.NotFound, err.Error())
 	case err != nil:

@@ -30,8 +30,8 @@ type Swap struct {
 // maintenanceFiles are the files of the Maintenance plugin that keep its state.
 var maintenanceFiles = []string{"config.yml", "WhitelistedPlayers.yml"}
 
-// SwapProxy replaces the proxy of a network with a free one, e.g. a Waterfall proxy, which
-// reached its end of life, with BungeeCord or Velocity. The new proxy takes over the settings
+// SwapProxy replaces the proxy of a network with a free one, e.g. BungeeCord with Velocity,
+// which forwards players the modern way. The new proxy takes over the settings
 // of the old one if it reads the same file, the Maintenance plugin with its state, and the
 // Bedrock port. The old proxy leaves the network and stops; the new one starts if either ran.
 func (s *Service) SwapProxy(ctx context.Context, id string, sw Swap) (Network, error) {
@@ -90,8 +90,6 @@ func (s *Service) swapped(ctx context.Context, current Network, sw Swap) (Networ
 		return current, nil, err
 	case !typ.Proxy():
 		return current, nil, errProxyType
-	case typ == noryxv1.ServerType_SERVER_TYPE_WATERFALL:
-		return current, nil, httpapi.Errorf(http.StatusBadRequest, "Waterfall reached its end of life. Choose a Velocity or BungeeCord proxy.")
 	case sw.Proxy == current.Proxy:
 		return current, nil, httpapi.Errorf(http.StatusBadRequest, "This proxy serves the network already.")
 	}
@@ -125,7 +123,7 @@ func (s *Service) swapped(ctx context.Context, current Network, sw Swap) (Networ
 
 // takeOver prepares the proxy of n to replace that of current. It stops, so that it loads
 // all it gets when it starts: the configuration of the old proxy if it reads the same file,
-// as BungeeCord reads that of Waterfall, and the Maintenance plugin with its files.
+// and the Maintenance plugin with its files.
 func (s *Service) takeOver(ctx context.Context, current, n Network, old, proxy *noryxv1.Server) error {
 	operation.Step(ctx, "settings")
 	if proxy.GetState() != noryxv1.ServerState_SERVER_STATE_STOPPED {

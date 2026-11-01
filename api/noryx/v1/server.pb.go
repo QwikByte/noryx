@@ -34,17 +34,16 @@ const (
 	// Proxies connect several servers to one network.
 	ServerType_SERVER_TYPE_VELOCITY   ServerType = 7
 	ServerType_SERVER_TYPE_BUNGEECORD ServerType = 8
-	ServerType_SERVER_TYPE_WATERFALL  ServerType = 9
 	// Forks of Paper with its configuration: Folia runs regions of the worlds in parallel and
 	// only loads plugins made for it, Leaf optimises performance.
-	ServerType_SERVER_TYPE_FOLIA ServerType = 10
-	ServerType_SERVER_TYPE_LEAF  ServerType = 11
+	ServerType_SERVER_TYPE_FOLIA ServerType = 9
+	ServerType_SERVER_TYPE_LEAF  ServerType = 10
 	// Quilt loads its own mods and those of Fabric.
-	ServerType_SERVER_TYPE_QUILT ServerType = 12
+	ServerType_SERVER_TYPE_QUILT ServerType = 11
 	// Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
 	// without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
 	// then play over UDP ports of their own; see max_players.
-	ServerType_SERVER_TYPE_BEDROCK ServerType = 13
+	ServerType_SERVER_TYPE_BEDROCK ServerType = 12
 )
 
 // Enum value maps for ServerType.
@@ -59,11 +58,10 @@ var (
 		6:  "SERVER_TYPE_NEOFORGE",
 		7:  "SERVER_TYPE_VELOCITY",
 		8:  "SERVER_TYPE_BUNGEECORD",
-		9:  "SERVER_TYPE_WATERFALL",
-		10: "SERVER_TYPE_FOLIA",
-		11: "SERVER_TYPE_LEAF",
-		12: "SERVER_TYPE_QUILT",
-		13: "SERVER_TYPE_BEDROCK",
+		9:  "SERVER_TYPE_FOLIA",
+		10: "SERVER_TYPE_LEAF",
+		11: "SERVER_TYPE_QUILT",
+		12: "SERVER_TYPE_BEDROCK",
 	}
 	ServerType_value = map[string]int32{
 		"SERVER_TYPE_UNSPECIFIED": 0,
@@ -75,11 +73,10 @@ var (
 		"SERVER_TYPE_NEOFORGE":    6,
 		"SERVER_TYPE_VELOCITY":    7,
 		"SERVER_TYPE_BUNGEECORD":  8,
-		"SERVER_TYPE_WATERFALL":   9,
-		"SERVER_TYPE_FOLIA":       10,
-		"SERVER_TYPE_LEAF":        11,
-		"SERVER_TYPE_QUILT":       12,
-		"SERVER_TYPE_BEDROCK":     13,
+		"SERVER_TYPE_FOLIA":       9,
+		"SERVER_TYPE_LEAF":        10,
+		"SERVER_TYPE_QUILT":       11,
+		"SERVER_TYPE_BEDROCK":     12,
 	}
 )
 
@@ -2925,7 +2922,7 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\acontent\"f\n" +
 	"\x1fCreateServerFromArchiveResponse\x12(\n" +
 	"\x06server\x18\x01 \x01(\v2\x10.noryx.v1.ServerR\x06server\x12\x19\n" +
-	"\bleft_out\x18\x02 \x03(\tR\aleftOut*\xe8\x02\n" +
+	"\bleft_out\x18\x02 \x03(\tR\aleftOut*\xcd\x02\n" +
 	"\n" +
 	"ServerType\x12\x1b\n" +
 	"\x17SERVER_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -2936,13 +2933,12 @@ const file_noryx_v1_server_proto_rawDesc = "" +
 	"\x11SERVER_TYPE_FORGE\x10\x05\x12\x18\n" +
 	"\x14SERVER_TYPE_NEOFORGE\x10\x06\x12\x18\n" +
 	"\x14SERVER_TYPE_VELOCITY\x10\a\x12\x1a\n" +
-	"\x16SERVER_TYPE_BUNGEECORD\x10\b\x12\x19\n" +
-	"\x15SERVER_TYPE_WATERFALL\x10\t\x12\x15\n" +
-	"\x11SERVER_TYPE_FOLIA\x10\n" +
-	"\x12\x14\n" +
-	"\x10SERVER_TYPE_LEAF\x10\v\x12\x15\n" +
-	"\x11SERVER_TYPE_QUILT\x10\f\x12\x17\n" +
-	"\x13SERVER_TYPE_BEDROCK\x10\r*\x81\x01\n" +
+	"\x16SERVER_TYPE_BUNGEECORD\x10\b\x12\x15\n" +
+	"\x11SERVER_TYPE_FOLIA\x10\t\x12\x14\n" +
+	"\x10SERVER_TYPE_LEAF\x10\n" +
+	"\x12\x15\n" +
+	"\x11SERVER_TYPE_QUILT\x10\v\x12\x17\n" +
+	"\x13SERVER_TYPE_BEDROCK\x10\f*\x81\x01\n" +
 	"\rRestartPolicy\x12\x1e\n" +
 	"\x1aRESTART_POLICY_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15RESTART_POLICY_ALWAYS\x10\x01\x12\x1b\n" +

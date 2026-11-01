@@ -210,7 +210,7 @@ function CreateNetworkForm({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-muted-foreground">
             {bungee
               ? t(
-                  "BungeeCord and Waterfall only support legacy forwarding. Servers on the proxy's node are safe, as only the proxy can reach them.",
+                  "BungeeCord only supports legacy forwarding. Servers on the proxy's node are safe, as only the proxy can reach them.",
                 )
               : t("You can change this later; the servers then restart.")}
           </p>

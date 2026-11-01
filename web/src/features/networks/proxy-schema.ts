@@ -89,7 +89,7 @@ const velocity: Record<string, Definition> = {
   "packet-limiter.bytes-per-second": def(msg("Bytes per second"), msg("Most bytes a player may send per second; -1 has no limit."), "Advanced", num(-1)),
 }
 
-/** Known settings of config.yml of BungeeCord and Waterfall, by their path. */
+/** Known settings of config.yml of BungeeCord, by their path. */
 const bungee: Record<string, Definition> = {
   "listeners.0.motd": def(msg("MOTD"), msg("Shown in the server list; & starts colour codes, e.g. &aGreen."), "Server list", text),
   "listeners.0.max_players": def(msg("Shown maximum of players"), msg("Shown in the server list; Player limit below limits them."), "Server list", num(0)),

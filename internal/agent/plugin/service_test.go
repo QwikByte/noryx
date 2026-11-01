@@ -111,7 +111,7 @@ func TestPluginName(t *testing.T) {
 		{noryxv1.ServerType_SERVER_TYPE_PAPER, map[string]string{"plugin.yml": "authors:\n  name: Someone\n"}, ""},
 		{noryxv1.ServerType_SERVER_TYPE_PAPER, map[string]string{"plugin.yml": "name: ../../world\n"}, ""},
 		{noryxv1.ServerType_SERVER_TYPE_PAPER, map[string]string{"plugin.yml": "name: .disabled\n"}, ""},
-		{noryxv1.ServerType_SERVER_TYPE_WATERFALL, map[string]string{"plugin.yml": "name: Bukkit", "bungee.yml": "name: Bungee"}, "Bungee"},
+		{noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, map[string]string{"plugin.yml": "name: Bukkit", "bungee.yml": "name: Bungee"}, "Bungee"},
 		{noryxv1.ServerType_SERVER_TYPE_VELOCITY, map[string]string{"plugin.yml": "name: Bukkit", "velocity-plugin.json": `{"id":"luckperms"}`}, "luckperms"},
 		{noryxv1.ServerType_SERVER_TYPE_FABRIC, map[string]string{"plugin.yml": "name: Mod"}, ""},
 	} {

@@ -126,7 +126,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	// BungeeCord sends a host name to one server and keeps the settings of the servers.
-	n = valid("waterfall")
+	n = valid("bungeecord")
 	n.Forwarding, n.Firewalled = Legacy, true
 	n.ForcedHosts[0].Servers = []string{"survival"}
 	if err := n.validate(nil); err != nil || !n.Backends[0].Restricted || n.Backends[0].Motd != "Hi" {
@@ -195,7 +195,7 @@ func TestSendCommand(t *testing.T) {
 		{"velocity", "all", false},
 		{"bungeecord", "Current", false},
 		{"bungeecord", "Lobby", false}, // BungeeCord sends the players of the server lobby
-		{"waterfall", "survival_2", true},
+		{"bungeecord", "survival_2", true},
 	} {
 		n := Network{ProxyType: tt.proxy, Backends: backends}
 		if command, alone := n.SendCommand(tt.player, "survival-2"); command != "send "+tt.player+" survival-2" || alone != tt.alone {
