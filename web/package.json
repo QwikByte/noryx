@@ -31,7 +31,7 @@
     "@tanstack/react-router": "^1.170.46",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
-    "cn": "^0.4.0",
+    "cn": "^0.5.1",
     "codemirror": "^6.0.2",
     "i18next": "^26.6.0",
     "motion": "^14.9.0",
