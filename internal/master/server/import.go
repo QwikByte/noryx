@@ -63,6 +63,9 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		policy, cpuMillis, err = req.check()
 	}
+	if err == nil {
+		err = h.checkExtraPorts(ctx, nodeID, nil, ProtoPorts(req.ExtraPorts), req.Port, 0)
+	}
 	release := noRelease
 	if err == nil {
 		var reserved func()
@@ -82,6 +85,7 @@ func (h *Handler) importServer(w http.ResponseWriter, r *http.Request) {
 			JvmOptions: req.JVMOptions, CpuMillis: cpuMillis, LoaderVersion: req.LoaderVersion, StopTimeoutSeconds: req.StopTimeout,
 			TimeZone: req.TimeZone, HealthStartMinutes: req.HealthStart, CrashLimit: req.CrashLimit, StableAfterMinutes: req.StableAfter,
 			UnhealthyRestartMinutes: req.UnhealthyRestart, ProcessLimit: req.ProcessLimit, InitMemoryMb: req.InitMemoryMB, MaxPlayers: req.MaxPlayers,
+			ExtraPorts: ProtoPorts(req.ExtraPorts),
 		}}, archive)
 	}
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
