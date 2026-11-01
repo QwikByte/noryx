@@ -129,15 +129,6 @@ func (f Files) Secrets() secrets.Files {
 // Set returns the name of the set that wrote a file, given as a clean path, or "".
 func (f Files) Set(name string) string { return f.m.owner(filepath.ToSlash(name), "") }
 
-// Marked returns the files that held secrets of a set, as clean paths.
-func (f Files) Marked() []string {
-	marked := make([]string, len(f.m.Marked))
-	for i, p := range f.m.Marked {
-		marked[i] = filepath.FromSlash(p)
-	}
-	return marked
-}
-
 // Watch returns the files with secrets of a server as they are each time it is called, for
 // what reads files over a while, e.g. an archive of a folder: it reads the manifest again
 // whenever it was replaced. Asked after a file was opened, it knows whether the file holds

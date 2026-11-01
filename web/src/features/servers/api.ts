@@ -275,7 +275,7 @@ export function useDuplicateServer(nodeId: string) {
   })
 }
 
-export type MovePhase = "stopping" | "copying" | "backups" | "finishing" | "done" | "failed"
+type MovePhase = "stopping" | "copying" | "backups" | "finishing" | "done" | "failed"
 
 /** A server moving to another node; the master shows finished moves for an hour. */
 export interface Move {

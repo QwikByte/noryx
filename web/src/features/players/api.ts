@@ -40,7 +40,7 @@ export interface Listed {
 }
 
 /** What the lists of a server don't tell. */
-export interface ServerLists extends ServerRef {
+interface ServerLists extends ServerRef {
   whitelistEnabled: boolean
   /** Changes that wait for the server to run, or until due, e.g. the pardon at the end of a temporary ban. */
   pending: { action: PlayerAction; name?: string; reason?: string; due?: string }[]
@@ -73,7 +73,7 @@ export function playerListsQuery({ network, server, joined }: { network?: string
 
 
 /** When a player was first and last seen online, and for how many minutes. */
-export interface Span {
+interface Span {
   firstSeen: string
   lastSeen: string
   minutes: number

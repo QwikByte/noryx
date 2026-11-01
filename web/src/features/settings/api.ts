@@ -74,7 +74,7 @@ export interface Retention {
 }
 
 /** The certificate the panel serves. */
-export interface PanelCertificate {
+interface PanelCertificate {
   selfSigned: boolean
   /** Domain names and IP addresses it is valid for. */
   names: string[]

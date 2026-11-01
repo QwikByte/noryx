@@ -69,7 +69,7 @@ export type Channel = "release" | "beta" | "alpha"
 export const channels: Channel[] = ["release", "beta", "alpha"]
 
 /** Whether a server that takes a project in a channel takes a version of the channel of. */
-export const takes = (channel: Channel = "release", of: Channel = "release") => channels.indexOf(of) <= channels.indexOf(channel)
+const takes = (channel: Channel = "release", of: Channel = "release") => channels.indexOf(of) <= channels.indexOf(channel)
 
 /** What a server takes of a project in a channel. */
 export const channelLabel = (channel: Channel) =>

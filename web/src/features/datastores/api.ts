@@ -56,7 +56,7 @@ export function parameterBounds(engine: Engine, memoryMb: number) {
 }
 
 /** Where servers reach a datastore: those on its node by the name of its container, those of other nodes over the private network of the nodes. */
-export interface Endpoint {
+interface Endpoint {
   host: string
   port: number
   remote: boolean

@@ -177,7 +177,7 @@ export const groups: Record<Group, string> = {
 }
 
 /** Lists of steps within a step, and what the editor calls them. */
-export interface Nests {
+interface Nests {
   steps?: string
   else?: string
   cases?: boolean
@@ -206,7 +206,7 @@ const onServers: Token[] = [
 
 const servers = (): Servers => ({ targets: [], from: "" })
 
-export const always: Condition = { match: "all", rules: [{ left: "", op: "eq", right: "" }] }
+const always: Condition = { match: "all", rules: [{ left: "", op: "eq", right: "" }] }
 
 export const kinds: Record<string, KindInfo> = {
   if: {

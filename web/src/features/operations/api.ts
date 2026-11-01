@@ -93,7 +93,7 @@ export async function operate<T>(path: string, init: RequestInit, onStart?: (op:
 }
 
 /** The code of the error of an operation that was cancelled. */
-export const cancelledCode = "cancelled"
+const cancelledCode = "cancelled"
 
 /** Whether an error tells that an operation was cancelled, which needs no warning. */
 export const isCancelled = (e: unknown) => e instanceof ApiError && e.code === cancelledCode

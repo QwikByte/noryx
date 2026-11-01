@@ -16,7 +16,7 @@ export interface Schedule {
 }
 
 /** Which servers of a network a target names; empty names all of them. */
-export type NetworkRole = "" | "servers" | "proxy"
+type NetworkRole = "" | "servers" | "proxy"
 
 /**
  * Servers a task runs on: a server, all servers of a node (without serverId), those with a tag, or those of a

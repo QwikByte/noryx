@@ -184,7 +184,7 @@ export function useHidden() {
   return { hidden: data?.hidden ?? [], set: set.mutate }
 }
 
-export const defaultAlerts: Alerts = { level: "warn", only: false, pinned: false, nodes: [], servers: [], categories: [] }
+const defaultAlerts: Alerts = { level: "warn", only: false, pinned: false, nodes: [], servers: [], categories: [] }
 
 /** How long the user can keep warnings and errors from popping up. */
 export const quietHours = [1, 8, 24]

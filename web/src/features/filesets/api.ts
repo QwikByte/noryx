@@ -99,7 +99,7 @@ export interface ServerStatus extends ServerRef {
 
 export type Action = "unchanged" | "created" | "changed" | "removed" | "kept"
 
-export interface Change {
+interface Change {
   path: string
   action: Action
   secret?: boolean

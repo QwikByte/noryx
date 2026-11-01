@@ -20,7 +20,7 @@ export const groups = [
   msg("Performance"),
   msg("Advanced"),
 ] as const
-export type Group = (typeof groups)[number]
+type Group = (typeof groups)[number]
 
 export interface Definition {
   /** In English, marked with msg, like the description and the labels of options. */

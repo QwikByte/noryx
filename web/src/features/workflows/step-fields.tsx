@@ -115,7 +115,7 @@ const serverSources = () => [
 ]
 
 /** Chooses the servers of a step: nodes, servers, tags and networks, or servers from data, e.g. the server of the trigger. */
-export function ServersField({ value, onChange, finds }: { value: Servers; onChange: (servers: Servers) => void; finds: string[] }) {
+function ServersField({ value, onChange, finds }: { value: Servers; onChange: (servers: Servers) => void; finds: string[] }) {
   const mode = value.from !== undefined && value.from !== "" ? "data" : "chosen"
   return (
     <FieldSet>

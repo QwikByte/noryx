@@ -10,7 +10,7 @@ export const groups = [
   msg("Query"),
   msg("Advanced"),
 ] as const
-export type Group = (typeof groups)[number]
+type Group = (typeof groups)[number]
 
 export interface Definition extends Omit<PropertyDefinition, "group"> {
   group: Group

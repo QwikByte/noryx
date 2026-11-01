@@ -5,7 +5,7 @@ import { defaults } from "@/features/servers/server-types"
 import { api } from "@/lib/api"
 
 /** What a template sets up for new servers; name, port and storage are chosen per server. */
-export interface TemplateSettings {
+interface TemplateSettings {
   type: string
   /** "LATEST" follows new releases. */
   version: string

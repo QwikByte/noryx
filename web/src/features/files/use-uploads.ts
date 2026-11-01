@@ -14,7 +14,7 @@ export interface Upload {
 }
 
 /** A file to upload, by its path in the folder it goes into, e.g. inside a dropped folder. */
-export interface Dropped {
+interface Dropped {
   file: File
   path: string
 }

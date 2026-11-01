@@ -9,7 +9,7 @@ export type ListKey = string
 export const root: ListKey = "root"
 
 /** Calls fn on each list of steps, the root first, and returns the steps with the lists it returned. */
-export function mapLists(steps: Step[], fn: (list: Step[], key: ListKey) => Step[], key: ListKey = root): Step[] {
+function mapLists(steps: Step[], fn: (list: Step[], key: ListKey) => Step[], key: ListKey = root): Step[] {
   return fn(steps, key).map((s) => ({
     ...s,
     ...(s.steps && { steps: mapLists(s.steps, fn, `${s.id}/steps`) }),
@@ -49,7 +49,7 @@ export const move = (steps: Step[], id: string, by: -1 | 1) =>
 export const findStep = (steps: Step[], id: string) => walk(steps).find(({ step }) => step.id === id)?.step
 
 /** A new ID of a step of a kind that no step has, e.g. restart_2. */
-export function newId(steps: Step[], kind: string, taken = new Set(walk(steps).map(({ step }) => step.id))) {
+function newId(steps: Step[], kind: string, taken = new Set(walk(steps).map(({ step }) => step.id))) {
   const base = kind.replace(/[^a-z0-9_]/g, "") || "step"
   for (let i = 1; ; i++) {
     const id = `${base}_${i}`
