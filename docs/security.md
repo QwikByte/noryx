@@ -475,7 +475,8 @@ secrets of networks and the secrets of two-factor authentication, the private ke
 host key of SFTP, if it has one.
 Whoever has the CA's key can issue certificates that the agents trust, and so control every node and its servers;
 anyone who gets an archive gets that. So only administrators can see, change and run the backup job of the master, as
-no permission that groups can get covers it, and API tokens can't; each run checks that the administrator who saved it
+no permission that groups can get covers it, and API tokens can't, and only they can change the storage it keeps its
+archives in; each run checks that the administrator who saved it
 last still is one, so that the archives no longer go where a former administrator chose.
 
 The job encrypts its archives with [age](https://age-encryption.org) and a passphrase (scrypt, ChaCha20-Poly1305), so
