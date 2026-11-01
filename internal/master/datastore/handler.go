@@ -144,8 +144,9 @@ func (h *Handler) Register(mux access.Mux) {
 	// database that the query names.
 	mux.Handle("POST /api/datastores/{id}/backups/upload", manage, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		logging.Note(r.Context(), slog.String("database", q.Get("database")), slog.String("label", q.Get("label")))
-		dump, err := h.svc.Upload(r.Context(), r.PathValue("id"), q.Get("database"), q.Get("label"), r.ContentLength, http.MaxBytesReader(w, r.Body, noryxv1.MaxImportedDump))
+		logging.Note(r.Context(), slog.String("database", q.Get("database")), slog.String("label", q.Get("label")), slog.String("location", q.Get("location")))
+		dump, err := h.svc.Upload(r.Context(), r.PathValue("id"), q.Get("database"), q.Get("label"), q.Get("location"), r.ContentLength,
+			http.MaxBytesReader(w, r.Body, noryxv1.MaxImportedDump))
 		if errors.As(err, new(*http.MaxBytesError)) {
 			err = errTooLarge
 		}

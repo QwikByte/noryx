@@ -110,8 +110,9 @@ var errTooLarge = httpapi.Errorf(http.StatusRequestEntityTooLarge, "A dump can h
 
 // Upload adds a dump made elsewhere to a datastore, e.g. of a database that moves to Noryx:
 // a ZIP archive with a <database>.sql for each database, or the SQL of the database named.
-// The agent checks it, and restoring it loads it like a dump made there.
-func (s *Service) Upload(ctx context.Context, id, database, label string, size int64, content io.Reader) (Dump, error) {
+// The agent checks it, keeps it in the storage location named, or its default one, and
+// restoring it loads it like a dump made there.
+func (s *Service) Upload(ctx context.Context, id, database, label, location string, size int64, content io.Reader) (Dump, error) {
 	ds, err := s.store.get(ctx, id)
 	if err != nil {
 		return Dump{}, err
@@ -130,7 +131,7 @@ func (s *Service) Upload(ctx context.Context, id, database, label string, size i
 	if err != nil {
 		return Dump{}, err
 	}
-	header := &noryxv1.ImportDumpHeader{Id: id, Label: label, Database: database, Size: max(size, 0)}
+	header := &noryxv1.ImportDumpHeader{Id: id, Label: label, Location: location, Database: database, Size: max(size, 0)}
 	err = stream.Send(&noryxv1.ImportDumpRequest{Content: &noryxv1.ImportDumpRequest_Header{Header: header}})
 	buf := make([]byte, uploadChunk)
 	for err == nil {
