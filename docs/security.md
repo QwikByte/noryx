@@ -254,8 +254,8 @@ an offset leaves the file as it was.
 
 The master identifies with an Ed25519 host key, which it creates in its data directory (`sftp/host_key`, mode `0600`)
 the first time SFTP is on; a key it can't load keeps SFTP off. The settings, the file manager and the master's entry of
-its start in the log show its fingerprint, which clients ask to compare when they first connect. `noryx-master backup`
-doesn't hold it, so a master restored elsewhere creates a new one, which clients warn about.
+its start in the log show its fingerprint, which clients ask to compare when they first connect. Archives of the master
+hold it, like its other keys, so a master restored elsewhere keeps the fingerprint.
 
 ## Plugins and downloads
 
