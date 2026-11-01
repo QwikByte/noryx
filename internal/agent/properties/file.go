@@ -2,6 +2,7 @@ package properties
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strconv"
@@ -37,6 +38,18 @@ func parse(data string) []entry {
 		entries = append(entries, entry{raw: raw, key: unescape(key), value: unescape(value)})
 	}
 	return entries
+}
+
+// Entries returns the keys and values of a file in the format of java.util.Properties, as
+// Java reads them: lines that end with a backslash continue on the next.
+func Entries(data string) iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		for _, e := range parse(data) {
+			if (e.key != "" || e.value != "") && !yield(e.key, e.value) { // not a comment
+				return
+			}
+		}
+	}
 }
 
 // continues reports whether a line ends with an odd number of backslashes.

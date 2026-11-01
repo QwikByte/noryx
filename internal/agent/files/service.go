@@ -185,7 +185,10 @@ func (s *Service) WriteFile(stream noryxv1.FileService_WriteFileServer) error {
 		}
 		current, err := dir.ReadOptional(name)
 		if err == nil {
-			_, err = w.Write(secrets.Restore(name, data.Bytes(), current))
+			var restored []byte
+			if restored, err = secrets.Restore(name, data.Bytes(), current); err == nil {
+				_, err = w.Write(restored)
+			}
 		}
 		return err
 	})
@@ -581,6 +584,7 @@ var known = []grpcerr.Known{
 	{Err: fs.ErrExist, Code: codes.AlreadyExists, Text: "A file or folder with this name exists already."},
 	{Err: fs.ErrPermission, Code: codes.PermissionDenied, Text: "The agent isn't allowed to access this file."},
 	{Err: datadir.ErrLink, Code: codes.InvalidArgument, Text: "This path leads through a link of the server, which the file manager doesn't follow."},
+	{Err: secrets.ErrExposed, Code: codes.InvalidArgument, Text: "Keep each " + secrets.Placeholder + " secret as a setting of its own: here the file's format would read it as part of another, e.g. after a line that ends with a backslash or in a text of several lines, or can't read the file."},
 }
 
 func toStatus(err error) error {

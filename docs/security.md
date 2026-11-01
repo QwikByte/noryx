@@ -201,7 +201,9 @@ either, as they can hold secrets, e.g. a backup that is being restored or a file
 Downloads are sent as attachments with a sandboxing CSP, so an uploaded HTML file can't run scripts in the panel.
 Secrets of the server stay on the node: files that only hold them can't be listed, read, written or moved, others show
 them as `<hidden>`, no file or folder with secrets can be moved or copied where they would show, and archives leave
-them out. Only moving a server to another node copies them. Copies never follow links, and one that a
+them out. Saving such a file puts its secrets back only where the file's format reads each as the whole value of its
+setting, not as part of another, e.g. after a line of `server.properties` that ends with a backslash or in a text of
+several lines in YAML, which the properties editor or the players would see; a restored backup gets no secrets then. Only moving a server to another node copies them. Copies never follow links, and one that a
 file set filled with secrets while it was copied is removed again. Moving, copying or deleting several files and folders
 at once checks each of them like a single one. The viewer of logs shows them as text and unpacks archived logs in the
 browser only up to 16 MB, so that a small archive can't exhaust the browser's memory. A search shows files as the

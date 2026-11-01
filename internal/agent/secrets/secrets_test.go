@@ -3,6 +3,7 @@ package secrets
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/QwikByte/noryx/internal/agent/datadir"
@@ -24,14 +25,45 @@ func TestRedactAndRestore(t *testing.T) {
 			t.Errorf("Redact(%s) = %q, want %q", tc.name, got, tc.redacted)
 		}
 		// Saving what the panel showed keeps the secrets.
-		if got := string(Restore(tc.name, []byte(tc.redacted), []byte(tc.data))); got != tc.data {
-			t.Errorf("Restore(%s) = %q, want %q", tc.name, got, tc.data)
+		if got, err := Restore(tc.name, []byte(tc.redacted), []byte(tc.data)); err != nil || string(got) != tc.data {
+			t.Errorf("Restore(%s) = %q, %v, want %q", tc.name, got, err, tc.data)
 		}
 	}
 	// A new secret is taken as is, and a placeholder without a secret never becomes one.
-	got := Restore("server.properties", []byte("rcon.password=n3w\nmanagement-server-secret=<hidden>\n"), []byte("rcon.password=old\n"))
-	if want := "rcon.password=n3w\nmanagement-server-secret=\n"; string(got) != want {
-		t.Errorf("Restore = %q, want %q", got, want)
+	got, err := Restore("server.properties", []byte("rcon.password=n3w\nmanagement-server-secret=<hidden>\n"), []byte("rcon.password=old\n"))
+	if want := "rcon.password=n3w\nmanagement-server-secret=\n"; err != nil || string(got) != want {
+		t.Errorf("Restore = %q, %v, want %q", got, err, want)
+	}
+	// Lines with several secrets of the same key each get theirs.
+	many := strings.Repeat("rcon.password=<hidden>\n", 12)
+	if got, err := Restore("server.properties", []byte(many), []byte("rcon.password=s3cret\n")); err != nil || string(got) != strings.ReplaceAll(many, Placeholder, "s3cret") {
+		t.Errorf("Restore = %q, %v", got, err)
+	}
+}
+
+// A secret is never filled in where the format of its file reads it as part of another
+// value, which the panel or the players see, e.g. the message of the day.
+func TestRestoreRefusesExposedSecrets(t *testing.T) {
+	for _, tc := range []struct{ name, data, current string }{
+		{"server.properties", "motd=\\\nrcon.password=<hidden>\n", "rcon.password=s3cret\n"},
+		{"server.properties", "motd=a\\\n  \\\n rcon.password=<hidden>\n", "rcon.password=s3cret\n"},
+		{"server.properties", "=\\\nrcon.password=<hidden>\n", "rcon.password=s3cret\n"},
+		{"config/paper-global.yml", "messages:\n  no-permission: |\n    secret: <hidden>\n", "secret: 'F0rward'\n"},
+		{"config/paper-global.yml", "messages:\n  no-permission: \"a\n  secret: <hidden>\n  \"\n", "secret: 'F0rward'\n"},
+		{"config/paper-global.yml", "secret: <hidden>\nmotd: \"unclosed\n", "secret: 'F0rward'\n"}, // not YAML
+		{"plugins/Geyser-Velocity/config.yml", "bedrock:\n  motd1: >\n    password: <hidden>\n", "password: 'abc'\n"},
+		{"config/FabricProxy-Lite.toml", "motd = \"\"\"\nsecret = <hidden>\n\"\"\"\n", "secret = 'F0rward'\n"},
+		{"config/FabricProxy-Lite.toml", "names = [\nsecret = <hidden>\n]\n", "secret = 'F0rward'\n"},
+	} {
+		got, err := Restore(tc.name, []byte(tc.data), []byte(tc.current))
+		if !errors.Is(err, ErrExposed) {
+			t.Errorf("Restore(%s, %q) = %q, %v", tc.name, tc.data, got, err)
+		}
+	}
+	// Secrets in nested mappings stay secrets of their own.
+	yml := "proxies:\n  velocity:\n    secret: <hidden>\nother:\n  secret: <hidden>\n"
+	if got, err := Restore("config/paper-global.yml", []byte(yml), []byte("secret: 'F0rward'\n")); err != nil || strings.Count(string(got), "'F0rward'") != 2 {
+		t.Errorf("Restore = %q, %v", got, err)
 	}
 }
 
