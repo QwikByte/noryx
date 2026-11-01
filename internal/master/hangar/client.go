@@ -170,7 +170,7 @@ type Client struct {
 // New returns a client for the API and CDN at the given base URLs. Calls of the API get
 // modrinth.Timeout, downloads modrinth.DownloadTimeout, through their context.
 func New(api, cdn string) *Client {
-	return &Client{api: api, cdn: cdn, http: &http.Client{}, projects: map[string]project{}}
+	return &Client{api: api, cdn: cdn, http: &http.Client{CheckRedirect: httpapi.SameOrigin}, projects: map[string]project{}}
 }
 
 // Search finds plugins for the platforms of the loaders; categories and the Minecraft

@@ -262,8 +262,9 @@ doesn't hold it, so a master restored elsewhere creates a new one, which clients
 The master downloads only from Modrinth's CDN, up to 256 MB, and only uses a file whose SHA-512 hash matches the one
 Modrinth's API lists; from Hangar, only from its CDN and with the SHA-256 hash its API lists, and versions that only
 link elsewhere can't be installed. Floodgate only comes from GeyserMC's download server, with the SHA-256 hash its API
-lists. A call of these APIs gets 2 minutes, a download 2 minutes and a second for each 256 KiB of the size the API
-announces, so that a stalled download ends too. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
+lists. Redirects of these services, and of Mojang's, are only followed to the same host, so that none can send the
+master elsewhere, e.g. into its own network. A call of these APIs gets 2 minutes, a download 2 minutes and a second for
+each 256 KiB of the size the API announces, so that a stalled download ends too. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
 alpha, which the master checks) or where a project has nothing else for it, are checked like releases.
 A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
 elsewhere than on Modrinth's CDN or with paths that leave the server's folder are refused before a server is created or

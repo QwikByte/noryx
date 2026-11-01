@@ -97,7 +97,7 @@ type Client struct {
 // which keeps the newest builds for the time cache. Calls of the APIs get modrinth.Timeout,
 // downloads modrinth.DownloadTimeout, through their context.
 func New(api, global string, cache time.Duration) *Client {
-	return &Client{api: api, globalAPI: global, http: &http.Client{}, cache: cache, builds: map[string]cached{}}
+	return &Client{api: api, globalAPI: global, http: &http.Client{CheckRedirect: httpapi.SameOrigin}, cache: cache, builds: map[string]cached{}}
 }
 
 // Latest returns the newest build of a project for the platform of the first loader

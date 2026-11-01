@@ -48,7 +48,7 @@ type Client struct {
 // New returns a client for Mojang's API, its session server and the textures server at the given
 // base URLs.
 func New(api, session, textures string) *Client {
-	return &Client{api: api, session: session, textures: textures, http: &http.Client{Timeout: 15 * time.Second}}
+	return &Client{api: api, session: session, textures: textures, http: &http.Client{Timeout: 15 * time.Second, CheckRedirect: httpapi.SameOrigin}}
 }
 
 // SkinTexture returns the ID of the skin of a Java player on the textures server, or "" if

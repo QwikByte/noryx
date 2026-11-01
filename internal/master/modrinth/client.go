@@ -189,7 +189,7 @@ type Client struct {
 // New returns a client for the API and CDN at the given base URLs. Calls of the API get Timeout,
 // downloads DownloadTimeout, through their context.
 func New(api, cdn string) *Client {
-	return &Client{api: api, cdn: cdn, http: &http.Client{}}
+	return &Client{api: api, cdn: cdn, http: &http.Client{CheckRedirect: httpapi.SameOrigin}}
 }
 
 // DownloadTimeout is how long the download of a file of size bytes may take: Timeout and a second
