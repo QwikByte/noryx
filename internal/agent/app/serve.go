@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -73,7 +74,10 @@ func serve(ctx context.Context, cfg config) error {
 	// The master connects via mutual TLS, the local CLI via the Unix socket.
 	svc := newServices(rt, identity, cfg.dataDir, locations, overlay.NewService(cfg.dataDir, overlay.Linux{}), buf, slog.Default())
 	svc.node.Prereleases = cfg.prereleases
-	remote := svc.grpcServer(agentlogs.FromMaster, grpc.Creds(credentials.NewTLS(pki.AgentServerTLS(identity.Holder, identity.CA))))
+	// The port is open to whoever reaches the node, but only the master gets past the TLS
+	// handshake, which gets 10 seconds rather than gRPC's 2 minutes.
+	remote := svc.grpcServer(agentlogs.FromMaster, grpc.Creds(credentials.NewTLS(pki.AgentServerTLS(identity.Holder, identity.CA))),
+		grpc.ConnectionTimeout(10*time.Second))
 	localSrv := svc.grpcServer(agentlogs.FromLocal, grpc.Creds(local.NewCredentials()))
 	go svc.stats.Run(ctx)
 	go svc.server.WarnRefusedOptions(ctx)
