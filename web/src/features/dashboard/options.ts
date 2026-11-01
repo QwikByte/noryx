@@ -2,7 +2,7 @@
 export type WidgetOption = ValueOption | ListOption
 
 /** One of values, the default unless the user chose another; labels are marked with msg, and numbers have none. */
-export interface ValueOption {
+interface ValueOption {
   key: string
   label: string
   values: { value: string; label?: string }[]

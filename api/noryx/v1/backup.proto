@@ -120,10 +120,10 @@ message CreateBackupRequest {
   string job_id = 5;
   // Whether a server without any of the selected data, e.g. one that never started, is
   // skipped: the response has no backup then. Otherwise that is an error.
-  bool skip_without_data = 7;
+  bool skip_without_data = 6;
   // Which backups of the job are kept for the server; none keeps all. The others are deleted
   // once the new backup exists. Backups made by hand, and kept ones, are never deleted this way.
-  BackupRetention retention = 8;
+  BackupRetention retention = 7;
 }
 
 message CreateBackupResponse {

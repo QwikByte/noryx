@@ -83,7 +83,7 @@ function InsecureNotice() {
       <Trans
         i18nKey="Browsers only keep you signed in over HTTPS or on localhost. Sign in through an SSH tunnel instead: run <tunnel/> and open <local/>. Then turn on HTTPS under Settings → General."
         components={{
-          tunnel: <span className="font-mono break-all">{`ssh -L 8080:${location.host} <user>@${location.hostname}`}</span>,
+          tunnel: <span className="font-mono break-all">{`ssh -L 8080:${location.hostname}:${location.port || 80} <user>@${location.hostname}`}</span>,
           local: <span className="font-mono">http://localhost:8080</span>,
         }}
       />

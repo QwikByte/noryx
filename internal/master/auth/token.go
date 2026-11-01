@@ -40,6 +40,8 @@ var (
 	errNoSuchToken = httpapi.Errorf(http.StatusNotFound, "This API token was revoked already.")
 	errSessionOnly = httpapi.Errorf(http.StatusForbidden, "API tokens can't use the routes of your account. Sign in to the panel for them.")
 	errCodeNeeded  = httpapi.Errorf(http.StatusBadRequest, "Enter a code of your authenticator app too.")
+	// errWrongConfirmation is a wrong code of a signed-in user.
+	errWrongConfirmation = httpapi.Errorf(http.StatusBadRequest, "The code is incorrect.")
 
 	permissionPattern = regexp.MustCompile(`^[a-z]+\.[a-z]+$`)
 )
@@ -198,7 +200,9 @@ func (s *Service) AuthenticateToken(ctx context.Context, secret, ip string) (Use
 	return user, err
 }
 
-// confirmCode verifies a code of a signed-in user who uses two-factor authentication.
+// confirmCode verifies a code of a signed-in user who uses two-factor authentication. A wrong
+// one is a bad request rather than unauthorized, which would tell the panel that the session
+// ended.
 func (s *Service) confirmCode(ctx context.Context, id int64, code string) error {
 	m, err := s.MFA(ctx, id)
 	switch {
@@ -207,7 +211,10 @@ func (s *Service) confirmCode(ctx context.Context, id int64, code string) error 
 	case code == "":
 		return errCodeNeeded
 	}
-	return s.checkCode(ctx, id, code)
+	if err := s.checkCode(ctx, id, code); err != errWrongCode { //nolint:errorlint // checkCode returns it as it is
+		return err
+	}
+	return errWrongConfirmation
 }
 
 // revokeTokens deletes the API tokens of a user, whenever a change of the user's credentials

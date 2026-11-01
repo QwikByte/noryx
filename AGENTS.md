@@ -61,6 +61,7 @@ internal/master/
   modrinth/            client for the Modrinth API and CDN
   hangar/              client for the Hangar API and CDN, with projects and versions shaped like Modrinth's
   geysermc/            client for GeyserMC's download server (Floodgate) and global API (IDs of Bedrock players)
+  mojang/              client for Mojang's API (profiles of Java players) and the textures server (their skins)
   s3/                  client for S3-compatible storage, signed with AWS Signature Version 4; s3test/ fakes a bucket
   modpack/             creates servers from Modrinth modpacks: checks a pack and writes its files into the server
   template/            templates for new servers

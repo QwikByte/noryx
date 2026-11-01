@@ -7,8 +7,7 @@ Everything a single server offers in the panel. New servers can also start from 
 
 Servers run as containers of Docker or [Podman](installation.md#docker-or-podman) based on
 [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server) (Vanilla, Paper, Purpur, Folia, Leaf, Fabric,
-Quilt, Forge, NeoForge), [itzg/mc-proxy](https://github.com/itzg/docker-mc-proxy) (Velocity, BungeeCord; Waterfall
-only for existing proxies, see [Networks](networks.md#proxies-and-forwarding)) and
+Quilt, Forge, NeoForge), [itzg/mc-proxy](https://github.com/itzg/docker-mc-proxy) (Velocity, BungeeCord) and
 [itzg/minecraft-bedrock-server](https://github.com/itzg/docker-minecraft-bedrock-server) (Bedrock Dedicated Server, see
 [Bedrock servers](#bedrock-servers)).
 Container labels are the agent's only state, so servers keep running while an agent restarts.

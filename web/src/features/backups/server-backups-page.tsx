@@ -47,7 +47,7 @@ import { nodeQuery } from "@/features/nodes/api"
 import { useOperation } from "@/features/operations/use-operation"
 import { describeSchedule } from "@/features/schedules/describe"
 import { allServersQuery, type NodeServer, type Server, serverKey, useServer } from "@/features/servers/api"
-import { serverType } from "@/features/servers/server-types"
+import { isBedrock, serverType } from "@/features/servers/server-types"
 import { formatBytes, formatDateTime } from "@/lib/format"
 import { errorsAt, formError, useDraft } from "@/lib/use-draft"
 import {
@@ -85,11 +85,12 @@ export function ServerBackupsPage() {
   if (!server || isPending) return <Skeleton className="h-64 rounded-xl" />
   if (error) return <ErrorCallout error={error} />
   const total = backups.reduce((sum, b) => sum + b.size, 0)
-  // Other servers of the same kind, proxies or game servers, that the backups may be restored into.
+  // Other servers of the same kind, proxies, Java or Bedrock servers, that the backups may be restored into.
   const others = servers.filter(
     (s) =>
       serverKey(s) !== serverKey({ nodeId, id: serverId }) &&
       serverType(s.type).proxy === serverType(server.type).proxy &&
+      isBedrock(s.type) === isBedrock(server.type) &&
       can("backups.restore", s.nodeId, s.id),
   )
 

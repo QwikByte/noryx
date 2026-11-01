@@ -29,7 +29,6 @@ import { useAccess } from "@/features/access/use-access"
 import { allServersQuery } from "@/features/servers/api"
 import { serverType } from "@/features/servers/server-types"
 import { usePrivateRoute } from "@/features/overlay/api"
-import { EndOfLifeNotice } from "@/features/servers/software"
 import { maintenanceQuery, networkQuery } from "./api"
 import { MaintenanceSection } from "./maintenance"
 import { NetworkActions } from "./network-actions"
@@ -37,7 +36,6 @@ import { NetworkEditor } from "./network-editor"
 import { ProxySettingsEditor } from "./proxy-settings"
 import { ServerLabel } from "./server-label"
 import { findServer, routeOf } from "./servers"
-import { ChangeProxyButton } from "./swap-proxy-dialog"
 import { playersOnline, useNetworkUsage } from "./usage"
 
 const route = getRouteApi("/_app/networks/$networkId")
@@ -111,11 +109,6 @@ export function NetworkPage() {
         }
         actions={<NetworkActions network={network} />}
       />
-      <EndOfLifeNotice type={network.proxyType} className="mb-6">
-        {can("networks.manage") && (
-          <ChangeProxyButton network={network} />
-        )}
-      </EndOfLifeNotice>
       {ready.length > 0 && (
         <Callout icon={ShieldCheckIcon} title={t("Ready for the private network")} className="mb-6">
           {t("Apply the network again to reach {{names}} over the private network of the nodes instead of public ports. They restart once.", {

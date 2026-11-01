@@ -241,6 +241,11 @@ export interface StorageSettings {
   encrypt: boolean
 }
 
+/** The settings of a storage that the master takes, without what it only tells, such as the number of copies. */
+export function settingsOf({ name, endpoint, region, bucket, prefix, accessKey, pathStyle, encrypt }: StorageSettings): StorageSettings {
+  return { name, endpoint, region, bucket, prefix, accessKey, pathStyle, encrypt }
+}
+
 export const storagesQuery = queryOptions({
   queryKey: ["backup-storages"],
   queryFn: () => api<Storage[]>("/backup-storages"),
@@ -254,8 +259,8 @@ export function useStorages() {
   const queryClient = useQueryClient()
   return {
     save: useMutation({
-      mutationFn: ({ id, ...input }: StorageSettings & { id?: string; secretKey: string }) =>
-        api<Storage>(id ? `/backup-storages/${id}` : "/backup-storages", { method: id ? "PUT" : "POST", body: input }),
+      mutationFn: ({ id, secretKey, ...storage }: StorageSettings & { id?: string; secretKey: string }) =>
+        api<Storage>(id ? `/backup-storages/${id}` : "/backup-storages", { method: id ? "PUT" : "POST", body: { ...settingsOf(storage), secretKey } }),
       onSettled: () => queryClient.invalidateQueries({ queryKey: storagesQuery.queryKey }),
     }),
     // The master forgets the copies of a deleted storage.
@@ -276,7 +281,9 @@ export interface Copy extends Pick<Backup, "label" | "createdAt" | "size" | "pat
   /** The node that the server was on when it was copied. */
   nodeId: string
   nodeName: string
+  /** The kind of server, which only a server of the same kind restores. */
   proxy: boolean
+  bedrock: boolean
   backupId: string
   copiedAt: string
   /** The storage that holds it, or the node, in its storage location. */

@@ -31,12 +31,21 @@ function Inline({ text }: { text: string }) {
   return parts
 }
 
+// An HTML comment, or one that isn't closed, which hides the rest.
+const comment = /<!--[\s\S]*?(?:-->|$)/g
+
+/** Drops HTML comments, e.g. the hints of the pull request template, until removing one can't form another. */
+function withoutComments(text: string) {
+  for (let last = ""; last !== text; ) [last, text] = [text, text.replace(comment, "")]
+  return text
+}
+
 const kind = (line: string) =>
   !line.trim() ? "blank" : line.startsWith("```") ? "code" : heading.test(line) ? "heading" : rule.test(line) ? "rule" : item.test(line) ? "item" : "text"
 
 /** Renders Markdown of an untrusted source, such as release notes. */
 export function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)
+  const lines = withoutComments(text).split(/\r?\n/)
   const blocks: ReactNode[] = []
   let i = 0
   const take = (k: string) => {

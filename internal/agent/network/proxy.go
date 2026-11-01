@@ -1,5 +1,5 @@
 // Package network writes the configuration that joins servers into a network behind a
-// proxy, the way Velocity, BungeeCord and Waterfall and the game servers document it, and
+// proxy, the way Velocity, BungeeCord and the game servers document it, and
 // edits the other settings of a proxy's configuration for the panel.
 package network
 
@@ -170,7 +170,7 @@ func renderVelocity(s map[string]any, n runtime.Network) {
 }
 
 // renderBungee writes the servers, their priorities, the forced hosts and the forwarding
-// into config.yml of BungeeCord or Waterfall. BungeeCord needs at least one server, so a
+// into config.yml of BungeeCord. It needs at least one server, so a
 // proxy that leaves its network keeps its servers and only stops forwarding.
 func renderBungee(s map[string]any, n runtime.Network) {
 	s["ip_forward"] = n.Forwarding != runtime.ForwardingNone

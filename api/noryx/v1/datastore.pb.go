@@ -1298,7 +1298,7 @@ type CreateDumpRequest struct {
 	Location  string   `protobuf:"bytes,4,opt,name=location,proto3" json:"location,omitempty"`
 	JobId     string   `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	// Which dumps of the job are kept; none keeps all.
-	Retention     *BackupRetention `protobuf:"bytes,7,opt,name=retention,proto3" json:"retention,omitempty"`
+	Retention     *BackupRetention `protobuf:"bytes,6,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2782,7 +2782,7 @@ const file_noryx_v1_datastore_proto_rawDesc = "" +
 	"\x05label\x18\x03 \x01(\tR\x05label\x12\x1a\n" +
 	"\blocation\x18\x04 \x01(\tR\blocation\x12\x15\n" +
 	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x127\n" +
-	"\tretention\x18\a \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\":\n" +
+	"\tretention\x18\x06 \x01(\v2\x19.noryx.v1.BackupRetentionR\tretention\":\n" +
 	"\x12CreateDumpResponse\x12$\n" +
 	"\x04dump\x18\x01 \x01(\v2\x10.noryx.v1.BackupR\x04dump\"\"\n" +
 	"\x10ListDumpsRequest\x12\x0e\n" +

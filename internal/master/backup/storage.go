@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -149,6 +150,10 @@ func (c *Copies) saveStorage(ctx context.Context, id string, in storageInput) (S
 	if msg := in.check(); msg != "" {
 		return Storage{}, httpapi.Errorf(http.StatusBadRequest, "%s", msg)
 	}
+	// Whoever changes the storage of the master's archives chooses where they go next.
+	if master, err := c.keepsMasterArchives(ctx, id); err != nil || master && !access.AdminSignedIn(ctx) {
+		return Storage{}, cmp.Or(err, httpapi.Errorf(http.StatusForbidden, "Only administrators signed in to the panel can change the storage that keeps the archives of the master."))
+	}
 	s := storage{StorageSettings: in.StorageSettings, ID: id, secretKey: in.SecretKey}
 	if id != "" && in.SecretKey == "" {
 		current, err := c.storage(ctx, id)
@@ -230,6 +235,13 @@ func (c *Copies) deleteStorage(ctx context.Context, id string) error {
 		return errNoStorage
 	}
 	return nil
+}
+
+// keepsMasterArchives reports whether the backup job of the master keeps its archives in a storage.
+func (c *Copies) keepsMasterArchives(ctx context.Context, storageID string) (bool, error) {
+	var n int
+	err := c.db.QueryRowContext(ctx, `SELECT count(*) FROM tasks WHERE kind = ? AND settings ->> '$.to.storage' = ?`, MasterTaskKind, storageID).Scan(&n)
+	return n > 0, err
 }
 
 // copyingTo returns the names of the backup jobs that copy their backups to a storage, and of

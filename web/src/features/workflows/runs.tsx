@@ -166,7 +166,11 @@ export function RunNowDialog({ workflow, open, onOpenChange }: { workflow: Workf
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("Run {{name}}", { name: workflow.name })}</DialogTitle>
-          <DialogDescription>{t("It runs with the permissions of {{user}}, who saved it last.", { user: workflow.savedBy ?? "?" })}</DialogDescription>
+          <DialogDescription>
+            {workflow.savedBy
+              ? t("It runs with the permissions of {{user}}, who saved it last.", { user: workflow.savedBy })
+              : t("The user who saved it last was deleted or disabled, so its steps that need permissions fail. Save it again.")}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-5">
           <FieldGroup>

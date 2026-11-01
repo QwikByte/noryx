@@ -6,7 +6,7 @@ import (
 )
 
 // ConfigFile returns the configuration file in the data of a proxy: velocity.toml of
-// Velocity, config.yml of BungeeCord and Waterfall.
+// Velocity, config.yml of BungeeCord.
 func (t ServerType) ConfigFile() string {
 	if t.Bungee() {
 		return "config.yml"

@@ -1,6 +1,6 @@
 // The node each user created a server on last is a convenience of this browser; without storage,
 // new servers start on the first online node.
-const storageKey = (user: number) => `noryx.last-node.${user}`
+const storageKey = (user: number) => `noryx-last-node:${user}`
 
 /** The node the user created a server on last, as far as this browser remembers. */
 export function lastNode(user: number): string | undefined {

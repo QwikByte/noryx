@@ -11,7 +11,7 @@ export interface Release {
 }
 
 /** An update that was asked for and hasn't finished yet, or failed. */
-export interface Progress {
+interface Progress {
   since: string
   error?: string
 }

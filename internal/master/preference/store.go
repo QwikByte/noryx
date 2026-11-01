@@ -100,7 +100,7 @@ var settings = map[string][]string{
 	"playerOrder":      {"asc", "desc"},
 	"pluginSource":     {"modrinth", "hangar"},
 	"pluginSort":       {"relevance", "downloads", "follows", "newest", "updated"},
-	"pluginType":       {"all", "paper", "purpur", "folia", "leaf", "velocity", "bungeecord", "waterfall"},
+	"pluginType":       {"all", "paper", "purpur", "folia", "leaf", "velocity", "bungeecord"},
 	"modType":          {"all", "fabric", "quilt", "forge", "neoforge"},
 	"serverPluginSort": {"name", "size"},
 	"usageRange":       {"day", "week", "month", "quarter", "year"},

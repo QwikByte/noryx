@@ -942,9 +942,21 @@ func (s *httpSettings) check() error {
 			return bad("The master sets the header %s itself.", h.Name)
 		case len(h.Value) > maxTemplate || strings.ContainsAny(h.Value, "\r\n\x00"):
 			return bad("Keep the value of the header %s on one line.", h.Name)
+		case h.Secret && !literalHost(s.URL):
+			return bad("Write out the address of the URL for the secret header %s, so that it can't go elsewhere.", h.Name)
 		}
 	}
 	return nil
+}
+
+// literalHost reports whether a URL names its host itself rather than with a template, which
+// whoever runs the workflow may fill in.
+func literalHost(url string) bool {
+	host, ok := strings.CutPrefix(url, "https://")
+	if i := strings.IndexAny(host, "/?#"); i >= 0 {
+		host = host[:i]
+	}
+	return ok && host != "" && !strings.Contains(host, "{")
 }
 
 // runHTTP sends a request over HTTPS to a public address, and tells its answer: the status,

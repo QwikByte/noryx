@@ -105,7 +105,8 @@ message WriteFileHeader {
   string path = 2;
   // Replace an existing file; otherwise writing to an existing file fails.
   bool overwrite = 3;
-  // Size of the file if known, so that one that doesn't fit is refused before it is sent.
+  // Size of the file if known, so that one that doesn't fit is refused before it is sent, and
+  // one whose content ends early, e.g. as the client of an upload went away, isn't written.
   int64 size = 4;
   // Replace the file only while it still has this version, e.g. the one an editor opened;
   // otherwise the write fails with FAILED_PRECONDITION. A file that is gone has changed too.

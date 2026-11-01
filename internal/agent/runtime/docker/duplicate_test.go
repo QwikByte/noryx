@@ -70,7 +70,7 @@ func TestStandalone(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bungee, "config.yml"), []byte("ip_forward: true\nservers:\n  lobby:\n    address: 203.0.113.7:25565\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := standalone(bungee, runtime.Spec{Type: noryxv1.ServerType_SERVER_TYPE_WATERFALL}); err != nil {
+	if err := standalone(bungee, runtime.Spec{Type: noryxv1.ServerType_SERVER_TYPE_BUNGEECORD}); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(filepath.Join(bungee, "config.yml")); err != nil || !strings.Contains(string(data), "ip_forward: false") {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/master/access"
 	"github.com/QwikByte/noryx/internal/master/s3/s3test"
 	"github.com/QwikByte/noryx/internal/master/schedule"
 )
@@ -115,6 +116,16 @@ func TestMasterJob(t *testing.T) {
 	}
 	if err := c.deleteStorage(ctx, st.ID); statusOf(err) != http.StatusConflict || !strings.Contains(err.Error(), "Master") {
 		t.Errorf("deleting the storage of the master's archives: %v", err)
+	}
+	// Only administrators may change where the archives go.
+	moved := storageInput{StorageSettings{
+		Name: "Offsite", Endpoint: bucket.Endpoint, Region: "us-east-1", Bucket: bucket.Bucket, Prefix: "elsewhere", AccessKey: "key", PathStyle: true,
+	}, ""}
+	if _, err := c.saveStorage(ctx, st.ID, moved); statusOf(err) != http.StatusForbidden {
+		t.Errorf("changing the storage of the master's archives without being an administrator: %v", err)
+	}
+	if _, err := c.saveStorage(access.WithGrants(ctx, access.Admin()), st.ID, moved); err != nil {
+		t.Errorf("an administrator changing the storage of the master's archives: %v", err)
 	}
 	// A second job of the master is refused.
 	if _, err := db.ExecContext(ctx, `INSERT INTO tasks (id, kind, name, enabled, schedule, settings, created_at) VALUES ('m2', ?, 'Other', 1, '{}', ?, 0)`,

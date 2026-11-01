@@ -1,7 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query"
-import { t } from "i18next"
 import { type Operation, operate } from "@/features/operations/api"
-import { ApiError, api } from "@/lib/api"
+import { api, send } from "@/lib/api"
 
 export type Engine = "mariadb" | "postgres"
 
@@ -56,7 +55,7 @@ export function parameterBounds(engine: Engine, memoryMb: number) {
 }
 
 /** Where servers reach a datastore: those on its node by the name of its container, those of other nodes over the private network of the nodes. */
-export interface Endpoint {
+interface Endpoint {
   host: string
   port: number
   remote: boolean
@@ -191,23 +190,9 @@ export const maxUpload = 16 * 1024 ** 3
 function uploadDump(
   id: string,
   file: File,
-  { database, label, onProgress, signal }: { database?: string; label: string; onProgress?: (fraction: number) => void; signal?: AbortSignal },
+  { database, label, ...progress }: { database?: string; label: string; onProgress?: (fraction: number) => void; signal?: AbortSignal },
 ): Promise<Dump> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open("POST", `/api/datastores/${id}/backups/upload?${new URLSearchParams({ label, ...(database && { database }) })}`)
-    xhr.setRequestHeader("Content-Type", "application/octet-stream")
-    xhr.responseType = "json"
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
-    xhr.onload = () =>
-      xhr.status === 201
-        ? resolve(xhr.response as Dump)
-        : reject(new ApiError(xhr.status, xhr.response?.error ?? t("The upload failed with status {{status}}.", { status: xhr.status })))
-    xhr.onerror = () => reject(new Error(t("The connection to the panel was lost.")))
-    xhr.onabort = () => reject(new DOMException(t("The upload was cancelled."), "AbortError"))
-    signal?.addEventListener("abort", () => xhr.abort())
-    xhr.send(file)
-  })
+  return send<Dump>("POST", `/datastores/${id}/backups/upload?${new URLSearchParams({ label, ...(database && { database }) })}`, file, progress)
 }
 
 type Started = { onStart?: (op: Operation) => void }

@@ -76,6 +76,12 @@ func TestCheck(t *testing.T) {
 		"host header": func(d *Draft) {
 			d.Steps[0] = step("h", "http", map[string]any{"url": "https://example.com", "headers": []Header{{Name: "Host", Value: "x"}}})
 		},
+		"secret to any host": func(d *Draft) {
+			d.Steps[0] = step("h", "http", map[string]any{"url": "https://{{inputs.host}}/hook", "headers": []Header{{Name: "Authorization", Value: "x", Secret: true}}})
+		},
+		"secret to a templated host": func(d *Draft) {
+			d.Steps[0] = step("h", "http", map[string]any{"url": "https://api.{{vars.domain}}?q=1", "headers": []Header{{Name: "Authorization", Value: "x", Secret: true}}})
+		},
 		"too deep": func(d *Draft) {
 			s := d.Steps[0]
 			for i := range maxDepth {
@@ -332,5 +338,52 @@ func TestCallsAndCancel(t *testing.T) {
 	children, err := s.Runs(t.Context(), child.ID)
 	if err != nil || len(children) != 1 || children[0].Trigger != ByWorkflow || children[0].StartedBy != "Parent" {
 		t.Fatalf("runs of the child = %+v, %v", children, err)
+	}
+}
+
+// A workflow needs what the workflows it runs need, also through others, so that nobody runs
+// a workflow through another one that they couldn't run themselves.
+func TestCallsNeedWhatTheyRun(t *testing.T) {
+	s := testService(t)
+	create := func(name string, by Author, steps ...Step) (Workflow, error) {
+		return s.Create(t.Context(), Draft{Name: name, Definition: Definition{Steps: steps}}, by)
+	}
+	restart, err := create("Restart", admin, step("restart", "restart", map[string]any{"targets": []map[string]string{{"nodeId": "n1"}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	middle, err := create("Middle", admin, step("call", "call", callSettings{Workflow: restart.ID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := create("Outer", Author{}, step("call", "call", callSettings{Workflow: middle.ID})); err == nil {
+		t.Error("someone who may not restart servers saved a workflow that restarts them through another one")
+	}
+	outer, err := create("Outer", admin, step("call", "call", callSettings{Workflow: middle.ID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	needs := s.active[outer.ID].needs
+	s.mu.Unlock()
+	if !slices.Contains(needs, access.ServersRestart) {
+		t.Errorf("the workflow that restarts servers through another one needs %v", needs)
+	}
+}
+
+func TestLiteralHost(t *testing.T) {
+	for url, want := range map[string]bool{
+		"https://example.com":                 true,
+		"https://example.com/{{inputs.path}}": true,
+		"https://example.com:8443?q={{x}}#a":  true,
+		"https://{{inputs.host}}/hook":        false,
+		"https://example.{{vars.tld}}/hook":   false,
+		"https://user@{{inputs.host}}":        false,
+		"{{inputs.url}}":                      false,
+		"https:///path":                       false,
+	} {
+		if got := literalHost(url); got != want {
+			t.Errorf("literalHost(%q) = %t", url, got)
+		}
 	}
 }

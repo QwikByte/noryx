@@ -33,6 +33,8 @@ func TestRemoveNodeOfNetworks(t *testing.T) {
 		ForcedHosts: []network.ForcedHost{{Host: "sky.example.com", Servers: []string{"skyblock"}}, {Host: "play.example.com", Servers: []string{"skyblock", "creative"}}},
 	}, http.StatusOK, nil)
 
+	secret := a2.runtime.network(creative.ServerID).ForwardingSecret
+
 	// The node stays until its networks may let go of it, which names them.
 	path := "/api/nodes/" + a1.node.ID
 	var refusal struct{ Error, Code string }
@@ -86,6 +88,10 @@ func TestRemoveNodeOfNetworks(t *testing.T) {
 	want := []runtime.NetworkBackend{{Name: "creative", ServerID: creative.ServerID}}
 	if got := a2.runtime.network(hub.ServerID); !slices.Equal(got.Backends, want) || !slices.Equal(got.Try, []string{"creative"}) {
 		t.Fatalf("hub network = %+v", got)
+	}
+	// Its forwarding secret, which skyblock knew, is a new one on its proxy and servers.
+	if got, proxy := a2.runtime.network(creative.ServerID).ForwardingSecret, a2.runtime.network(hub.ServerID).ForwardingSecret; secret == "" || got == secret || got != proxy {
+		t.Fatalf("forwarding secret %q before, %q on creative and %q on the proxy after", secret, got, proxy)
 	}
 }
 

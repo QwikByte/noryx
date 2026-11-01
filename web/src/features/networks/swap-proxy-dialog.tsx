@@ -18,21 +18,7 @@ import { type Forwarding, maintenanceQuery, type Network, networksQuery, type Se
 import { FirewallConfirmation, ForwardingChoice } from "./forwarding"
 import { availableServers, findServer, hostOf, isBungee, joinAddress, key, proxyTypes, refOf, routeOf } from "./servers"
 
-/** Opens the dialog that gives a network another proxy, e.g. where its proxy reached its end of life. */
-export function ChangeProxyButton({ network }: { network: Network }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        <ArrowsLeftRightIcon />
-        {t("Change proxy")}
-      </Button>
-      {open && <SwapProxyDialog network={network} onClose={() => setOpen(false)} />}
-    </>
-  )
-}
-
-/** Gives a network another proxy, e.g. BungeeCord or Velocity instead of Waterfall, and tells first what that does. */
+/** Gives a network another proxy, e.g. Velocity instead of BungeeCord, and tells first what that does. */
 export function SwapProxyDialog({ network, onClose }: { network: Network; onClose: () => void }) {
   const [proxy, setProxy] = useState<ServerRef>()
   const [forwarding, setForwarding] = useState<Forwarding>("modern")
@@ -42,8 +28,7 @@ export function SwapProxyDialog({ network, onClose }: { network: Network; onClos
   const swap = useSwapProxy(network.id)
   const operation = useOperation()
   const chosen = proxy && findServer(servers, proxy)
-  // Software at its end of life can't be chosen.
-  const proxies = availableServers(servers, networks, (s) => proxyTypes.includes(s.type) && !serverType(s.type).endOfLife)
+  const proxies = availableServers(servers, networks, (s) => proxyTypes.includes(s.type))
   const isPrivate = usePrivateRoute()
   const exposed = forwarding === "legacy" && !!proxy && network.backends.some((b) => routeOf({ ...network, proxy }, b, isPrivate) === "public")
   const title = t("Change the proxy of {{name}}", { name: network.name })

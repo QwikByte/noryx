@@ -24,7 +24,7 @@ import { BackendActions } from "./backend-actions"
 import { type Draft, withoutBackend } from "./draft"
 import { nameError } from "./problems"
 import { ServerLabel } from "./server-label"
-import { findServer, firewallCommand, forwardingMod, key, routeOf } from "./servers"
+import { findServer, firewallCommand, forwardingMod, isBungee, key, routeOf } from "./servers"
 
 /**
  * The game servers behind the proxy, one row each with the name players use, searchable for
@@ -54,7 +54,7 @@ export function BackendList({
 }) {
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(new Set<string>())
-  const bungee = network.proxyType === "bungeecord" || network.proxyType === "waterfall"
+  const bungee = isBungee(network.proxyType)
   const set = (i: number, change: Partial<Backend>) =>
     onChange({ ...draft, backends: draft.backends.map((b, j) => (i === j ? { ...b, ...change } : b)) })
   const toggle = (k: string) => setOpen((o) => new Set(o.has(k) ? [...o].filter((x) => x !== k) : [...o, k]))

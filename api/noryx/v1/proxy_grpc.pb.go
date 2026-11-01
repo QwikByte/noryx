@@ -30,7 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // ProxyService is served by every agent and edits the settings of proxies in their own
-// configuration file: velocity.toml of Velocity, config.yml of BungeeCord and Waterfall.
+// configuration file: velocity.toml of Velocity, config.yml of BungeeCord.
 type ProxyServiceClient interface {
 	GetProxySettings(ctx context.Context, in *GetProxySettingsRequest, opts ...grpc.CallOption) (*GetProxySettingsResponse, error)
 	// UpdateProxySettings changes settings that the file has and keeps the others. A running
@@ -98,7 +98,7 @@ func (c *proxyServiceClient) ChangeMaintenance(ctx context.Context, in *ChangeMa
 // for forward compatibility.
 //
 // ProxyService is served by every agent and edits the settings of proxies in their own
-// configuration file: velocity.toml of Velocity, config.yml of BungeeCord and Waterfall.
+// configuration file: velocity.toml of Velocity, config.yml of BungeeCord.
 type ProxyServiceServer interface {
 	GetProxySettings(context.Context, *GetProxySettingsRequest) (*GetProxySettingsResponse, error)
 	// UpdateProxySettings changes settings that the file has and keeps the others. A running

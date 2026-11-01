@@ -13,7 +13,7 @@ import (
 )
 
 // maintenanceProject is the Maintenance plugin by kennytv on Modrinth, which runs on
-// Velocity, BungeeCord and Waterfall.
+// Velocity and BungeeCord.
 const maintenanceProject = "VCAqN1ln"
 
 const (

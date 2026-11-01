@@ -90,7 +90,7 @@ func (a Author) allowed(perms []access.Permission) error {
 // with a tag, or those of a network. Nodes, tags and networks include the servers they get
 // later, as targets are resolved at each run.
 type Target struct {
-	// Kind is server, tag or network; empty is server, as targets were before the others.
+	// Kind is server, tag or network; empty is server.
 	Kind     string `json:"kind"`
 	NodeID   string `json:"nodeId,omitempty"`
 	ServerID string `json:"serverId,omitempty"`

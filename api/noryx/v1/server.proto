@@ -58,17 +58,16 @@ enum ServerType {
   // Proxies connect several servers to one network.
   SERVER_TYPE_VELOCITY = 7;
   SERVER_TYPE_BUNGEECORD = 8;
-  SERVER_TYPE_WATERFALL = 9;
   // Forks of Paper with its configuration: Folia runs regions of the worlds in parallel and
   // only loads plugins made for it, Leaf optimises performance.
-  SERVER_TYPE_FOLIA = 10;
-  SERVER_TYPE_LEAF = 11;
+  SERVER_TYPE_FOLIA = 9;
+  SERVER_TYPE_LEAF = 10;
   // Quilt loads its own mods and those of Fabric.
-  SERVER_TYPE_QUILT = 12;
+  SERVER_TYPE_QUILT = 11;
   // Bedrock Dedicated Server, for players of Minecraft on consoles, phones and Windows. It runs
   // without Java, plugins or mods and can't be part of a network. Players join at its TCP port,
   // then play over UDP ports of their own; see max_players.
-  SERVER_TYPE_BEDROCK = 13;
+  SERVER_TYPE_BEDROCK = 12;
 }
 
 // RestartPolicy decides when the node starts a server on its own.

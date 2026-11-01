@@ -25,8 +25,9 @@ import (
 
 const (
 	queryTimeout = 30 * time.Second
-	// installTimeout covers downloading and sending the files to all servers.
-	installTimeout = 10 * time.Minute
+	// installTimeout covers downloading the files, each at 256 KiB/s or faster
+	// (modrinth.DownloadTimeout), and sending them to all servers.
+	installTimeout = time.Hour
 	maxServers     = 100
 	// everywhereTimeout covers updating or removing a project on up to maxEverywhere servers;
 	// restarting them afterwards takes as long as they need.

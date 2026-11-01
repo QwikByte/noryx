@@ -26,7 +26,7 @@ export interface Look {
 
 // Where the browser keeps each part, which public/theme.js applies on load; none means the first value.
 const parts = {
-  theme: { key: "theme", values: ["system", "light", "dark"] },
+  theme: { key: "noryx-theme", values: ["system", "light", "dark"] },
   accent: { key: "noryx-accent", values: accents },
   density: { key: "noryx-density", values: ["comfortable", "compact"] },
   width: { key: "noryx-width", values: ["limited", "full"] },

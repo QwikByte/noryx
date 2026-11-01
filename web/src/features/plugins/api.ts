@@ -33,7 +33,7 @@ export type Sort = "relevance" | "downloads" | "follows" | "newest" | "updated"
 /** What servers load from Modrinth. */
 export type Kind = "plugins" | "mods"
 
-/** Where plugins come from: Modrinth has plugins and mods, Hangar plugins of Paper, Velocity and Waterfall. */
+/** Where plugins come from: Modrinth has plugins and mods, Hangar plugins of Paper, Velocity and BungeeCord (Waterfall there). */
 export type Source = "modrinth" | "hangar"
 
 /** The page of a project on Modrinth or Hangar, whose project IDs start with "hangar-". */
@@ -69,7 +69,7 @@ export type Channel = "release" | "beta" | "alpha"
 export const channels: Channel[] = ["release", "beta", "alpha"]
 
 /** Whether a server that takes a project in a channel takes a version of the channel of. */
-export const takes = (channel: Channel = "release", of: Channel = "release") => channels.indexOf(of) <= channels.indexOf(channel)
+const takes = (channel: Channel = "release", of: Channel = "release") => channels.indexOf(of) <= channels.indexOf(channel)
 
 /** What a server takes of a project in a channel. */
 export const channelLabel = (channel: Channel) =>

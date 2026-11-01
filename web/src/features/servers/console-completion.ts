@@ -92,7 +92,6 @@ const proxies: Record<string, Record<string, Arg[]>> = {
     server: [],
   },
 }
-proxies.waterfall = proxies.bungeecord
 
 // The console commands of Bedrock Dedicated Server.
 const bedrock: Record<string, Arg[]> = {

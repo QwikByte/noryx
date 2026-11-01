@@ -1,9 +1,23 @@
 package httpapi
 
 import (
+	"errors"
 	"mime"
 	"net/http"
 )
+
+// SameOrigin follows up to 10 redirects of a client, as long as they stay at the scheme and
+// host of the first request, so that a service of the internet, e.g. Modrinth's CDN, can't
+// send the master to another one or into its own network.
+func SameOrigin(req *http.Request, via []*http.Request) error {
+	switch first := via[0].URL; {
+	case len(via) >= 10:
+		return errors.New("stopped after 10 redirects")
+	case req.URL.Scheme != first.Scheme || req.URL.Host != first.Host:
+		return errors.New("refused a redirect to another host")
+	}
+	return nil
+}
 
 // Attachment makes the browser save the response instead of rendering it, so files from a
 // server can't run scripts in the panel.

@@ -32,6 +32,9 @@ const (
 	// actionTimeout covers a graceful stop, which may take the longest stop timeout.
 	actionTimeout = 2*time.Minute + noryxv1.MaxStopTimeout
 	createTimeout = 10 * time.Minute // includes pulling the server image
+	// downloadsTimeout covers creating a server with a modpack or plugins, which the master
+	// downloads at 256 KiB/s or faster (modrinth.DownloadTimeout), e.g. a pack of 1 GB.
+	downloadsTimeout = 2 * time.Hour
 	// changeTimeout covers pulling the server image and recreating a running server's container.
 	changeTimeout = createTimeout + noryxv1.MaxStopTimeout
 )
@@ -490,9 +493,13 @@ func (n newServer) operation() operation.Spec {
 	if len(n.Plugins) > 0 {
 		steps = append(steps, "plugins")
 	}
+	timeout := createTimeout
+	if n.Modpack != nil || len(n.Plugins) > 0 {
+		timeout = downloadsTimeout
+	}
 	return operation.Spec{
 		Kind: "server.create", Subject: n.Name, NodeID: n.nodeID, Steps: steps, Status: http.StatusCreated,
-		Timeout: createTimeout, Category: logging.Servers, Visible: viewable(n.nodeID, ""), Cancel: createNeed,
+		Timeout: timeout, Category: logging.Servers, Visible: viewable(n.nodeID, ""), Cancel: createNeed,
 	}
 }
 

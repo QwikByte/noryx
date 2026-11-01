@@ -48,7 +48,6 @@ var (
 		noryxv1.ServerType_SERVER_TYPE_LEAF:       {"paper", "spigot", "bukkit"},
 		noryxv1.ServerType_SERVER_TYPE_VELOCITY:   {"velocity"},
 		noryxv1.ServerType_SERVER_TYPE_BUNGEECORD: {"bungeecord", "waterfall"},
-		noryxv1.ServerType_SERVER_TYPE_WATERFALL:  {"waterfall", "bungeecord"},
 		noryxv1.ServerType_SERVER_TYPE_FABRIC:     {"fabric"},
 		noryxv1.ServerType_SERVER_TYPE_QUILT:      {"quilt", "fabric"},
 		noryxv1.ServerType_SERVER_TYPE_FORGE:      {"forge"},
@@ -189,7 +188,7 @@ type Client struct {
 // New returns a client for the API and CDN at the given base URLs. Calls of the API get Timeout,
 // downloads DownloadTimeout, through their context.
 func New(api, cdn string) *Client {
-	return &Client{api: api, cdn: cdn, http: &http.Client{}}
+	return &Client{api: api, cdn: cdn, http: &http.Client{CheckRedirect: httpapi.SameOrigin}}
 }
 
 // DownloadTimeout is how long the download of a file of size bytes may take: Timeout and a second

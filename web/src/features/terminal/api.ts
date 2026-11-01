@@ -15,7 +15,7 @@ export interface Command {
 }
 
 /** An argument of a command; kind is what it names, e.g. server, backup or datastore. */
-export interface Arg {
+interface Arg {
   name: string
   kind: string
   optional?: boolean

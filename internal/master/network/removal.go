@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -124,11 +125,17 @@ func (s *Service) checkRemove(ctx context.Context, networks []Network, nodeID st
 
 // releaseNode lets a network go of a node, without contacting the node: one that ends with it
 // is deleted once its servers on other nodes are standalone, and the others forget its game
-// servers, the proxy first.
+// servers, the proxy first. As these knew the forwarding secret, which a removed node may
+// have given away, the others get a new one, stored first so that applying the network again
+// hands it out if this fails.
 func (s *Service) releaseNode(ctx context.Context, n Network, nodeID string, m members) error {
 	kept := n.without(nodeID)
 	if !n.endsWith(nodeID) {
-		var err error
+		kept.secret = rand.Text()
+		_, err := s.db.ExecContext(ctx, `UPDATE networks SET forwarding_secret = ? WHERE id = ?`, kept.secret, n.ID)
+		if err != nil {
+			return err
+		}
 		if kept.placed, err = s.datastores.Placed(ctx, n.ID); err != nil {
 			return err
 		}

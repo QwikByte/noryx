@@ -46,9 +46,9 @@ func TestMoveServer(t *testing.T) {
 	api.do("POST", path(lobby)+"/start", nil, http.StatusNoContent, nil)
 	api.do("PUT", path(lobby)+"/plugins/channels/luckperms", map[string]string{"channel": "beta"}, http.StatusNoContent, nil)
 	_, err := m.db.ExecContext(t.Context(), `
-		INSERT INTO backup_copies (copy_node, location, server_id, server_name, proxy, node_id, node_name, backup_id, label, created_at, size, paths,
-			exclude, kept, copied_at)
-		VALUES (?, '', ?, 'Lobby', 0, ?, 'node-1', '20240101-000000-aaaaaa', '', 0, 1, '["."]', '[]', 0, 0)`, a2.node.ID, lobby.ServerID, a1.node.ID)
+		INSERT INTO backup_copies (copy_node, location, server_id, server_name, proxy, bedrock, node_id, node_name, backup_id, label, created_at,
+			size, paths, exclude, kept, copied_at)
+		VALUES (?, '', ?, 'Lobby', 0, 0, ?, 'node-1', '20240101-000000-aaaaaa', '', 0, 1, '["."]', '[]', 0, 0)`, a2.node.ID, lobby.ServerID, a1.node.ID)
 	check(t, err)
 
 	// What would fail is refused before the server stops.

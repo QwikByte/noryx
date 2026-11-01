@@ -2,7 +2,7 @@
 // It is a file rather than an inline script because the Content Security Policy forbids inline scripts.
 try {
   const root = document.documentElement
-  const theme = localStorage.getItem("theme")
+  const theme = localStorage.getItem("noryx-theme")
   const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
   root.classList.toggle("dark", dark)
   root.dataset.accent = localStorage.getItem("noryx-accent") ?? "emerald"

@@ -115,7 +115,7 @@ const serverSources = () => [
 ]
 
 /** Chooses the servers of a step: nodes, servers, tags and networks, or servers from data, e.g. the server of the trigger. */
-export function ServersField({ value, onChange, finds }: { value: Servers; onChange: (servers: Servers) => void; finds: string[] }) {
+function ServersField({ value, onChange, finds }: { value: Servers; onChange: (servers: Servers) => void; finds: string[] }) {
   const mode = value.from !== undefined && value.from !== "" ? "data" : "chosen"
   return (
     <FieldSet>
@@ -243,7 +243,7 @@ function Headers({ value, onChange }: { value: Header[]; onChange: (h: Header[])
         <PlusIcon />
         {t("Header")}
       </Button>
-      <FieldDescription>{t("The value of a secret header is never shown again. Changing the URL needs it once more.")}</FieldDescription>
+      <FieldDescription>{t("The value of a secret header is never shown again, and only goes to a URL that names its host itself, not with a template. Changing the URL needs it once more.")}</FieldDescription>
     </FieldSet>
   )
 }

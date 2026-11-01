@@ -59,7 +59,8 @@ func TestNodeAgentSettings(t *testing.T) {
 		put(path, bad, http.StatusBadRequest)
 	}
 
-	// An upload that leaves 10 GiB less than 50 GiB free passes now, but not once 50 GiB stay free.
+	// An upload that leaves 10 GiB less than 50 GiB free passes the check of the space now, but not
+	// once 50 GiB stay free. As it sends nothing, it then ends before its size and writes nothing.
 	conn, err := m.nodes.Conn(t.Context(), a.node.ID)
 	check(t, err)
 	var st unix.Statfs_t
@@ -74,7 +75,9 @@ func TestNodeAgentSettings(t *testing.T) {
 		_, err = up.CloseAndRecv()
 		return err
 	}
-	check(t, upload())
+	if err := upload(); err != nil && !strings.Contains(err.Error(), "so it wasn't written") {
+		t.Fatalf("upload while 1 GiB stays free: %v", err)
+	}
 	got = put(path, map[string]any{"name": "node-1", "address": a.node.Address, "defaultStorage": "default",
 		"logFileMb": 0, "logFiles": 0, "keepFreeGb": 50, "statsIntervalSeconds": 60}, http.StatusOK)
 	if got != (view{0, 0, 50, 60, ""}) || a.runtime.limit() != [2]uint32{} {

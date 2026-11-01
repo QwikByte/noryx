@@ -279,6 +279,8 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 
 // setupLink creates a new link for a user to set a password, e.g. after forgetting it.
 func (h *Handler) setupLink(w http.ResponseWriter, r *http.Request) {
+	h.changes.Lock() // the user may get more permissions meanwhile
+	defer h.changes.Unlock()
 	ctx := r.Context()
 	target, _, err := h.manageable(r)
 	var link auth.SetupLink
@@ -294,6 +296,8 @@ func (h *Handler) setupLink(w http.ResponseWriter, r *http.Request) {
 // resetMFA turns off two-factor authentication for a user who lost the app and the recovery
 // codes. The own one needs the password, on the account page.
 func (h *Handler) resetMFA(w http.ResponseWriter, r *http.Request) {
+	h.changes.Lock() // the user may get more permissions meanwhile
+	defer h.changes.Unlock()
 	ctx := r.Context()
 	target, _, err := h.manageable(r)
 	if err == nil && isSelf(ctx, target.ID) {

@@ -170,14 +170,14 @@ func (s *Service) WriteFile(stream noryxv1.FileService_WriteFileServer) error {
 	// The file is replaced right after the content is written, and checked just before.
 	err = dir.Replace(name, header.GetOverwrite(), func(w io.Writer) error {
 		if !secrets.Redacted(name) {
-			if err := receive(stream, storage.Guard(w, top), MaxFileSize); err != nil {
+			if err := receive(stream, storage.Guard(w, top), MaxFileSize, header.GetSize()); err != nil {
 				return err
 			}
 			return unchanged(dir, name, header.GetExpected())
 		}
 		// The secrets the panel showed as placeholders stay as they are.
 		var data bytes.Buffer
-		if err := receive(stream, &data, maxRedacted); err != nil {
+		if err := receive(stream, &data, maxRedacted, header.GetSize()); err != nil {
 			return err
 		}
 		if err := unchanged(dir, name, header.GetExpected()); err != nil {
@@ -185,7 +185,10 @@ func (s *Service) WriteFile(stream noryxv1.FileService_WriteFileServer) error {
 		}
 		current, err := dir.ReadOptional(name)
 		if err == nil {
-			_, err = w.Write(secrets.Restore(name, data.Bytes(), current))
+			var restored []byte
+			if restored, err = secrets.Restore(name, data.Bytes(), current); err == nil {
+				_, err = w.Write(restored)
+			}
 		}
 		return err
 	})
@@ -520,10 +523,13 @@ func fileInfo(info fs.FileInfo) *noryxv1.FileInfo {
 }
 
 // receive writes the data of a WriteFile stream to w, up to limit bytes.
-func receive(stream noryxv1.FileService_WriteFileServer, w io.Writer, limit int64) error {
+func receive(stream noryxv1.FileService_WriteFileServer, w io.Writer, limit, size int64) error {
 	var written int64
 	for {
 		msg, err := stream.Recv()
+		if errors.Is(err, io.EOF) && size > 0 && written != size {
+			return status.Errorf(codes.InvalidArgument, "The file ended after %d of its %d bytes, so it wasn't written.", written, size)
+		}
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
@@ -581,6 +587,7 @@ var known = []grpcerr.Known{
 	{Err: fs.ErrExist, Code: codes.AlreadyExists, Text: "A file or folder with this name exists already."},
 	{Err: fs.ErrPermission, Code: codes.PermissionDenied, Text: "The agent isn't allowed to access this file."},
 	{Err: datadir.ErrLink, Code: codes.InvalidArgument, Text: "This path leads through a link of the server, which the file manager doesn't follow."},
+	{Err: secrets.ErrExposed, Code: codes.InvalidArgument, Text: "Keep each " + secrets.Placeholder + " secret as a setting of its own: here the file's format would read it as part of another, e.g. after a line that ends with a backslash or in a text of several lines, or can't read the file."},
 }
 
 func toStatus(err error) error {

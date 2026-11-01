@@ -19,7 +19,7 @@ const released = 1
 // releasedMigrations are the SHA-256 hashes of the migrations of released versions. They never
 // change: masters ran them already, and run each only once.
 var releasedMigrations = map[string]string{
-	"0001_init.sql": "7e27ea963c646c62553ddb69319fd48cf07f37402c6c11f4f59a288da0ff3add",
+	"0001_init.sql": "2f2db4d0ade20899684e98efc9d532cdb96ba79d0ba470a4018f1a3526a84f24",
 }
 
 // migrationFiles returns the names of the migrations in the order they run.

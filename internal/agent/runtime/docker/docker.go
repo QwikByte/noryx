@@ -99,7 +99,6 @@ var images = map[noryxv1.ServerType]image{
 	noryxv1.ServerType_SERVER_TYPE_NEOFORGE:   {serverImage, "NEOFORGE", 25565, "/data"},
 	noryxv1.ServerType_SERVER_TYPE_VELOCITY:   {proxyImage, "VELOCITY", 25565, "/server"},
 	noryxv1.ServerType_SERVER_TYPE_BUNGEECORD: {proxyImage, "BUNGEECORD", 25577, "/server"},
-	noryxv1.ServerType_SERVER_TYPE_WATERFALL:  {proxyImage, "WATERFALL", 25577, "/server"},
 	noryxv1.ServerType_SERVER_TYPE_BEDROCK:    {bedrockImage, "", noryxv1.BedrockContainerPort, "/data"},
 }
 

@@ -18,13 +18,13 @@ const images: Record<string, string> = {
 /** The type of an image the panel can preview, by the extension of its path, or undefined. */
 export const imageType = (path: string) => images[path.split(".").pop()?.toLowerCase() ?? ""]
 
-export function toBase64(bytes: Uint8Array) {
+function toBase64(bytes: Uint8Array) {
   let binary = ""
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(binary)
 }
 
-export const fromBase64 = (data: string) => Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
+const fromBase64 = (data: string) => Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
 
 /** The size of a file of a set in bytes. */
 export const sizeOf = (file: SetFile) => (file.data !== undefined ? fromBase64(file.data).length : new TextEncoder().encode(file.content).length)

@@ -10,7 +10,7 @@ export const ranges = {
   "30d": { label: msg("Last 30 days"), ms: 30 * 86_400_000 },
 } as const
 
-export type Range = keyof typeof ranges
+type Range = keyof typeof ranges
 
 /** The filter of the log page in its address, so that it can be shared and bookmarked. */
 export interface LogSearch extends Omit<LogFilter, "since" | "until"> {

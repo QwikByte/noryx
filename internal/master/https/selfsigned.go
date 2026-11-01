@@ -7,12 +7,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"log/slog"
 	"math/big"
 	"net"
 	"os"
 	"slices"
 	"time"
 
+	"github.com/QwikByte/noryx/internal/logging"
 	"github.com/QwikByte/noryx/internal/pki"
 )
 
@@ -68,7 +70,10 @@ func localNames() []string {
 	if host, err := os.Hostname(); err == nil {
 		names = append(names, host)
 	}
-	addrs, _ := net.InterfaceAddrs()
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		slog.Warn("The self-signed certificate leaves out the IP addresses of this machine", logging.Settings, "err", err)
+	}
 	for _, a := range addrs {
 		if n, ok := a.(*net.IPNet); ok && !n.IP.IsLinkLocalUnicast() {
 			names = append(names, n.IP.String())

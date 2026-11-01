@@ -142,7 +142,7 @@ the files with secrets; moving a server takes everything along.
 
 ## Plugins and mods
 
-Plugins (Paper, Purpur, Folia, Leaf, Velocity, BungeeCord, Waterfall) and mods (Fabric, Quilt, Forge, NeoForge) are
+Plugins (Paper, Purpur, Folia, Leaf, Velocity, BungeeCord) and mods (Fabric, Quilt, Forge, NeoForge) are
 installed from [Modrinth](https://modrinth.com), either on any number of servers at once from the **Plugins** page or
 from the **Plugins**/**Mods** tab of a server. The **Plugins** page switches between plugins and mods, so a project made
 for both only shows the software and servers of the chosen kind. The search filters by software, Minecraft version,
@@ -202,7 +202,7 @@ Snapshot, as alphas. Betas and alphas are downloaded and checked against their h
 
 ### Hangar
 
-Plugins of Paper and its forks except Folia, Velocity, BungeeCord and Waterfall can come from
+Plugins of Paper and its forks except Folia, Velocity and BungeeCord (Waterfall on Hangar) can come from
 [Hangar](https://hangar.papermc.io), PaperMC's plugin repository, too: the search switches between Modrinth and Hangar.
 They are installed, updated, chosen in another version and kept in templates like those of Modrinth, with the plugins
 they require from Hangar. Installed files are recognised by their hash on both; a file that is on both counts as

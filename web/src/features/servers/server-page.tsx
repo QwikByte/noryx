@@ -37,7 +37,6 @@ import { ServerNotes } from "./notes"
 import { ServerActions } from "./server-actions"
 import { CrashNotice, RefusedOptionsNotice, ServerStateBadge } from "./server-state"
 import { displayVersion, memoryTitle, serverLook, serverType } from "./server-types"
-import { EndOfLifeNotice } from "./software"
 import { TagList } from "./tags"
 
 const route = getRouteApi("/_app/nodes/$nodeId/servers/$serverId")
@@ -161,7 +160,6 @@ export function ServerPage() {
           />
           <CrashNotice server={server} nodeId={nodeId} canReadFiles={can("files.read", nodeId, serverId)} />
           <RefusedOptionsNotice server={server} nodeId={nodeId} canEdit={can("servers.settings", nodeId, serverId)} />
-          <EndOfLifeNotice type={server.type} className="mb-6" />
           <ServerNotes nodeId={nodeId} server={server} canEdit={can("servers.settings", nodeId, serverId)} />
           <Tabs label={t("Server")}>
             {tabs

@@ -65,4 +65,8 @@ func TestServerNames(t *testing.T) {
 	if got, known := names.Server(ctx, "n1", "s2"), len(names.servers["n1"].names); got != "game" || known != 2 {
 		t.Errorf("s2 = %q, %d names known", got, known)
 	}
+	// Requests may name nodes that don't exist, which aren't kept.
+	if got := names.Server(ctx, "made-up", "s1"); got != "" || len(names.servers) != 1 {
+		t.Errorf("a server of an unknown node = %q, %d nodes known", got, len(names.servers))
+	}
 }

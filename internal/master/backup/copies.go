@@ -100,7 +100,9 @@ type Copy struct {
 	// servers itself.
 	NodeID   string `json:"nodeId"`
 	NodeName string `json:"nodeName"`
-	Proxy    bool   `json:"proxy"`
+	// Proxy and Bedrock tell the kind of server, which only a server of the same kind restores.
+	Proxy   bool `json:"proxy"`
+	Bedrock bool `json:"bedrock"`
 	// The backup.
 	BackupID  string    `json:"backupId"`
 	Label     string    `json:"label"`
@@ -129,7 +131,7 @@ type filter struct {
 func (c *Copies) list(ctx context.Context, f filter) ([]Copy, error) {
 	rows, err := c.db.QueryContext(ctx, `
 		SELECT c.id, coalesce(c.task_id, ''), c.server_id, c.server_name, c.node_id,
-			coalesce((SELECT name FROM nodes WHERE id = c.node_id), c.node_name), c.proxy, c.backup_id, c.label,
+			coalesce((SELECT name FROM nodes WHERE id = c.node_id), c.node_name), c.proxy, c.bedrock, c.backup_id, c.label,
 			c.created_at, c.size, c.paths, c.exclude, c.kept, c.copied_at, coalesce(c.storage_id, ''), coalesce(c.copy_node, ''),
 			c.location, coalesce(s.name, n.name, '')
 		FROM backup_copies c
@@ -146,7 +148,7 @@ func (c *Copies) list(ctx context.Context, f filter) ([]Copy, error) {
 		var cp Copy
 		var created, copied int64
 		var paths, exclude string
-		if err := rows.Scan(&cp.ID, &cp.JobID, &cp.ServerID, &cp.ServerName, &cp.NodeID, &cp.NodeName, &cp.Proxy, &cp.BackupID, &cp.Label,
+		if err := rows.Scan(&cp.ID, &cp.JobID, &cp.ServerID, &cp.ServerName, &cp.NodeID, &cp.NodeName, &cp.Proxy, &cp.Bedrock, &cp.BackupID, &cp.Label,
 			&created, &cp.Size, &paths, &exclude, &cp.Kept, &copied, &cp.StorageID, &cp.CopyNodeID, &cp.Location, &cp.Where); err != nil {
 			return nil, err
 		}
@@ -186,10 +188,10 @@ func (c *Copies) add(ctx context.Context, cp *Copy) error {
 		return err
 	}
 	res, err := c.db.ExecContext(ctx, `
-		INSERT INTO backup_copies (task_id, storage_id, copy_node, location, server_id, server_name, proxy, node_id, node_name, backup_id,
-			label, created_at, size, paths, exclude, kept, copied_at)
-		VALUES (?, nullif(?, ''), nullif(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		cp.JobID, cp.StorageID, cp.CopyNodeID, cp.Location, cp.ServerID, cp.ServerName, cp.Proxy, cp.NodeID, cp.NodeName, cp.BackupID,
+		INSERT INTO backup_copies (task_id, storage_id, copy_node, location, server_id, server_name, proxy, bedrock, node_id, node_name,
+			backup_id, label, created_at, size, paths, exclude, kept, copied_at)
+		VALUES (?, nullif(?, ''), nullif(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		cp.JobID, cp.StorageID, cp.CopyNodeID, cp.Location, cp.ServerID, cp.ServerName, cp.Proxy, cp.Bedrock, cp.NodeID, cp.NodeName, cp.BackupID,
 		cp.Label, cp.CreatedAt.Unix(), cp.Size, paths, exclude, cp.Kept, cp.CopiedAt.Unix())
 	if err == nil {
 		cp.ID, err = res.LastInsertId()
@@ -343,6 +345,7 @@ func keeps(copies []Copy, r *noryxv1.BackupRetention) []bool {
 func (c *Copies) copy(ctx context.Context, p place, t schedule.Task, srv schedule.Server, b *noryxv1.Backup) (Copy, error) {
 	cp := Copy{
 		JobID: t.ID, ServerID: srv.GetId(), ServerName: srv.GetName(), NodeID: srv.NodeID, NodeName: srv.NodeName, Proxy: srv.GetType().Proxy(),
+		Bedrock:  srv.GetType().Bedrock(),
 		BackupID: b.GetId(), Label: b.GetLabel(), CreatedAt: time.Unix(b.GetCreatedUnix(), 0),
 		Paths: append([]string{}, b.GetPaths()...), Exclude: append([]string{}, b.GetExclude()...),
 		Kept: b.GetKept(), StorageID: p.Storage, CopyNodeID: p.Node, Location: p.Location, Where: p.name,
@@ -657,8 +660,11 @@ func (h *Handler) checkCopyRestore(ctx context.Context, r *http.Request, nodeID,
 	if err != nil {
 		return cp, nil, err
 	}
-	if cp.Proxy != target.GetType().Proxy() {
+	switch to := target.GetType(); {
+	case cp.Proxy != to.Proxy():
 		return cp, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of proxies into proxies, and those of game servers into game servers.")
+	case cp.Bedrock != to.Bedrock():
+		return cp, nil, httpapi.Errorf(http.StatusConflict, "Restore backups of Bedrock servers into Bedrock servers, and those of Java servers into Java servers.")
 	}
 	return cp, target, nil
 }

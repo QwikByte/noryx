@@ -42,7 +42,7 @@ export interface OverlayPeer {
 }
 
 /** A member that reaches a published port. */
-export interface OverlayClient {
+interface OverlayClient {
   /** The member at the address, if one has it. */
   nodeId?: string
   address: string

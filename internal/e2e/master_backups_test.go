@@ -70,6 +70,14 @@ func TestMasterBackups(t *testing.T) {
 	}})
 	other.do("GET", "/api/master-backups", nil, http.StatusForbidden, nil)
 	other.do("POST", "/api/master-backups", job(map[string]string{"storage": st.ID}, passphrase), http.StatusForbidden, nil)
+	// Neither can API tokens, not even an administrator's with all permissions, nor change the storage of its archives.
+	var token struct {
+		Secret string `json:"secret"`
+	}
+	api.do("POST", "/api/auth/tokens", map[string]any{"name": "everything", "expiresAt": time.Now().Add(time.Hour), "password": "the-admins-password"}, http.StatusOK, &token)
+	script := withToken(t, srv, token.Secret)
+	script.do("GET", "/api/master-backups", nil, http.StatusForbidden, nil)
+	script.do("POST", "/api/master-backups", job(map[string]string{"storage": st.ID}, passphrase), http.StatusForbidden, nil)
 
 	api.do("POST", "/api/master-backups", job(map[string]string{"storage": st.ID}, "too short"), http.StatusBadRequest, nil)
 	api.do("POST", "/api/master-backups", job(map[string]string{}, passphrase), http.StatusBadRequest, nil)
@@ -85,6 +93,13 @@ func TestMasterBackups(t *testing.T) {
 	}
 	api.do("POST", "/api/master-backups", job(map[string]string{"storage": st.ID}, nil), http.StatusConflict, nil)
 	path := "/api/master-backups/" + task.ID
+	// Its storage can't be pointed elsewhere by others than administrators in the panel.
+	moved := map[string]any{
+		"name": "Offsite", "endpoint": m.s3.Endpoint, "region": "us-east-1", "bucket": m.s3.Bucket, "prefix": "elsewhere", "accessKey": "key",
+		"secretKey": "", "pathStyle": true, "encrypt": true,
+	}
+	other.do("PUT", "/api/backup-storages/"+st.ID, moved, http.StatusForbidden, nil)
+	script.do("PUT", "/api/backup-storages/"+st.ID, moved, http.StatusForbidden, nil)
 	if body := api.do("GET", "/api/master-backups", nil, http.StatusOK, nil); strings.Contains(body, passphrase) {
 		t.Fatalf("jobs = %s", body)
 	}

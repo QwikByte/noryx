@@ -302,7 +302,7 @@ func TestCreate(t *testing.T) {
 		{"a taken name", Draft{Name: "MAIN", Proxy: proxy2, Servers: []Ref{hub}}, http.StatusConflict, `A network named "MAIN" already exists.`},
 		{"a taken proxy", Draft{Name: "Other", Proxy: proxy, Servers: []Ref{hub}}, http.StatusConflict, "This proxy already serves a network."},
 		{"a taken server", Draft{Name: "Other", Proxy: proxy2, Servers: []Ref{hub, lobby}}, http.StatusConflict, "A server already belongs to another network."},
-		{"a game server as proxy", Draft{Name: "Other", Proxy: hub, Servers: []Ref{proxy2}}, http.StatusBadRequest, "Choose a Velocity, BungeeCord or Waterfall proxy."},
+		{"a game server as proxy", Draft{Name: "Other", Proxy: hub, Servers: []Ref{proxy2}}, http.StatusBadRequest, "Choose a Velocity or BungeeCord proxy."},
 		{"a proxy as server", Draft{Name: "Other", Proxy: proxy2, Servers: []Ref{proxy}}, http.StatusBadRequest, "Only Paper and its forks"},
 		{"a Bedrock server", Draft{Name: "Other", Proxy: proxy2, Servers: []Ref{bedrock}}, http.StatusBadRequest, "Bedrock servers can't be part of a network."},
 		{"Fabric with legacy forwarding", Draft{Name: "Other", Proxy: proxy2, Forwarding: Legacy, Servers: []Ref{survival}}, http.StatusBadRequest,

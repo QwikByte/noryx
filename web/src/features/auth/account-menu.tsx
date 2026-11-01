@@ -2,6 +2,7 @@ import { PaletteIcon, SignOutIcon, TranslateIcon, UserCircleIcon } from "@phosph
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { t } from "i18next"
+import { toast } from "sonner"
 import { LanguageChoices } from "@/components/language-menu"
 import { ThemeChoices } from "@/components/theme-toggle"
 import {
@@ -86,7 +87,7 @@ export function AccountMenu({ folded, className }: { folded?: boolean; className
             {t("Language")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-44">
-            <LanguageChoices value={user?.language ?? chosenLanguage()} onChoose={(language) => setLanguage.mutate(language)} />
+            <LanguageChoices value={user?.language ?? chosenLanguage()} onChoose={(language) => setLanguage.mutate(language, { onError: (error) => toast.error(error.message) })} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />

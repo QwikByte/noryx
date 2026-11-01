@@ -469,7 +469,7 @@ func API(s Services) *http.ServeMux {
 	schedule.NewHandler(s.Tasks, backup.TaskKind, access.Everywhere(access.BackupJobsView), access.Everywhere(access.BackupJobsManage)).
 		Register(m, "/api/backup-jobs")
 	// Its archives hold the CA's private key, with which anyone controls the agents.
-	schedule.NewHandler(s.Tasks, backup.MasterTaskKind, access.AdminsOnly, access.AdminsOnly).Register(m, "/api/master-backups")
+	schedule.NewHandler(s.Tasks, backup.MasterTaskKind, access.AdminsSignedIn, access.AdminsSignedIn).Register(m, "/api/master-backups")
 	schedule.NewHandler(s.Tasks, policy.TaskKind, access.Everywhere(access.PoliciesView), access.Everywhere(access.PoliciesManage)).
 		Register(m, "/api/policies")
 	workflow.NewHandler(s.Workflows).Register(m)

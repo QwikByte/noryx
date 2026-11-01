@@ -5,7 +5,7 @@ import { api } from "@/lib/api"
 import type { Permission } from "./permissions"
 
 /** Where a permission applies: everywhere, or on whole nodes and single servers. */
-export interface Scope {
+interface Scope {
   all: boolean
   nodes: string[]
   servers: Target[]
@@ -23,7 +23,7 @@ export const accessQuery = queryOptions({
   staleTime: 30_000,
 })
 
-export interface PermissionInfo {
+interface PermissionInfo {
   id: Permission
   label: string
   description: string

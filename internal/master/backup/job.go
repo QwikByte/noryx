@@ -113,11 +113,12 @@ func (j Jobs) Check(raw json.RawMessage) (json.RawMessage, error) {
 }
 
 // Needs tells that a job that copies its backups needs the permission to see and download
-// the backups of all servers, as the copies take them away from their nodes.
+// the backups of all servers besides that to manage backup jobs, as the copies take them away
+// from their nodes, like the storages for them do.
 func (Jobs) Needs(raw json.RawMessage) []access.Permission {
 	var s JobSettings
 	if json.Unmarshal(raw, &s) == nil && s.Copy != nil {
-		return []access.Permission{access.BackupsView}
+		return []access.Permission{access.BackupJobsManage, access.BackupsView}
 	}
 	return nil
 }

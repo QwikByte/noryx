@@ -31,7 +31,7 @@ export interface ServerUsage {
 }
 
 /** What a datastore uses; stopped ones only have the size of their data. */
-export interface DatastoreUsage {
+interface DatastoreUsage {
   id: string
   running: boolean
   cpuMillis: number

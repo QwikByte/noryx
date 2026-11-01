@@ -216,7 +216,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		Settings
 	}
 	old, err := h.svc.Get(r.Context(), r.PathValue("id"))
-	req.Agent = old.Agent // unless the request changes them; clients that don't know them leave them out
+	req.Name, req.Address, req.Settings = old.Name, old.Address, old.Settings // what the request leaves out stays as it is
 	if err == nil {
 		err = httpapi.ReadJSON(w, r, &req)
 	}

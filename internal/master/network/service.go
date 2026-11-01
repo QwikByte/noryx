@@ -1,5 +1,5 @@
-// Package network groups servers into networks behind a proxy: Velocity, BungeeCord or
-// Waterfall. The master stores the networks and configures their servers through the node
+// Package network groups servers into networks behind a proxy: Velocity or BungeeCord.
+// The master stores the networks and configures their servers through the node
 // agents, in the configuration files and the way the proxies and game servers document it.
 package network
 
@@ -54,7 +54,7 @@ const (
 
 var (
 	errNotFound   = httpapi.Errorf(http.StatusNotFound, "Network not found.")
-	errProxyType  = httpapi.Errorf(http.StatusBadRequest, "Choose a Velocity, BungeeCord or Waterfall proxy.")
+	errProxyType  = httpapi.Errorf(http.StatusBadRequest, "Choose a Velocity or BungeeCord proxy.")
 	errExposed    = httpapi.Errorf(http.StatusConflict, "With legacy forwarding, anyone who reaches a server can join it as any player. Confirm that a firewall lets only the proxy's node reach the servers on other nodes.")
 	errFabricMode = httpapi.Errorf(http.StatusBadRequest, "Fabric and Quilt servers only support Velocity's modern forwarding.")
 
@@ -594,7 +594,7 @@ func (n *Network) validate(m members) error {
 	case n.Forwarding != Modern && n.Forwarding != Legacy:
 		return httpapi.Errorf(http.StatusBadRequest, "Choose modern or legacy forwarding.")
 	case bungee && n.Forwarding != Legacy:
-		return httpapi.Errorf(http.StatusBadRequest, "BungeeCord and Waterfall only forward the legacy way.")
+		return httpapi.Errorf(http.StatusBadRequest, "BungeeCord only forwards the legacy way.")
 	case len(n.Backends) == 0:
 		return httpapi.Errorf(http.StatusBadRequest, "A network needs at least one server. Delete the network instead.")
 	case len(n.Backends) > maxBackends || len(n.ForcedHosts) > maxForcedHosts:

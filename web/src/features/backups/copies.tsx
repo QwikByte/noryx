@@ -17,18 +17,18 @@ import { useAccess } from "@/features/access/use-access"
 import type { ServerFiles } from "@/features/files/api"
 import { useOperation } from "@/features/operations/use-operation"
 import { allServersQuery, type NodeServer, serverKey } from "@/features/servers/api"
-import { serverType } from "@/features/servers/server-types"
+import { isBedrock, serverType } from "@/features/servers/server-types"
 import { formatBytes, formatDateTime } from "@/lib/format"
 import { type Copy, copiesQuery, describeContent, useCopies } from "./api"
 
 /** A server that copies can be restored into. */
 type Target = Pick<NodeServer, "nodeId" | "id" | "name" | "state"> & { nodeName?: string }
 
-/** The servers that the user may restore backups of a kind, proxies or game servers, into. */
-function useTargets(proxy: boolean): NodeServer[] {
+/** The servers that the user may restore backups of a kind into: proxies, Java or Bedrock servers. */
+function useTargets({ proxy, bedrock }: Pick<Copy, "proxy" | "bedrock">): NodeServer[] {
   const { can } = useAccess()
   const { data: servers = [] } = useQuery(allServersQuery)
-  return servers.filter((s) => serverType(s.type).proxy === proxy && can("backups.restore", s.nodeId, s.id))
+  return servers.filter((s) => serverType(s.type).proxy === proxy && isBedrock(s.type) === bedrock && can("backups.restore", s.nodeId, s.id))
 }
 
 /** The copies of the backups of a server, after its backups, which restore into it or another server of its kind. */
@@ -80,7 +80,7 @@ export function GoneCopies() {
 
 /** Copies of one server, with the routes of the server they are of if it is there, otherwise those of all copies. */
 function CopyList({ copies, routes, own }: { copies: Copy[]; routes?: ServerFiles; own?: Target }) {
-  const others = useTargets(copies[0].proxy).filter((s) => !own || serverKey(s) !== serverKey(own))
+  const others = useTargets(copies[0]).filter((s) => !own || serverKey(s) !== serverKey(own))
   return (
     <ul className="surface divide-y rounded-xl">
       {copies.map((c) => (

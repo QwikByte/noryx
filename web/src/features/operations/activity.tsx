@@ -44,7 +44,9 @@ export function Activity() {
   const { data: moves = [] } = useQuery(movesQuery)
   const { data: servers } = useQuery({ ...allServersQuery, enabled: open })
   const live = useLiveOperations()
-  const byId = new Map([...listed, ...live].map((op) => [op.id, op]))
+  // Those that this browser follows are newer while they run; once they ended, they stay as long as the master lists them.
+  const listedIds = new Set(listed.map((op) => op.id))
+  const byId = new Map([...listed, ...live.filter((op) => !op.finishedAt || listedIds.has(op.id))].map((op) => [op.id, op]))
   const ops = [...byId.values(), ...moves.map(fromMove)].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
   const running = ops.filter((op) => !op.finishedAt)
   // Renders again now and then, so that the times stay current while the list is open.

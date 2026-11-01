@@ -357,6 +357,8 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return err
 }
 
+// hashToken is the stored hash of a random token, e.g. of a session or an API token. Unlike
+// passwords, tokens are too random to guess, so a fast hash is enough.
 func hashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]

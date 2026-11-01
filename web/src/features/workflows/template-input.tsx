@@ -62,7 +62,7 @@ export function TemplateInput({
 }
 
 /** A button that lists the data a step can name, to insert one. */
-export function DataPicker({ open, onOpenChange, onPick }: { open: boolean; onOpenChange: (open: boolean) => void; onPick: (path: string) => void }) {
+function DataPicker({ open, onOpenChange, onPick }: { open: boolean; onOpenChange: (open: boolean) => void; onPick: (path: string) => void }) {
   const data = useContext(DataContext)
   return (
     <Popover open={open} onOpenChange={onOpenChange}>

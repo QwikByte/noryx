@@ -139,7 +139,7 @@ func TestTokens(t *testing.T) {
 	if _, _, err := svc.CreateToken(ctx, bob.ID, password, "", TokenInput{Name: "script"}); !errors.Is(err, errCodeNeeded) {
 		t.Fatalf("without a code: %v", err)
 	}
-	if _, _, err := svc.CreateToken(ctx, bob.ID, password, totp(key, step), TokenInput{Name: "script"}); !errors.Is(err, errWrongCode) {
+	if _, _, err := svc.CreateToken(ctx, bob.ID, password, totp(key, step), TokenInput{Name: "script"}); !errors.Is(err, errWrongConfirmation) {
 		t.Fatalf("with a used code: %v", err)
 	}
 	_, bobs, err := svc.CreateToken(ctx, bob.ID, password, totp(key, step+1), TokenInput{Name: "script"})

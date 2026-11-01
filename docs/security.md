@@ -127,9 +127,9 @@ and the files with secrets of Geyser and Floodgate, the forwarding settings, inc
 its configuration, and a game server's online mode. The agent puts them into the extracted backup before it replaces
 anything, so an old backup brings back neither the secret of a network the server left nor the trust in its proxy, nor
 a former secret of its network; the master then configures the server's network again. A removed node may be
-compromised, and its proxy's data holds the secret, so a node with servers of networks is
-only removed once they left their networks: game servers of other nodes no longer trust its proxy, and proxies no
-longer send players to its servers. The node itself isn't contacted, and if a server of another node can't be
+compromised, and the data of its servers holds the secret, so a node with servers of networks is
+only removed once they left their networks: game servers of other nodes no longer trust its proxy, proxies no longer
+send players to its servers, and a network that goes on gets a new forwarding secret. The node itself isn't contacted, and if a server of another node can't be
 configured, the node stays. Only deleting a network whose proxy's node doesn't answer skips the proxy and the servers
 on that node, which then only trust each other, and says so. The forwarding mods come from Modrinth like other mods,
 checked against their SHA-512 hashes. Proxies read console commands from their standard input, which only the agent
@@ -201,7 +201,9 @@ either, as they can hold secrets, e.g. a backup that is being restored or a file
 Downloads are sent as attachments with a sandboxing CSP, so an uploaded HTML file can't run scripts in the panel.
 Secrets of the server stay on the node: files that only hold them can't be listed, read, written or moved, others show
 them as `<hidden>`, no file or folder with secrets can be moved or copied where they would show, and archives leave
-them out. Only moving a server to another node copies them. Copies never follow links, and one that a
+them out. Saving such a file puts its secrets back only where the file's format reads each as the whole value of its
+setting, not as part of another, e.g. after a line of `server.properties` that ends with a backslash or in a text of
+several lines in YAML, which the properties editor or the players would see; a restored backup gets no secrets then. Only moving a server to another node copies them. Copies never follow links, and one that a
 file set filled with secrets while it was copied is removed again. Moving, copying or deleting several files and folders
 at once checks each of them like a single one. The viewer of logs shows them as text and unpacks archived logs in the
 browser only up to 16 MB, so that a small archive can't exhaust the browser's memory. A search shows files as the
@@ -252,16 +254,17 @@ an offset leaves the file as it was.
 
 The master identifies with an Ed25519 host key, which it creates in its data directory (`sftp/host_key`, mode `0600`)
 the first time SFTP is on; a key it can't load keeps SFTP off. The settings, the file manager and the master's entry of
-its start in the log show its fingerprint, which clients ask to compare when they first connect. `noryx-master backup`
-doesn't hold it, so a master restored elsewhere creates a new one, which clients warn about.
+its start in the log show its fingerprint, which clients ask to compare when they first connect. Archives of the master
+hold it, like its other keys, so a master restored elsewhere keeps the fingerprint.
 
 ## Plugins and downloads
 
 The master downloads only from Modrinth's CDN, up to 256 MB, and only uses a file whose SHA-512 hash matches the one
 Modrinth's API lists; from Hangar, only from its CDN and with the SHA-256 hash its API lists, and versions that only
 link elsewhere can't be installed. Floodgate only comes from GeyserMC's download server, with the SHA-256 hash its API
-lists. A call of these APIs gets 2 minutes, a download 2 minutes and a second for each 256 KiB of the size the API
-announces, so that a stalled download ends too. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
+lists. Redirects of these services, and of Mojang's, are only followed to the same host, so that none can send the
+master elsewhere, e.g. into its own network. A call of these APIs gets 2 minutes, a download 2 minutes and a second for
+each 256 KiB of the size the API announces, so that a stalled download ends too. Betas and alphas, which a server gets as a chosen version, in a channel chosen for a project (release, beta or
 alpha, which the master checks) or where a project has nothing else for it, are checked like releases.
 A modpack is checked the same way, and each of its files against the SHA-512 hash in the pack; packs with files
 elsewhere than on Modrinth's CDN or with paths that leave the server's folder are refused before a server is created or
@@ -475,7 +478,8 @@ secrets of networks and the secrets of two-factor authentication, the private ke
 host key of SFTP, if it has one.
 Whoever has the CA's key can issue certificates that the agents trust, and so control every node and its servers;
 anyone who gets an archive gets that. So only administrators can see, change and run the backup job of the master, as
-no permission that groups can get covers it, and API tokens can't; each run checks that the administrator who saved it
+no permission that groups can get covers it, and API tokens can't, and only they can change the storage it keeps its
+archives in; each run checks that the administrator who saved it
 last still is one, so that the archives no longer go where a former administrator chose.
 
 The job encrypts its archives with [age](https://age-encryption.org) and a passphrase (scrypt, ChaCha20-Poly1305), so
@@ -624,8 +628,9 @@ workflow act on more than before.
 HTTP requests of workflows go through the same connections as [notifications](#notifications): HTTPS to public addresses
 only, checked right before each connection, without redirects or proxies, with a timeout, and answers up to 64 KB. The
 values of secret headers are stored like the URLs of webhooks: the API never returns them, runs never record them and
-they aren't templates. A secret header keeps its value only while its step sends it to the same URL, so that nobody can
-send it elsewhere without knowing it.
+they aren't templates. A step only sends secret headers to a URL that names its host itself rather than with a template,
+which whoever runs the workflow could fill in, and a secret header keeps its value only while its step sends it to the
+same URL, so that nobody can send it elsewhere without knowing it.
 
 The URL of a webhook holds a random token of 260 bits, of which the master keeps only the SHA-256, so that its database
 and backups don't hold it; the panel shows the token once. Calls need no session, only the token, so the protection of
