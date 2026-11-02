@@ -5,11 +5,14 @@ package network
 
 import (
 	"cmp"
+	_ "embed"
 	"errors"
 	"io/fs"
 	"net"
 	"slices"
 	"strconv"
+
+	"github.com/pelletier/go-toml/v2"
 
 	noryxv1 "github.com/QwikByte/noryx/api/noryx/v1"
 	"github.com/QwikByte/noryx/internal/agent/datadir"
@@ -131,15 +134,16 @@ func WriteProxy(dir *datadir.Dir, typ noryxv1.ServerType, n runtime.Network) (ch
 
 // ProxyBind makes a proxy listen on all addresses at port, as the container publishes
 // that port. A proxy without configuration yet gets one, except BungeeCord, whose image
-// downloads a configuration that listens there already. It reports whether it changed.
+// downloads a configuration that listens there already, and Velocity's configuration gets
+// the settings it lacks. It reports whether it changed.
 func ProxyBind(dir *datadir.Dir, typ noryxv1.ServerType, port int) (bool, error) {
 	p, ok := ProxyOf(typ)
 	if !ok {
 		return false, nil
 	}
 	return edit(dir, p.File, !typ.Bungee(), func(settings map[string]any) error {
-		if len(settings) == 0 && p.File == velocity.File {
-			settings["config-version"] = velocityConfigVersion
+		if p.File == velocity.File {
+			completeVelocity(settings)
 		}
 		p.bind(settings, net.JoinHostPort("0.0.0.0", strconv.Itoa(port)))
 		return nil
@@ -151,11 +155,9 @@ var forwardingModes = map[runtime.Forwarding]string{
 }
 
 // renderVelocity writes the servers, the list players try, the forced hosts and the
-// forwarding into velocity.toml.
+// forwarding into velocity.toml, and completes it.
 func renderVelocity(s map[string]any, n runtime.Network) {
-	if len(s) == 0 {
-		s["config-version"] = velocityConfigVersion
-	}
+	completeVelocity(s)
 	servers := map[string]any{"try": append([]string{}, n.Try...)}
 	for _, b := range n.Backends {
 		servers[b.Name] = b.Address
@@ -167,6 +169,43 @@ func renderVelocity(s map[string]any, n runtime.Network) {
 	s["servers"], s["forced-hosts"] = servers, hosts
 	s["player-info-forwarding-mode"] = forwardingModes[n.Forwarding]
 	s["forwarding-secret-file"] = ForwardingSecretFile
+}
+
+//go:embed velocity-defaults.toml
+var velocityDefaults []byte
+
+// completeVelocity adds the settings that velocity.toml lacks with Velocity's defaults:
+// Velocity writes them only into a configuration that doesn't exist yet, and the agent writes
+// one before the proxy starts for the first time. An empty configuration gets Velocity's
+// version; one of another version is left as it is, as Velocity migrates it when it starts.
+func completeVelocity(s map[string]any) {
+	if len(s) == 0 {
+		s["config-version"] = velocityConfigVersion
+	}
+	if s["config-version"] != velocityConfigVersion {
+		return
+	}
+	defaults := map[string]any{}
+	if err := toml.Unmarshal(velocityDefaults, &defaults); err != nil {
+		panic(err) // embedded, and read by the tests
+	}
+	addMissing(s, defaults)
+}
+
+// addMissing adds the settings of defaults that s lacks, also inside its tables, and keeps
+// those it has, even of another kind.
+func addMissing(s, defaults map[string]any) {
+	for key, value := range defaults {
+		current, exists := s[key]
+		table, isTable := current.(map[string]any)
+		more, hasMore := value.(map[string]any)
+		switch {
+		case !exists:
+			s[key] = value
+		case isTable && hasMore:
+			addMissing(table, more)
+		}
+	}
 }
 
 // renderBungee writes the servers, their priorities, the forced hosts and the forwarding
