@@ -93,7 +93,9 @@ other nodes along, so delete them first; datastores on the node are forgotten wi
 The proxy's tab of the network, and the **Configuration** tab of every proxy, edit the other settings of its file as a
 form: MOTD, the shown maximum of players, online mode, ping passthrough, compression, timeouts, rate limits, the HAProxy
 protocol, query, BungeeCord's permissions and more. Settings that aren't known appear under Advanced. Those the network
-decides, such as the servers, are locked. Saving reloads a running proxy.
+decides, such as the servers, are locked. Saving reloads a running proxy. Velocity only writes its defaults into a
+`velocity.toml` that doesn't exist yet, and the agent writes one before the first start, so before each start it adds
+Velocity's defaults for the settings the file lacks.
 
 ## Actions
 

@@ -211,6 +211,55 @@ func TestWriteProxyBungee(t *testing.T) {
 	}
 }
 
+func TestCompleteVelocity(t *testing.T) {
+	// What an earlier agent wrote before the proxy's first start, which Velocity never completed.
+	dir := dataDir(t, map[string]string{"velocity.toml": `
+config-version = "2.9"
+bind = "0.0.0.0:25565"
+player-info-forwarding-mode = "MODERN"
+ping-passthrough = "ALL"
+
+[advanced]
+compression-threshold = 512
+`})
+	if changed, err := ProxyBind(dir, noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25565); !changed || err != nil {
+		t.Fatalf("changed = %v, err = %v", changed, err)
+	}
+	got := read(t, dir, "velocity.toml")
+	want(t, got, map[string]any{
+		"player-info-forwarding-mode":    "MODERN",
+		"ping-passthrough":               "ALL", // kept, though of another kind
+		"advanced/compression-threshold": int64(512),
+		"advanced/connection-timeout":    int64(5000),
+		"query/port":                     int64(25565),
+		"show-max-players":               int64(500),
+	})
+	if _, ok := got["servers"]; ok {
+		t.Error("the example servers of Velocity were added")
+	}
+	data, _ := dir.ReadFile("velocity.toml")
+	if settings, _, err := velocity.Settings(data); err != nil || len(settings) == 0 {
+		t.Fatalf("settings = %v, err = %v", settings, err)
+	}
+
+	// A configuration of another version is left to Velocity, which migrates it.
+	dir = dataDir(t, map[string]string{"velocity.toml": "config-version = \"2.7\"\nmotd = \"Old\"\n"})
+	if _, err := ProxyBind(dir, noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25565); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dir, "velocity.toml"); got["show-max-players"] != nil {
+		t.Errorf("a configuration of another version got defaults: %v", got)
+	}
+}
+
+// The defaults hold only settings that the panel edits.
+func TestVelocityDefaults(t *testing.T) {
+	settings, locked, err := velocity.Settings(velocityDefaults)
+	if err != nil || len(settings) == 0 || len(locked) > 0 {
+		t.Fatalf("settings = %v, locked = %v, err = %v", settings, locked, err)
+	}
+}
+
 func TestProxyBind(t *testing.T) {
 	dir := dataDir(t, map[string]string{"velocity.toml": defaultVelocity})
 	if changed, err := ProxyBind(dir, noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25577); !changed || err != nil {
@@ -221,12 +270,20 @@ func TestProxyBind(t *testing.T) {
 		t.Fatal("the same bind changed the configuration")
 	}
 
-	// A new Velocity proxy gets a configuration; BungeeCord's image downloads one.
+	// A new Velocity proxy gets a configuration with Velocity's defaults, as Velocity only
+	// writes them into a file that doesn't exist; BungeeCord's image downloads one.
 	dir = dataDir(t, nil)
 	if _, err := ProxyBind(dir, noryxv1.ServerType_SERVER_TYPE_VELOCITY, 25565); err != nil {
 		t.Fatal(err)
 	}
-	want(t, read(t, dir, "velocity.toml"), map[string]any{"config-version": "2.9", "bind": "0.0.0.0:25565"})
+	want(t, read(t, dir, "velocity.toml"), map[string]any{
+		"config-version":           "2.9",
+		"bind":                     "0.0.0.0:25565",
+		"motd":                     "<#09add3>A Velocity Server",
+		"advanced/login-ratelimit": int64(3000),
+		"ping-passthrough/favicon": false,
+		"packet-limiter/interval":  int64(7),
+	})
 	if changed, err := ProxyBind(dir, noryxv1.ServerType_SERVER_TYPE_BUNGEECORD, 25577); changed || err != nil {
 		t.Fatalf("changed = %v, err = %v", changed, err)
 	}
