@@ -13,7 +13,7 @@ require (
 	filippo.io/age v1.3.2
 	github.com/containerd/errdefs v1.0.0
 	github.com/google/nftables v0.3.0
-	github.com/jsimonetti/rtnetlink/v2 v2.2.0
+	github.com/jsimonetti/rtnetlink/v2 v2.3.0
 	github.com/mdlayher/netlink v1.11.2
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.0
